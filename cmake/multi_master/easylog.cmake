@@ -1,9 +1,0 @@
-# @FILE sqdlog.cmake
-# @AUTHOR wei
-
-MACRO (MYSQL_CHECK_SQDLOG)
-    SET(SQDLOG_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/extra/multi_master/easylog/include)
-    INCLUDE_DIRECTORIES(BEFORE SYSTEM ${SQDLOG_INCLUDE_DIR})
-ENDMACRO()
-
-

@@ -13,3 +13,6 @@
 [submodule "storage/rocksdb/rocksdb"]
 	path = storage/rocksdb/rocksdb
 	url = https://github.com/PokemonWei/rocksdb.git
+[submodule "extra/multi-master-tool"]
+	path = extra/multi-master-tool
+	url = https://github.com/PokemonWei/multi-master-tool.git

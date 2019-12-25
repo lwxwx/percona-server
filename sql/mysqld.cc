@@ -712,6 +712,11 @@ The documentation is based on the source files such as:
 #include "typelib.h"
 #include "violite.h"
 
+#include"multi_macro.h"
+#ifdef MULTI_MASTER_WEI_NORMAL
+#include"easylogger.h"
+#endif // !1
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
@@ -3736,7 +3741,7 @@ const char *load_default_groups[] = {
 #ifdef WITH_NDBCLUSTER_STORAGE_ENGINE
     "mysql_cluster",
 #endif
-    "mysqld",        "server", MYSQL_BASE_VERSION, 0, 0};
+    "multi-master","mysqld",        "server", MYSQL_BASE_VERSION, 0, 0};
 
 #if defined(_WIN32)
 static const int load_default_groups_sz =
@@ -6296,7 +6301,7 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 #endif /* _WIN32 */
-
+std::cout << "STOP!" << std::endl;
   orig_argc = argc;
   orig_argv = argv;
   my_getopt_use_args_separator = true;
@@ -6306,7 +6311,7 @@ int mysqld_main(int argc, char **argv)
     flush_error_log_messages();
     return 1;
   }
-
+std::cout << "STOP!" << std::endl;
   /* Set data dir directory paths */
   strmake(mysql_real_data_home, get_relative_path(MYSQL_DATADIR),
           sizeof(mysql_real_data_home) - 1);

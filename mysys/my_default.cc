@@ -87,6 +87,11 @@
 
 #include "prealloced_array.h"
 
+#include"multi_macro.h"
+#ifdef MULTI_MASTER_WEI_NORMAL
+#include"easylogger.h"
+#endif // !1
+
 using std::string;
 
 struct my_variable_sources {
@@ -520,6 +525,14 @@ static int handle_default_option(void *in_ctx, const char *group_name,
   if (!option) return 0;
 
   if (find_type(group_name, ctx->group, FIND_TYPE_NO_PREFIX)) {
+// #ifdef MULTI_MASTER_WEI_COFIG_DEBUG
+//   EasyLoggerWithTrace("/home/weixiaoxian/percona_log/group_log.txt",EasyLogger::LOG_LEVEL::info).force_flush() <<"group count : "<< ctx->group->count ;
+//   for(int i = 0; i< ctx->group->count; i++)
+//   {
+//     EasyLoggerWithTrace("/home/weixiaoxian/percona_log/group_log.txt",EasyLogger::LOG_LEVEL::info).force_flush() <<" group_name: "<< "No." <<i << " = "<< ctx->group->type_names[i] << ";";
+//   }
+//   EasyLoggerWithTrace("/home/weixiaoxian/percona_log/option_log.txt",EasyLogger::LOG_LEVEL::debug ).force_flush()<< "group_name: "<<group_name<< "; cnf_file: " << cnf_file << "; option:"<< option;
+// #endif // !1
     if (!(tmp = (char *)ctx->alloc->Alloc(strlen(option) + 1))) return 1;
     if (ctx->m_args->push_back(tmp)) return 1;
     my_stpcpy(tmp, option);
