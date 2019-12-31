@@ -36,7 +36,7 @@
   should go into the corresponding storage engine sources
   (for example in storage/myisam/ha_myisam.cc) !
 */
-
+#include "multi_macro.h"
 #include "sql/sys_vars.h"
 
 #include "my_config.h"
@@ -1831,6 +1831,18 @@ static Sys_var_charptr Sys_datadir(
     READ_ONLY NON_PERSIST GLOBAL_VAR(mysql_real_data_home_ptr),
     CMD_LINE(REQUIRED_ARG, 'h'), IN_FS_CHARSET, DEFAULT(mysql_real_data_home));
 
+#ifdef MULTI_MASTER_WEI_SYSVAR
+static Sys_var_charptr Sys_mess_config(
+    "mess_config", "Path to the Message config",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(multi_master_mess_config_ptr),
+    CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(multi_master_mess_config_path));
+
+static Sys_var_charptr Sys_host_config(
+    "host_config", "Path to the Host config",
+    READ_ONLY NON_PERSIST GLOBAL_VAR(multi_master_host_config_ptr),
+    CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(multi_master_host_config_path));
+
+#endif
 #ifndef DBUG_OFF
 static Sys_var_dbug Sys_dbug("debug", "Debug log", sys_var::SESSION,
                              CMD_LINE(OPT_ARG, '#'), DEFAULT(""),

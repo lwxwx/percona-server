@@ -1289,6 +1289,12 @@ const char *my_share_dir[FN_REFLEN];
 char glob_hostname[HOSTNAME_LENGTH + 1];
 char mysql_real_data_home[FN_REFLEN], lc_messages_dir[FN_REFLEN],
     reg_ext[FN_EXTLEN], mysql_charsets_dir[FN_REFLEN], *opt_init_file;
+
+#ifdef MULTI_MASTER_WEI_SYSVAR
+char multi_master_mess_config_path[FN_REFLEN];
+char multi_master_host_config_path[FN_REFLEN];
+#endif
+
 const char *opt_tc_log_file;
 char *lc_messages_dir_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
@@ -1301,6 +1307,12 @@ char secure_file_real_path[FN_REFLEN];
 Time_zone *default_tz;
 char *mysql_data_home = const_cast<char *>(".");
 const char *mysql_real_data_home_ptr = mysql_real_data_home;
+
+#ifdef MULTI_MASTER_WEI_SYSVAR
+const char *  multi_master_mess_config_ptr = multi_master_mess_config_path;
+const char *  multi_master_host_config_ptr = multi_master_host_config_path;
+#endif
+
 char server_version[SERVER_VERSION_LENGTH];
 char server_version_suffix[SERVER_VERSION_LENGTH];
 const char *mysqld_unix_port;
@@ -6301,7 +6313,7 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 #endif /* _WIN32 */
-std::cout << "STOP!" << std::endl;
+
   orig_argc = argc;
   orig_argv = argv;
   my_getopt_use_args_separator = true;
@@ -6311,7 +6323,12 @@ std::cout << "STOP!" << std::endl;
     flush_error_log_messages();
     return 1;
   }
-std::cout << "STOP!" << std::endl;
+#ifdef MULTI_MASTER_WEI_COFIG_DEBUG
+  for(int i=0;i<argc;i++)
+  {
+	std::cout <<"After load defaults() ArgV:["<<i<<"] : "<< argv[i] << std::endl;
+  }
+#endif
   /* Set data dir directory paths */
   strmake(mysql_real_data_home, get_relative_path(MYSQL_DATADIR),
           sizeof(mysql_real_data_home) - 1);
@@ -6324,7 +6341,7 @@ std::cout << "STOP!" << std::endl;
   if (persisted_variables_cache.init(&argc, &argv) ||
       persisted_variables_cache.load_persist_file() ||
       persisted_variables_cache.append_read_only_variables(&argc, &argv))
-    return 1;
+	  return 1;
   my_getopt_use_args_separator = false;
   remaining_argc = argc;
   remaining_argv = argv;

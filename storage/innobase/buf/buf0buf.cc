@@ -86,6 +86,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifdef MULTI_MASTER_WEI_NORMAL
 #include"easylogger.h"
 #endif // !1
+#ifdef MULTI_MASTER_WEI_COFIG_DEBUG
+#include "mysqld.h"
+#endif
 
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
@@ -4234,9 +4237,11 @@ buf_block_t *buf_page_get_gen(const page_id_t &page_id,
   ut_ad(page_size.equals_to(space_page_size));
 #endif /* UNIV_DEBUG */
 
-// #ifdef  MULTI_MASTER_WEI_BUFFER_DEBUG
-//   EasyLoggerWithTrace("/home/weixiaoxian/async_log.txt",EasyLogger::error) << page_id.space() << "----" << page_id.page_no();
-// #endif // !1
+  #ifdef  MULTI_MASTER_WEI_COFIG_DEBUG
+    //std::cout << multi_master_mess_config_ptr << std::endl;
+    //std::cout << multi_master_host_config_ptr << std::endl;
+   //EasyLoggerWithTrace("/home/weixiaoxian/async_log.txt",EasyLogger::error) << page_id.space() << "----" << page_id.page_no();
+  #endif // !1
 
   if (mode == Page_fetch::NORMAL && !fsp_is_system_temporary(page_id.space())) {
     Buf_fetch_normal fetch(page_id, page_size, err);

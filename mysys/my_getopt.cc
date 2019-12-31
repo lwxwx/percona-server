@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <array>
 #include <bitset>
+#include <iostream>
 #include <type_traits>
 
 #include "m_ctype.h"
@@ -306,9 +307,10 @@ int my_handle_options(int *argc, char ***argv, const struct my_option *longopts,
       ++pos;
     }
   }
+std::cout <<"Option ArgC "  << *argc << std::endl;
   for (pos = *argv, pos_end = pos + *argc; pos != pos_end; pos++) {
-    char **first = pos;
-    char *cur_arg = *pos;
+std::cout << "Option ArgV " <<*pos << std::endl;
+	char **first = pos; char *cur_arg = *pos;
     opt_found = false;
     if (!is_cmdline_arg && (my_getopt_is_args_separator(cur_arg))) {
       is_cmdline_arg = 1;

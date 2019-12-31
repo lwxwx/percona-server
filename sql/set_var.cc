@@ -611,9 +611,9 @@ int mysql_add_sys_var_chain(sys_var *first) {
   /* A write lock should be held on LOCK_system_variables_hash */
 
   for (var = first; var; var = var->next) {
-    /* this fails if there is a conflicting variable name. */
+	  /* this fails if there is a conflicting variable name. */
     if (!system_variable_hash->emplace(to_string(var->name), var).second) {
-      LogErr(ERROR_LEVEL, ER_DUPLICATE_SYS_VAR, var->name.str);
+	    LogErr(ERROR_LEVEL, ER_DUPLICATE_SYS_VAR, var->name.str);
       goto error;
     }
   }

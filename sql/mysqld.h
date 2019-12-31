@@ -672,11 +672,20 @@ extern long tc_heuristic_recover;
 extern ulong specialflag;
 extern size_t mysql_data_home_len;
 extern const char *mysql_real_data_home_ptr;
+#ifdef MULTI_MASTER_WEI_SYSVAR
+extern const char *  multi_master_mess_config_ptr;
+extern const char *  multi_master_host_config_ptr;
+#endif
+
 extern MYSQL_PLUGIN_IMPORT char *mysql_data_home;
 extern "C" MYSQL_PLUGIN_IMPORT char server_version[SERVER_VERSION_LENGTH];
 extern "C" MYSQL_PLUGIN_IMPORT char
     server_version_suffix[SERVER_VERSION_LENGTH];
 extern MYSQL_PLUGIN_IMPORT char mysql_real_data_home[];
+#ifdef MULTI_MASTER_WEI_SYSVAR
+extern MYSQL_PLUGIN_IMPORT char multi_master_mess_config_path[];
+extern MYSQL_PLUGIN_IMPORT char multi_master_host_config_path[];
+#endif
 extern char mysql_unpacked_real_data_home[];
 extern MYSQL_PLUGIN_IMPORT struct System_variables global_system_variables;
 extern char default_logfile_name[FN_REFLEN];
