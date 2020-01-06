@@ -8,15 +8,9 @@ MultiMasterAPI * multi_master_api = new MultiMasterAPI;
  * **/
 MultiMasterAPI::MultiMasterAPI()
 {
-    is_plugin_load = false;
+    /*
+    clear all function ptr to set NULL
+    */
+
 }
 
-bool MultiMasterAPI::is_loaded()
-{
-    return is_plugin_load;
-}
-
-void MultiMasterAPI::register_API()
-{
-    is_plugin_load = true;
-}
