@@ -20,32 +20,27 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-IF(NOT GMOCK_FOUND OR DISABLE_SHARED)
-  RETURN()
-ENDIF()
-
 MY_CHECK_CXX_COMPILER_WARNING("-Wno-unused-local-typedefs" HAS_WARN_FLAG)
 IF(HAS_WARN_FLAG)
   STRING_APPEND(CMAKE_CXX_FLAGS " ${HAS_WARN_FLAG}")
 ENDIF()
 
-INCLUDE_DIRECTORIES(SYSTEM
-  ${GMOCK_INCLUDE_DIRS}
-)
-
 # Add tests
 SET(TESTS
-    group_replication_member_info
-    group_replication_compatibility_module
-    group_replication_member_version
-    group_replication_mysql_version_gcs_protocol_map
-   )
+  group_replication_member_info
+  group_replication_compatibility_module
+  group_replication_member_version
+  group_replication_mysql_version_gcs_protocol_map
+  )
 
 FOREACH(test ${TESTS})
-  MYSQL_ADD_EXECUTABLE(${test}-t ${test}-t.cc ADD_TEST ${test})
-  TARGET_LINK_LIBRARIES(${test}-t
-    gr_unit_test_resource gunit_small ${GCS_LIBRARY})
-  SET_TARGET_PROPERTIES(${test}-t PROPERTIES ENABLE_EXPORTS TRUE)
-  TARGET_LINK_LIBRARIES(${test}-t perconaserverclient)
+  MYSQL_ADD_EXECUTABLE(${test}-t ${test}-t.cc
+    ADD_TEST ${test}
+    ENABLE_EXPORTS
+    LINK_LIBRARIES
+    gr_unit_test_resource
+    gunit_small
+    perconaserverclient
+    mysqlgcs
+    )
 ENDFOREACH()
-

@@ -51,11 +51,7 @@
 #define MAX_KEY MAX_INDEXES  /* Max used keys */
 #define MAX_REF_PARTS 16U    /* Max parts used as ref */
 #define MAX_KEY_LENGTH 3072U /* max possible key */
-#if SIZEOF_OFF_T > 4
-#define MAX_REFLENGTH 8 /* Max length for record ref */
-#else
-#define MAX_REFLENGTH 4 /* Max length for record ref */
-#endif
+#define MAX_REFLENGTH 8      /* Max length for record ref */
 
 #define MAX_MBWIDTH 3 /* Max multibyte sequence */
 #define MAX_FIELD_CHARLENGTH 255
@@ -356,7 +352,8 @@ static const ulong EVENT_DEF_CACHE_MIN = 256;
 #define OPTIMIZER_SWITCH_DERIVED_MERGE (1ULL << 18)
 #define OPTIMIZER_SWITCH_USE_INVISIBLE_INDEXES (1ULL << 19)
 #define OPTIMIZER_SKIP_SCAN (1ULL << 20)
-#define OPTIMIZER_SWITCH_LAST (1ULL << 21)
+#define OPTIMIZER_SWITCH_HASH_JOIN (1ULL << 21)
+#define OPTIMIZER_SWITCH_LAST (1ULL << 22)
 
 #define OPTIMIZER_SWITCH_DEFAULT                                          \
   (OPTIMIZER_SWITCH_INDEX_MERGE | OPTIMIZER_SWITCH_INDEX_MERGE_UNION |    \
@@ -370,7 +367,7 @@ static const ulong EVENT_DEF_CACHE_MIN = 256;
    OPTIMIZER_SWITCH_DUPSWEEDOUT | OPTIMIZER_SWITCH_SUBQ_MAT_COST_BASED |  \
    OPTIMIZER_SWITCH_USE_INDEX_EXTENSIONS |                                \
    OPTIMIZER_SWITCH_COND_FANOUT_FILTER | OPTIMIZER_SWITCH_DERIVED_MERGE | \
-   OPTIMIZER_SKIP_SCAN)
+   OPTIMIZER_SKIP_SCAN | OPTIMIZER_SWITCH_HASH_JOIN)
 
 enum SHOW_COMP_OPTION { SHOW_OPTION_YES, SHOW_OPTION_NO, SHOW_OPTION_DISABLED };
 

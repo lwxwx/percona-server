@@ -87,16 +87,15 @@ bool Item_row::itemize(Parse_context *pc, Item **res) {
 
 void Item_row::illegal_method_call(
     const char *method MY_ATTRIBUTE((unused))) const {
-  DBUG_ENTER("Item_row::illegal_method_call");
+  DBUG_TRACE;
   DBUG_PRINT("error", ("!!! %s method was called for row item", method));
   DBUG_ASSERT(0);
   my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-  DBUG_VOID_RETURN;
 }
 
 bool Item_row::fix_fields(THD *thd, Item **) {
   DBUG_ASSERT(fixed == 0);
-  null_value = 0;
+  null_value = false;
   maybe_null = false;
   Item **arg, **arg_end;
   for (arg = items, arg_end = items + arg_count; arg != arg_end; arg++) {
@@ -125,14 +124,12 @@ bool Item_row::fix_fields(THD *thd, Item **) {
 }
 
 void Item_row::cleanup() {
-  DBUG_ENTER("Item_row::cleanup");
+  DBUG_TRACE;
 
   Item::cleanup();
   /* Reset to the original values */
   used_tables_cache = 0;
   with_null = false;
-
-  DBUG_VOID_RETURN;
 }
 
 void Item_row::split_sum_func(THD *thd, Ref_item_array ref_item_array,
@@ -166,9 +163,9 @@ void Item_row::fix_after_pullout(SELECT_LEX *parent_select,
 bool Item_row::check_cols(uint c) {
   if (c != arg_count) {
     my_error(ER_OPERAND_COLUMNS, MYF(0), c);
-    return 1;
+    return true;
   }
-  return 0;
+  return false;
 }
 
 void Item_row::print(const THD *thd, String *str,

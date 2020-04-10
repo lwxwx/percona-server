@@ -25,11 +25,11 @@
 
 #include <sys/types.h>
 
-#include "handler.h"  // ts_command_type
 #include "lex_string.h"
 #include "my_inttypes.h"
 #include "my_sqlcommand.h"
-#include "sql_cmd.h"  // Sql_cmd
+#include "sql/handler.h"  // ts_command_type
+#include "sql/sql_cmd.h"  // Sql_cmd
 
 class THD;
 
@@ -89,8 +89,8 @@ bool validate_tablespace_name(ts_command_type ts_cmd,
                               const handlerton *engine);
 
 /**
-  Base class for tablespace execution classes including LOGFILE GROUP
-  commands.
+  Base class for tablespace execution classes including
+  CREATE/ALTER/DROP TABLESPACE and LOGFILE GROUP commands.
  */
 class Sql_cmd_tablespace : public Sql_cmd /* purecov: inspected */
 {
@@ -112,6 +112,10 @@ class Sql_cmd_tablespace : public Sql_cmd /* purecov: inspected */
     @return command code enum value
    */
   enum_sql_command sql_command_code() const override final;
+  /**
+    Return the Tablespace_options for this object.
+   */
+  const Tablespace_options get_options() const { return *m_options; }
 };
 
 /**

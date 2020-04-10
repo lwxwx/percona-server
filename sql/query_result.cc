@@ -68,7 +68,7 @@ bool Query_result_send::send_result_set_metadata(THD *thd, List<Item> &list,
 }
 
 void Query_result_send::abort_result_set(THD *thd) {
-  DBUG_ENTER("Query_result_send::abort_result_set");
+  DBUG_TRACE;
 
   if (is_result_set_started && thd->sp_runtime_ctx) {
     /*
@@ -82,25 +82,24 @@ void Query_result_send::abort_result_set(THD *thd) {
     */
     thd->sp_runtime_ctx->end_partial_result_set = true;
   }
-  DBUG_VOID_RETURN;
 }
 
 /* Send data to client. Returns 0 if ok */
 
 bool Query_result_send::send_data(THD *thd, List<Item> &items) {
   Protocol *protocol = thd->get_protocol();
-  DBUG_ENTER("Query_result_send::send_data");
+  DBUG_TRACE;
 
   protocol->start_row();
   if (thd->send_result_set_row(&items)) {
     protocol->abort_row();
-    DBUG_RETURN(true);
+    return true;
   }
 
   thd->inc_sent_row_count(1);
   thd->sent_row_count_2++;
   DEBUG_SYNC(thd, "sent_row");
-  DBUG_RETURN(protocol->end_row());
+  return protocol->end_row();
 }
 
 bool Query_result_send::send_eof(THD *thd) {
@@ -110,7 +109,7 @@ bool Query_result_send::send_eof(THD *thd) {
   */
   if (thd->is_error()) return true;
   ::my_eof(thd);
-  is_result_set_started = 0;
+  is_result_set_started = false;
   return false;
 }
 
@@ -123,7 +122,7 @@ static const String my_empty_string("", default_charset_info);
 sql_exchange::sql_exchange(const char *name, bool flag,
                            enum enum_filetype filetype_arg)
     : file_name(name), dumpfile(flag), skip_lines(0) {
-  field.opt_enclosed = 0;
+  field.opt_enclosed = false;
   filetype = filetype_arg;
   field.field_term = &default_field_term;
   field.enclosed = line.line_start = &my_empty_string;
@@ -247,7 +246,7 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
     (void)chmod(path, S_IRUSR | S_IWUSR | S_IRGRP);
 #endif
   }
-  if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME))) {
+  if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, true, MYF(MY_WME))) {
     mysql_file_close(file, MYF(0));
     /* Delete file on error, it was just created */
     if (new_file_created) mysql_file_delete(key_select_to_file, path, MYF(0));
@@ -358,7 +357,7 @@ bool Query_result_export::start_execution(THD *thd) {
    (int)(uchar)(x) == line_sep_char || !(x))
 
 bool Query_result_export::send_data(THD *thd, List<Item> &items) {
-  DBUG_ENTER("Query_result_export::send_data");
+  DBUG_TRACE;
   char buff[MAX_FIELD_WIDTH], null_buff[2], space[MAX_FIELD_WIDTH];
   char cvt_buff[MAX_FIELD_WIDTH];
   String cvt_str(cvt_buff, sizeof(cvt_buff), write_cs);
@@ -393,7 +392,7 @@ bool Query_result_export::send_data(THD *thd, List<Item> &items) {
           ((uint64)res->length() / res->charset()->mbminlen + 1) *
               write_cs->mbmaxlen +
           1;
-      set_if_smaller(estimated_bytes, UINT_MAX32);
+      estimated_bytes = std::min(estimated_bytes, uint64(UINT_MAX32));
       if (cvt_str.mem_realloc((uint32)estimated_bytes)) {
         my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), (uint32)estimated_bytes);
         goto err;
@@ -643,9 +642,9 @@ bool Query_result_export::send_data(THD *thd, List<Item> &items) {
                  pointer_cast<const uchar *>(exchange->line.line_term->ptr()),
                  exchange->line.line_term->length()))
     goto err;
-  DBUG_RETURN(false);
+  return false;
 err:
-  DBUG_RETURN(true);
+  return true;
 }
 
 void Query_result_export::cleanup(THD *thd) {
@@ -674,7 +673,7 @@ bool Query_result_dump::send_data(THD *, List<Item> &items) {
   String tmp(buff, sizeof(buff), &my_charset_bin), *res;
   tmp.length(0);
   Item *item;
-  DBUG_ENTER("Query_result_dump::send_data");
+  DBUG_TRACE;
 
   if (row_count++ > 1) {
     my_error(ER_TOO_MANY_ROWS, MYF(0));
@@ -692,9 +691,9 @@ bool Query_result_dump::send_data(THD *, List<Item> &items) {
       goto err;
     }
   }
-  DBUG_RETURN(false);
+  return false;
 err:
-  DBUG_RETURN(true);
+  return true;
 }
 
 /***************************************************************************
@@ -722,16 +721,16 @@ bool Query_dumpvar::send_data(THD *thd, List<Item> &items) {
   List_iterator<Item> it(items);
   Item *item;
   PT_select_var *mv;
-  DBUG_ENTER("Query_dumpvar::send_data");
+  DBUG_TRACE;
 
   if (row_count++) {
     my_error(ER_TOO_MANY_ROWS, MYF(0));
-    DBUG_RETURN(true);
+    return true;
   }
   while ((mv = var_li++) && (item = it++)) {
     if (mv->is_local()) {
       if (thd->sp_runtime_ctx->set_variable(thd, mv->get_offset(), &item))
-        DBUG_RETURN(true);
+        return true;
     } else {
       /*
         Create Item_func_set_user_vars with delayed non-constness. We
@@ -742,12 +741,12 @@ bool Query_dumpvar::send_data(THD *thd, List<Item> &items) {
        */
       Item_func_set_user_var *suv =
           new Item_func_set_user_var(mv->name, item, true);
-      if (suv->fix_fields(thd, 0)) DBUG_RETURN(true);
+      if (suv->fix_fields(thd, 0)) return true;
       suv->save_item_result(item);
-      if (suv->update()) DBUG_RETURN(true);
+      if (suv->update()) return true;
     }
   }
-  DBUG_RETURN(thd->is_error());
+  return thd->is_error();
 }
 
 bool Query_dumpvar::send_eof(THD *thd) {
@@ -761,5 +760,5 @@ bool Query_dumpvar::send_eof(THD *thd) {
   if (thd->is_error()) return true;
 
   ::my_ok(thd, row_count);
-  return 0;
+  return false;
 }

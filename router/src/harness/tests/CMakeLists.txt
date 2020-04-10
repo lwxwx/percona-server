@@ -20,21 +20,27 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-INCLUDE_DIRECTORIES(SYSTEM ${GTEST_INCLUDE_DIRS} ${GMOCK_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(SYSTEM ${GMOCK_INCLUDE_DIRS})
 
 IF(NOT BUILD_IS_SINGLE_CONFIG)
   FOREACH(config ${CMAKE_CONFIGURATION_TYPES})
-    execute_process(
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${config}/var
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${config}/var/log
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${config}/var/log/harness
+    EXECUTE_PROCESS(
+      COMMAND ${CMAKE_COMMAND} -E
+      make_directory ${CMAKE_CURRENT_BINARY_DIR}/${config}/var
+      COMMAND ${CMAKE_COMMAND} -E
+      make_directory ${CMAKE_CURRENT_BINARY_DIR}/${config}/var/log
+      COMMAND ${CMAKE_COMMAND} -E
+      make_directory ${CMAKE_CURRENT_BINARY_DIR}/${config}/var/log/harness
     )
   ENDFOREACH()
 ELSE()
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/var
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/var/log
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/var/log/harness
+  EXECUTE_PROCESS(
+    COMMAND ${CMAKE_COMMAND} -E
+    make_directory ${CMAKE_CURRENT_BINARY_DIR}/var
+    COMMAND ${CMAKE_COMMAND} -E
+    make_directory ${CMAKE_CURRENT_BINARY_DIR}/var/log
+    COMMAND ${CMAKE_COMMAND} -E
+    make_directory ${CMAKE_CURRENT_BINARY_DIR}/var/log/harness
   )
 ENDIF()
 
@@ -64,10 +70,11 @@ SET(TESTS
   test_arg_handler.cc
   test_vt100.cc
   test_string_utils.cc
+  test_process_launcher.cc
 )
 
 FOREACH(TEST ${TESTS})
-  add_test_file(${TEST} MODULE ${TEST_MODULE}
+  ADD_TEST_FILE(${TEST} MODULE ${TEST_MODULE}
     INCLUDE_DIRS ${MySQLRouter_SOURCE_DIR}/src/harness/shared/include/
     INCLUDE_DIRS ${MySQLRouter_SOURCE_DIR}/src/harness/src/
     INCLUDE_DIRS ${MySQLRouter_SOURCE_DIR}/src/harness/tests/include/
@@ -81,11 +88,33 @@ SET(TESTS
 )
 
 FOREACH(TEST ${TESTS})
-  add_test_file(${TEST} MODULE ${TEST_MODULE}
+  ADD_TEST_FILE(${TEST} MODULE ${TEST_MODULE}
     INCLUDE_DIRS ${MySQLRouter_SOURCE_DIR}/src/harness/shared/include/
     LIB_DEPENDS test-helpers;${SSL_LIBRARIES})
 ENDFOREACH()
 
+SET(TESTS
+  test_stdx_expected.cc
+  test_stdx_string_view.cc
+)
+
+FOREACH(TEST ${TESTS})
+  ADD_TEST_FILE(${TEST} MODULE ${TEST_MODULE}
+    INCLUDE_DIRS ${MySQLRouter_SOURCE_DIR}/src/harness/include/)
+ENDFOREACH()
+
+
 # Use configuration file templates to generate configuration files
-CONFIGURE_TEST_FILE_TEMPLATES(${CMAKE_CURRENT_SOURCE_DIR}/data)
-COPY_TEST_FILES(${CMAKE_CURRENT_SOURCE_DIR}/data)
+CONFIGURE_TEST_FILE_TEMPLATES(${CMAKE_CURRENT_SOURCE_DIR}/data
+  "tests-good-1.cfg.in;tests-good-2.cfg.in;tests-start-1.cfg.in")
+SET(TEST_FILES
+  logger.cfg
+  logger.d/default.cfg
+  logger.d/magic.cfg
+  logger.d/one.cfg
+  magic-alt.cfg
+  tests-bad-1.cfg
+  tests-bad-2.cfg
+  tests-bad-3.cfg
+  )
+COPY_TEST_FILES(${CMAKE_CURRENT_SOURCE_DIR}/data "${TEST_FILES}")

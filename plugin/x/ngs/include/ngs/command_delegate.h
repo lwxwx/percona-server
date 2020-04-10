@@ -25,11 +25,15 @@
 #ifndef PLUGIN_X_NGS_INCLUDE_NGS_COMMAND_DELEGATE_H_
 #define PLUGIN_X_NGS_INCLUDE_NGS_COMMAND_DELEGATE_H_
 
-#include "decimal.h"
-#include "m_ctype.h"
-#include "my_compiler.h"
+#include <string>
+#include <vector>
+
+#include "decimal.h"      // NOLINT(build/include_subdir)
+#include "m_ctype.h"      // NOLINT(build/include_subdir)
+#include "my_compiler.h"  // NOLINT(build/include_subdir)
 #include "mysql/service_command.h"
-#include "plugin/x/ngs/include/ngs/protocol_encoder.h"
+
+#include "plugin/x/ngs/include/ngs/error_code.h"
 
 namespace ngs {
 class Command_delegate {
@@ -46,8 +50,10 @@ class Command_delegate {
     enum_field_types type;
     unsigned int flags;
   };
-  typedef std::vector<Field_type> Field_types;
 
+  using Field_types = std::vector<Field_type>;
+
+ public:
   Command_delegate() {}
   virtual ~Command_delegate() {}
 
@@ -110,7 +116,7 @@ class Command_delegate {
  protected:
   Info m_info;
   Field_types m_field_types;
-  uint m_sql_errno = 0;
+  uint32_t m_sql_errno = 0;
   std::string m_err_msg;
   std::string m_sqlstate;
 
@@ -134,9 +140,35 @@ class Command_delegate {
     false ok
   */
   virtual int start_result_metadata(
-      uint num_cols MY_ATTRIBUTE((unused)), uint flags MY_ATTRIBUTE((unused)),
+      uint32_t num_cols, uint32_t flags MY_ATTRIBUTE((unused)),
       const CHARSET_INFO *resultcs MY_ATTRIBUTE((unused))) {
     m_field_types.clear();
+
+    /*
+      std::vector often reserves memory using following
+      allocation function:
+
+          f(n)=2^n
+
+      where "n" is number of inserted elements and f(n) describes number
+      of total elements that current memory block can hold.
+      Thus if user does "push_back", "n" times then following number of
+      allocations will occur:
+
+           |Number of push_back |Allocations |Reserved |
+           |--------------------|------------|---------|
+           |0                   |0           |0        |
+           |1                   |1           |1        |
+           |2                   |2           |2        |
+           |3                   |3           |4        |
+           |4                   |3           |4        |
+           |5                   |4           |8        |
+           |6                   |4           |8        |
+
+      Following reservation should give little boost for
+      resultsets with 3+ columns.
+    */
+    m_field_types.reserve(num_cols);
     return false;
   }
 

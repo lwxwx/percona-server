@@ -172,17 +172,17 @@ class base_list {
     if (((*last) = new (*THR_MALLOC) list_node(info, &end_of_list))) {
       last = &(*last)->next;
       elements++;
-      return 0;
+      return false;
     }
-    return 1;
+    return true;
   }
   inline bool push_back(void *info, MEM_ROOT *mem_root) {
     if (((*last) = new (mem_root) list_node(info, &end_of_list))) {
       last = &(*last)->next;
       elements++;
-      return 0;
+      return false;
     }
-    return 1;
+    return true;
   }
   inline bool push_front(void *info) {
     list_node *node = new (*THR_MALLOC) list_node(info, first);
@@ -190,9 +190,9 @@ class base_list {
       if (last == &first) last = &node->next;
       first = node;
       elements++;
-      return 0;
+      return false;
     }
-    return 1;
+    return true;
   }
   inline bool push_front(void *info, MEM_ROOT *mem_root) {
     list_node *node = new (mem_root) list_node(info, first);
@@ -439,13 +439,17 @@ class List : public base_list {
     constant T parameter (like List<const char>), since the untyped storage
     is "void *", and assignment of const pointer to "void *" is a syntax error.
   */
-  inline bool push_back(T *a) { return base_list::push_back((void *)a); }
-  inline bool push_back(T *a, MEM_ROOT *mem_root) {
-    return base_list::push_back((void *)a, mem_root);
+  inline bool push_back(T *a) {
+    return base_list::push_back(const_cast<void *>(((const void *)a)));
   }
-  inline bool push_front(T *a) { return base_list::push_front((void *)a); }
+  inline bool push_back(T *a, MEM_ROOT *mem_root) {
+    return base_list::push_back(const_cast<void *>((const void *)a), mem_root);
+  }
+  inline bool push_front(T *a) {
+    return base_list::push_front(const_cast<void *>((const void *)a));
+  }
   inline bool push_front(T *a, MEM_ROOT *mem_root) {
-    return base_list::push_front((void *)a, mem_root);
+    return base_list::push_front(const_cast<void *>((const void *)a), mem_root);
   }
   inline T *head() { return static_cast<T *>(base_list::head()); }
   inline const T *head() const {
@@ -816,13 +820,6 @@ class I_List_iterator : public base_ilist_iterator<T> {
   inline T *operator++(int) { return base_ilist_iterator<T>::next(); }
 };
 
-void free_list(I_List<i_string_pair> *list);
 void free_list(I_List<i_string> *list);
-
-template <class T>
-List<T> *List_merge(T *head, List<T> *tail) {
-  tail->push_front(head);
-  return tail;
-}
 
 #endif  // INCLUDES_MYSQL_SQL_LIST_H

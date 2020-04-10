@@ -78,8 +78,7 @@ class RestMockServerScriptTest : public RestMockServerTest {
 
     const std::string http_hostname{"127.0.0.1"};
 
-    EXPECT_TRUE(wait_for_port_ready(server_port_))
-        << server_mock_.get_full_output();
+    check_port_ready(server_mock_, server_port_);
   }
 
   const uint16_t server_port_;
@@ -281,8 +280,7 @@ TEST_F(RestMockServerRestServerMockTest, unknown_url_fails) {
   RestClient rest_client(io_ctx, http_hostname, http_port_);
 
   SCOPED_TRACE("// wait for HTTP server listening");
-  ASSERT_TRUE(wait_for_port_ready(http_port_))
-      << server_mock_.get_full_output();
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(server_mock_, http_port_));
 
   SCOPED_TRACE("// make a http connections");
   auto req = rest_client.request_sync(HttpMethod::Get, http_uri);
@@ -867,9 +865,271 @@ TEST_F(RestMockServerRestServerMockTest, delete_all_connections) {
   EXPECT_EQ(resp_body.length(), 0u);
 
   SCOPED_TRACE("// check connection is killed");
-  EXPECT_THROW_LIKE(result.reset(client.query_one("select @@port")),
+  EXPECT_THROW_LIKE(client.query_one("select @@port"),
                     mysqlrouter::MySQLSession::Error,
                     "Lost connection to MySQL server during query");
+}
+
+TEST_F(RestMockServerRestServerMockTest, auth_succeeds_require_user_and_pass) {
+  SCOPED_TRACE("// start mock-server with http-port");
+
+  std::string http_hostname = "127.0.0.1";
+  std::string http_uri = kMockServerGlobalsRestUri;
+  std::string rest_username = "foobar";
+  std::string rest_password = "somepass";
+  std::string mysql_username = rest_username;
+  std::string mysql_password = rest_password;
+
+  IOContext io_ctx;
+  RestClient rest_client(io_ctx, http_hostname, http_port_);
+
+  SCOPED_TRACE("// wait for REST endpoint");
+  ASSERT_TRUE(wait_for_rest_endpoint_ready(http_uri, http_port_))
+      << server_mock_.get_full_output();
+
+  SCOPED_TRACE("// set username/password");
+  auto req = rest_client.request_sync(HttpMethod::Put, http_uri,
+                                      R"({"username": ")" + rest_username +
+                                          R"(", "password": ")" +
+                                          rest_password + R"("})");
+
+  SCOPED_TRACE("// checking HTTP response");
+  ASSERT_TRUE(req) << "HTTP Request to " << http_hostname << ":"
+                   << std::to_string(http_port_)
+                   << " failed (early): " << req.error_msg() << std::endl
+                   << server_mock_.get_full_output() << std::endl;
+
+  ASSERT_GT(req.get_response_code(), 0u)
+      << "HTTP Request to " << http_hostname << ":"
+      << std::to_string(http_port_) << " failed: " << req.error_msg()
+      << std::endl
+      << server_mock_.get_full_output() << std::endl;
+
+  EXPECT_EQ(req.get_response_code(), 204u);
+
+  auto resp_body = req.get_input_buffer();
+  EXPECT_EQ(resp_body.length(), 0u);
+
+  // mysql query
+  mysqlrouter::MySQLSession client;
+
+  SCOPED_TRACE("// connecting via mysql protocol");
+  ASSERT_NO_THROW(client.connect("127.0.0.1", server_port_, mysql_username,
+                                 mysql_password, "", ""))
+      << server_mock_.get_full_output();
+}
+
+TEST_F(RestMockServerRestServerMockTest, auth_succeeds_require_user) {
+  SCOPED_TRACE("// start mock-server with http-port");
+
+  std::string http_hostname = "127.0.0.1";
+  std::string http_uri = kMockServerGlobalsRestUri;
+  std::string rest_username = "foobar";
+  std::string mysql_username = rest_username;
+  std::string mysql_password = "somepass";
+
+  IOContext io_ctx;
+  RestClient rest_client(io_ctx, http_hostname, http_port_);
+
+  SCOPED_TRACE("// wait for REST endpoint");
+  ASSERT_TRUE(wait_for_rest_endpoint_ready(http_uri, http_port_))
+      << server_mock_.get_full_output();
+
+  SCOPED_TRACE("// set username/password");
+  auto req = rest_client.request_sync(
+      HttpMethod::Put, http_uri, R"({"username": ")" + rest_username + R"("})");
+
+  SCOPED_TRACE("// checking HTTP response");
+  ASSERT_TRUE(req) << "HTTP Request to " << http_hostname << ":"
+                   << std::to_string(http_port_)
+                   << " failed (early): " << req.error_msg() << std::endl
+                   << server_mock_.get_full_output() << std::endl;
+
+  ASSERT_GT(req.get_response_code(), 0u)
+      << "HTTP Request to " << http_hostname << ":"
+      << std::to_string(http_port_) << " failed: " << req.error_msg()
+      << std::endl
+      << server_mock_.get_full_output() << std::endl;
+
+  EXPECT_EQ(req.get_response_code(), 204u);
+
+  auto resp_body = req.get_input_buffer();
+  EXPECT_EQ(resp_body.length(), 0u);
+
+  // mysql query
+  mysqlrouter::MySQLSession client;
+
+  SCOPED_TRACE("// connecting via mysql protocol");
+  ASSERT_NO_THROW(client.connect("127.0.0.1", server_port_, mysql_username,
+                                 mysql_password, "", ""))
+      << server_mock_.get_full_output();
+}
+
+TEST_F(RestMockServerRestServerMockTest, auth_fails_wrong_password) {
+  SCOPED_TRACE("// start mock-server with http-port");
+
+  std::string http_hostname = "127.0.0.1";
+  std::string http_uri = kMockServerGlobalsRestUri;
+  std::string rest_username = "foobar";
+  std::string rest_password = "somepass";
+  std::string mysql_username = rest_username;
+  std::string mysql_password = "wrongpass";
+
+  IOContext io_ctx;
+  RestClient rest_client(io_ctx, http_hostname, http_port_);
+
+  SCOPED_TRACE("// wait for REST endpoint");
+  ASSERT_TRUE(wait_for_rest_endpoint_ready(http_uri, http_port_))
+      << server_mock_.get_full_output();
+
+  SCOPED_TRACE("// set username/password");
+  auto req = rest_client.request_sync(HttpMethod::Put, http_uri,
+                                      R"({"username": ")" + rest_username +
+                                          R"(", "password": ")" +
+                                          rest_password + R"("})");
+
+  SCOPED_TRACE("// checking HTTP response");
+  ASSERT_TRUE(req) << "HTTP Request to " << http_hostname << ":"
+                   << std::to_string(http_port_)
+                   << " failed (early): " << req.error_msg() << std::endl
+                   << server_mock_.get_full_output() << std::endl;
+
+  ASSERT_GT(req.get_response_code(), 0u)
+      << "HTTP Request to " << http_hostname << ":"
+      << std::to_string(http_port_) << " failed: " << req.error_msg()
+      << std::endl
+      << server_mock_.get_full_output() << std::endl;
+
+  EXPECT_EQ(req.get_response_code(), 204u);
+
+  // mysql query
+  mysqlrouter::MySQLSession client;
+
+  SCOPED_TRACE("// connecting via mysql protocol");
+
+  // wrong password should fail
+  ASSERT_THROW(client.connect("127.0.0.1", server_port_, mysql_username,
+                              mysql_password, "", ""),
+               std::runtime_error)
+      << server_mock_.get_full_output();
+}
+
+/**
+ * check authentication checks fails with empty password.
+ *
+ * - start the mock-server
+ * - make a client connect to the mock-server
+ *
+ * Empty passwords have a different hashing scheme.
+ */
+TEST_F(RestMockServerRestServerMockTest, auth_fails_empty_password) {
+  SCOPED_TRACE("// start mock-server with http-port");
+
+  std::string http_hostname = "127.0.0.1";
+  std::string http_uri = kMockServerGlobalsRestUri;
+  std::string rest_username = "foobar";
+  std::string rest_password = "somepass";
+  std::string mysql_username = rest_username;
+  std::string mysql_password = "";
+
+  IOContext io_ctx;
+  RestClient rest_client(io_ctx, http_hostname, http_port_);
+
+  SCOPED_TRACE("// wait for REST endpoint");
+  ASSERT_TRUE(wait_for_rest_endpoint_ready(http_uri, http_port_))
+      << server_mock_.get_full_output();
+
+  SCOPED_TRACE("// set username/password");
+  auto req = rest_client.request_sync(HttpMethod::Put, http_uri,
+                                      R"({"username": ")" + rest_username +
+                                          R"(", "password": ")" +
+                                          rest_password + R"("})");
+
+  SCOPED_TRACE("// checking HTTP response");
+  ASSERT_TRUE(req) << "HTTP Request to " << http_hostname << ":"
+                   << std::to_string(http_port_)
+                   << " failed (early): " << req.error_msg() << std::endl
+                   << server_mock_.get_full_output() << std::endl;
+
+  ASSERT_GT(req.get_response_code(), 0u)
+      << "HTTP Request to " << http_hostname << ":"
+      << std::to_string(http_port_) << " failed: " << req.error_msg()
+      << std::endl
+      << server_mock_.get_full_output() << std::endl;
+
+  EXPECT_EQ(req.get_response_code(), 204u);
+
+  auto resp_body = req.get_input_buffer();
+  EXPECT_EQ(resp_body.length(), 0u);
+
+  // mysql query
+  mysqlrouter::MySQLSession client;
+
+  SCOPED_TRACE("// connecting via mysql protocol");
+
+  // wrong password should fail
+  ASSERT_THROW(client.connect("127.0.0.1", server_port_, mysql_username,
+                              mysql_password, "", ""),
+               std::runtime_error)
+      << server_mock_.get_full_output();
+}
+
+/**
+ * check authentication checks fails with wrong username.
+ *
+ * - start the mock-server
+ * - make a client connect to the mock-server
+ */
+TEST_F(RestMockServerRestServerMockTest, auth_fails_wrong_username) {
+  SCOPED_TRACE("// start mock-server with http-port");
+
+  std::string http_hostname = "127.0.0.1";
+  std::string http_uri = kMockServerGlobalsRestUri;
+  std::string rest_username = "foobar";
+  std::string rest_password = "somepass";
+  std::string mysql_username = "wronguser";
+  std::string mysql_password = rest_password;
+
+  IOContext io_ctx;
+  RestClient rest_client(io_ctx, http_hostname, http_port_);
+
+  SCOPED_TRACE("// wait for REST endpoint");
+  ASSERT_TRUE(wait_for_rest_endpoint_ready(http_uri, http_port_))
+      << server_mock_.get_full_output();
+
+  SCOPED_TRACE("// set username/password");
+  auto req = rest_client.request_sync(HttpMethod::Put, http_uri,
+                                      R"({"username": ")" + rest_username +
+                                          R"(", "password": ")" +
+                                          rest_password + R"("})");
+
+  SCOPED_TRACE("// checking HTTP response");
+  ASSERT_TRUE(req) << "HTTP Request to " << http_hostname << ":"
+                   << std::to_string(http_port_)
+                   << " failed (early): " << req.error_msg() << std::endl
+                   << server_mock_.get_full_output() << std::endl;
+
+  ASSERT_GT(req.get_response_code(), 0u)
+      << "HTTP Request to " << http_hostname << ":"
+      << std::to_string(http_port_) << " failed: " << req.error_msg()
+      << std::endl
+      << server_mock_.get_full_output() << std::endl;
+
+  EXPECT_EQ(req.get_response_code(), 204u);
+
+  auto resp_body = req.get_input_buffer();
+  EXPECT_EQ(resp_body.length(), 0u);
+
+  // mysql query
+  mysqlrouter::MySQLSession client;
+
+  SCOPED_TRACE("// connecting via mysql protocol");
+
+  // wrong password should fail
+  ASSERT_THROW(client.connect("127.0.0.1", server_port_, mysql_username,
+                              mysql_password, "", ""),
+               std::runtime_error)
+      << server_mock_.get_full_output();
 }
 
 /**
@@ -917,8 +1177,8 @@ static std::string sanitize_param_name(const std::string &name) {
 TEST_P(RestMockServerConnectThrowsTest, js_test_stmts_is_string) {
   SCOPED_TRACE("// start mock-server with http-port");
 
-  const unsigned server_port = port_pool_.get_next_available();
-  const unsigned http_port = port_pool_.get_next_available();
+  const auto server_port = port_pool_.get_next_available();
+  const auto http_port = port_pool_.get_next_available();
   const std::string json_stmts =
       get_data_dir().join(std::get<0>(GetParam())).str();
   auto &server_mock = launch_mysql_server_mock(json_stmts, server_port,
@@ -927,8 +1187,7 @@ TEST_P(RestMockServerConnectThrowsTest, js_test_stmts_is_string) {
   std::string http_hostname = "127.0.0.1";
   std::string http_uri = kMockServerGlobalsRestUri;
 
-  EXPECT_TRUE(wait_for_port_ready(server_port))
-      << server_mock.get_full_output();
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(server_mock, server_port));
 
   mysqlrouter::MySQLSession client;
 
@@ -952,7 +1211,7 @@ INSTANTIATE_TEST_CASE_P(
                         "exec_time must be a number, if set. Is object"),
         std::make_tuple(
             "js_test_handshake_is_string.js",
-            "handshake must be a object, if set. Is primitive, string")),
+            "handshake must be an object, if set. Is primitive, string")),
     [](const ::testing::TestParamInfo<std::tuple<const char *, const char *>>
            &info) -> std::string {
       return sanitize_param_name(std::get<0>(info.param));
@@ -978,8 +1237,7 @@ TEST_P(RestMockServerScriptsThrowsTest, scripts_throws) {
   std::string http_hostname = "127.0.0.1";
   std::string http_uri = kMockServerGlobalsRestUri;
 
-  EXPECT_TRUE(wait_for_port_ready(server_port))
-      << server_mock.get_full_output();
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(server_mock, server_port));
 
   mysqlrouter::MySQLSession client;
 
@@ -1019,8 +1277,8 @@ INSTANTIATE_TEST_CASE_P(
 TEST_P(RestMockServerScriptsWorkTest, scripts_work) {
   SCOPED_TRACE("// start mock-server with http-port");
 
-  const unsigned server_port = port_pool_.get_next_available();
-  const unsigned http_port = port_pool_.get_next_available();
+  const auto server_port = port_pool_.get_next_available();
+  const auto http_port = port_pool_.get_next_available();
   const std::string json_stmts = get_data_dir().join(GetParam()).str();
   auto &server_mock = launch_mysql_server_mock(json_stmts, server_port,
                                                EXIT_SUCCESS, false, http_port);
@@ -1028,8 +1286,7 @@ TEST_P(RestMockServerScriptsWorkTest, scripts_work) {
   std::string http_hostname = "127.0.0.1";
   std::string http_uri = kMockServerGlobalsRestUri;
 
-  EXPECT_TRUE(wait_for_port_ready(server_port))
-      << server_mock.get_full_output();
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(server_mock, server_port));
 
   mysqlrouter::MySQLSession client;
 
@@ -1043,8 +1300,7 @@ TEST_P(RestMockServerScriptsWorkTest, scripts_work) {
 
 INSTANTIATE_TEST_CASE_P(
     ScriptsWork, RestMockServerScriptsWorkTest,
-    ::testing::Values("metadata_3_secondaries.js", "simple-client.js",
-                      "js_test_handshake_is_empty.js",
+    ::testing::Values("simple-client.js", "js_test_handshake_is_empty.js",
                       "js_test_handshake_greeting_is_empty.js",
                       "js_test_handshake_greeting_exec_time_is_number.js",
                       "js_test_stmts_is_array.js",

@@ -30,9 +30,7 @@
 #include <openssl/dh.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
-#if !defined(LIBWOLFSSL_VERSION_HEX)
 #include <openssl/safestack.h>
-#endif
 #include <openssl/ssl.h>
 
 #include "mysql/harness/utility/string.h"
@@ -66,7 +64,7 @@ TlsServerContext::TlsServerContext(TlsVersion min_ver, TlsVersion max_ver)
     : TlsContext(server_method) {
   version_range(min_ver, max_ver);
 #if OPENSSL_VERSION_NUMBER >= ROUTER_OPENSSL_VERSION(1, 0, 2)
-  SSL_CTX_set_ecdh_auto(ssl_ctx_.get(), 1);
+  (void)SSL_CTX_set_ecdh_auto(ssl_ctx_.get(), 1);
 #elif OPENSSL_VERSION_NUMBER >= ROUTER_OPENSSL_VERSION(1, 0, 1)
   // openssl 1.0.1 has no ecdh_auto(), and needs an explicit EC curve set
   // to make ECDHE ciphers work out of the box.
@@ -151,7 +149,6 @@ void TlsServerContext::init_tmp_dh(const std::string &dh_params) {
       throw TlsError("failed to parse dh-param file");
     }
 
-#if !defined(LIBWOLFSSL_VERSION_HEX)
     int codes = 0;
     if (1 != DH_check(dh2048.get(), &codes)) {
       throw TlsError("DH_check() failed");
@@ -160,7 +157,6 @@ void TlsServerContext::init_tmp_dh(const std::string &dh_params) {
     if (codes != 0) {
       throw std::runtime_error("check of DH params failed: ");
     }
-#endif
 
     if (DH_bits(dh2048.get()) < kMinDhKeySize) {
       throw std::runtime_error("key size of DH param " + dh_params +

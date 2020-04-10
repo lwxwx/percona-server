@@ -74,6 +74,13 @@ Plugin_table table_replication_connection_configuration::m_table_def(
     "  PUBLIC_KEY_PATH VARCHAR(512) not null,\n"
     "  GET_PUBLIC_KEY ENUM('YES', 'NO') not null,\n"
     "  NETWORK_NAMESPACE VARCHAR(64) not null,\n"
+    "  COMPRESSION_ALGORITHM CHAR(64) collate utf8mb4_bin not null\n"
+    "  COMMENT 'Compression algorithm used for data transfer between master "
+    "and slave.',\n"
+    "  ZSTD_COMPRESSION_LEVEL INTEGER not null\n"
+    "  COMMENT 'Compression level associated with zstd compression "
+    "algorithm.',\n"
+    "  TLS_CIPHERSUITES TEXT CHARACTER SET utf8 COLLATE utf8_bin NULL,\n"
     "  PRIMARY KEY (channel_name) USING HASH\n",
     /* Options */
     " ENGINE=PERFORMANCE_SCHEMA",
@@ -301,21 +308,29 @@ int table_replication_connection_configuration::make_row(Master_info *mi) {
   m_row.network_namespace_length = strlen(temp_store);
   memcpy(m_row.network_namespace, temp_store, m_row.network_namespace_length);
 
+  temp_store = mi->compression_algorithm;
+  m_row.compression_algorithm_length = strlen(temp_store);
+  memcpy(m_row.compression_algorithm, temp_store,
+         m_row.compression_algorithm_length);
+
+  m_row.zstd_compression_level = mi->zstd_compression_level;
+
+  m_row.tls_ciphersuites = mi->tls_ciphersuites;
+
   mysql_mutex_unlock(&mi->rli->data_lock);
   mysql_mutex_unlock(&mi->data_lock);
 
   return 0;
 }
 
-int table_replication_connection_configuration::read_row_values(TABLE *table,
-                                                                unsigned char *,
-                                                                Field **fields,
-                                                                bool read_all) {
-  Field *f;
+int table_replication_connection_configuration::read_row_values(
+    TABLE *table, unsigned char *buf, Field **fields, bool read_all) {
+  DBUG_TRACE;
+  /* Set the null bits */
+  DBUG_ASSERT(table->s->null_bytes == 1);
+  buf[0] = 0;
 
-  DBUG_ASSERT(table->s->null_bytes == 0);
-
-  for (; (f = *fields); fields++) {
+  for (Field *f = nullptr; (f = *fields); fields++) {
     if (read_all || bitmap_is_set(table->read_set, f->field_index)) {
       switch (f->field_index) {
         case 0: /** channel_name */
@@ -392,6 +407,21 @@ int table_replication_connection_configuration::read_row_values(TABLE *table,
         case 21: /** network_namespace */
           set_field_varchar_utf8(f, m_row.network_namespace,
                                  m_row.network_namespace_length);
+          break;
+        case 22: /** compression_algorithm */
+          set_field_char_utf8(f, m_row.compression_algorithm,
+                              m_row.compression_algorithm_length);
+          break;
+        case 23: /** zstd_compression_level */
+          set_field_ulong(f, m_row.zstd_compression_level);
+          break;
+        case 24: /** tls_ciphersuites */
+          if (m_row.tls_ciphersuites.first)
+            f->set_null();
+          else
+            set_field_text(f, m_row.tls_ciphersuites.second.data(),
+                           m_row.tls_ciphersuites.second.length(),
+                           &my_charset_utf8mb4_bin);
           break;
         default:
           DBUG_ASSERT(false);

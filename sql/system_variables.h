@@ -100,9 +100,8 @@ enum use_secondary_engine {
 enum enum_default_table_encryption {
   DEFAULT_TABLE_ENC_OFF = 0,
   DEFAULT_TABLE_ENC_ON = 1,
-  DEFAULT_TABLE_ENC_KEYRING_ON = 2,
-  DEFAULT_TABLE_ENC_ONLINE_TO_KEYRING = 3,
-  DEFAULT_TABLE_ENC_ONLINE_FROM_KEYRING_TO_UNENCRYPTED = 4
+  DEFAULT_TABLE_ENC_ONLINE_TO_KEYRING = 2,
+  DEFAULT_TABLE_ENC_ONLINE_FROM_KEYRING_TO_UNENCRYPTED = 3
 };
 
 /* Bits for different SQL modes modes (including ANSI mode) */
@@ -437,6 +436,21 @@ struct System_variables {
     default.
   */
   ulong default_table_encryption;
+
+  /**
+    @sa Sys_var_show_create_table_skip_secondary_engine
+  */
+  bool show_create_table_skip_secondary_engine;
+
+  /**
+    @sa Sys_var_generated_random_password_length
+  */
+  uint32_t generated_random_password_length;
+
+  /**
+    @sa Sys_var_require_row_format
+  */
+  bool require_row_format;
 };
 
 /**

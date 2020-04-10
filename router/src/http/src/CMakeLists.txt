@@ -55,15 +55,15 @@ SET_TARGET_PROPERTIES(http_common PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/library_output_directory)
 
 ## the rpath for the bundled openssl
+ADD_INSTALL_RPATH_FOR_OPENSSL(http_common)
 SET_PATH_TO_SSL(http_common ${CMAKE_BINARY_DIR}/library_output_directory)
 
 INSTALL(TARGETS http_common
-  RUNTIME DESTINATION ${ROUTER_INSTALL_BINDIR}
-  COMPONENT Router
-  LIBRARY DESTINATION ${ROUTER_INSTALL_LIBDIR}
-  COMPONENT Router
-  ARCHIVE DESTINATION ${ROUTER_INSTALL_LIBDIR}
-  COMPONENT Router)
+  RUNTIME DESTINATION ${ROUTER_INSTALL_BINDIR} COMPONENT Router
+  ARCHIVE DESTINATION ${ROUTER_INSTALL_LIBDIR} COMPONENT Router
+  LIBRARY DESTINATION ${ROUTER_INSTALL_LIBDIR} COMPONENT Router
+  NAMELINK_SKIP
+  )
 
 ## split library code from the plugin to use them _passwd and tests
 ADD_LIBRARY(http_auth_backend_lib STATIC
@@ -85,8 +85,9 @@ ADD_HARNESS_PLUGIN(http_auth_backend
   DESTINATION "${ROUTER_INSTALL_PLUGINDIR}"
   )
 GENERATE_EXPORT_HEADER(http_auth_backend
-  EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/../include/mysqlrouter/http_auth_backend_export.h)
-
+  EXPORT_FILE_NAME
+  ${CMAKE_CURRENT_BINARY_DIR}/../include/mysqlrouter/http_auth_backend_export.h
+  )
 TARGET_INCLUDE_DIRECTORIES(http_auth_backend
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include/
@@ -101,7 +102,9 @@ ADD_HARNESS_PLUGIN(http_auth_realm
   DESTINATION "${ROUTER_INSTALL_PLUGINDIR}"
   )
 GENERATE_EXPORT_HEADER(http_auth_realm
-  EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/../include/mysqlrouter/http_auth_realm_export.h)
+  EXPORT_FILE_NAME
+  ${CMAKE_CURRENT_BINARY_DIR}/../include/mysqlrouter/http_auth_realm_export.h
+  )
 TARGET_INCLUDE_DIRECTORIES(http_auth_realm
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include/
@@ -124,6 +127,13 @@ TARGET_INCLUDE_DIRECTORIES(http_server
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include/)
 
+# Suppress warnings for gcc-5 or older
+IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0)
+  MY_CHECK_CXX_COMPILER_FLAG("-Wno-unused-value" HAVE_NO_UNUSED_VALUE)
+  IF(HAVE_NO_UNUSED_VALUE)
+    ADD_COMPILE_FLAGS(tls_server_context.cc COMPILE_FLAGS "-Wno-unused-value")
+  ENDIF()
+ENDIF()
 
 ADD_LIBRARY(http_client
   SHARED
@@ -173,24 +183,24 @@ IF(WIN32)
   COPY_TARGET_FOR_UNITTEST(http_auth_backend)
 ENDIF()
 
-ADD_EXECUTABLE(rest_cli
-  rest_cli.cc)
-ADD_DEPENDENCIES(mysqlrouter_all rest_cli)
-TARGET_LINK_LIBRARIES(rest_cli
+MYSQL_ADD_EXECUTABLE(rest_cli
+  rest_cli.cc
+  COMPONENT Router
+  LINK_LIBRARIES
   harness-library
-  http_client ${CMAKE_THREAD_LIBS_INIT})
-
+  http_client
+  SKIP_INSTALL
+  )
 MYSQL_ADD_EXECUTABLE(mysqlrouter_passwd
   passwd_cli.cc
   passwd.cc
   COMPONENT Router
-  )
-ADD_DEPENDENCIES(mysqlrouter_all mysqlrouter_passwd)
-TARGET_LINK_LIBRARIES(mysqlrouter_passwd
+  LINK_LIBRARIES
   harness-library
   router_lib
-  http_auth_backend_lib mysys)
-SET_PROPERTY(TARGET mysqlrouter_passwd PROPERTY INSTALL_RPATH "${ROUTER_INSTALL_RPATH}")
+  http_auth_backend_lib
+  )
+ADD_INSTALL_RPATH(mysqlrouter_passwd "${ROUTER_INSTALL_RPATH}")
 
 MY_INCLUDE_SYSTEM_DIRECTORIES(LIBEVENT)
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/harness/include/)

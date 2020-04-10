@@ -7306,9 +7306,12 @@ GROUP BY j, i WITH ROLLUP;
 CAST(j AS DATE) = CURRENT_DATE	COUNT(*)
 NULL	1
 NULL	1
-1	1
-1	1
+NULL	1
+NULL	1
 NULL	2
+Warnings:
+Warning	3156	Invalid JSON value for CAST to DATE/TIME/DATETIME/TIMESTAMP from column j at row 3
+Warning	3156	Invalid JSON value for CAST to DATE/TIME/DATETIME/TIMESTAMP from column j at row 4
 UPDATE tt SET j = CAST(CAST('2015-06-19' AS DATE) AS JSON) WHERE j IS NOT NULL;
 SELECT CAST(j AS DATE), COUNT(*) FROM tt GROUP BY j, i WITH ROLLUP;
 CAST(j AS DATE)	COUNT(*)
@@ -8600,6 +8603,8 @@ SELECT JSON_QUOTE('table') AS field1;
 field1
 "table"
 CREATE TABLE t SELECT JSON_QUOTE('table') AS field1;
+Warnings:
+Warning	1296	Got error 4502 'Table property is READ_BACKUP=1, but not in comment' from NDB
 SELECT * FROM t;
 field1
 "table"
@@ -8611,6 +8616,8 @@ SELECT JSON_UNQUOTE( '"table"' ) AS field1;
 field1
 table
 CREATE TABLE t1 SELECT JSON_unquote( '"table"' ) AS field1;
+Warnings:
+Warning	1296	Got error 4502 'Table property is READ_BACKUP=1, but not in comment' from NDB
 SELECT * FROM t1;
 field1
 table
@@ -8628,6 +8635,8 @@ SELECT JSON_QUOTE('table') AS field1;
 field1
 "table"
 CREATE TABLE t SELECT JSON_QUOTE('table') AS field1;
+Warnings:
+Warning	1296	Got error 4502 'Table property is READ_BACKUP=1, but not in comment' from NDB
 SELECT * FROM t;
 field1
 "table"
@@ -8639,6 +8648,8 @@ SELECT JSON_UNQUOTE( '"table"' ) AS field1;
 field1
 table
 CREATE TABLE t1 SELECT JSON_unquote( '"table"' ) AS field1;
+Warnings:
+Warning	1296	Got error 4502 'Table property is READ_BACKUP=1, but not in comment' from NDB
 SELECT * FROM t1;
 field1
 table

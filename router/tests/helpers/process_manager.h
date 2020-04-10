@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2017, 2018, Oracle and/or its affiliates. All rights reserved.
+  Copyright (c) 2017, 2019, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -73,9 +73,45 @@ class ProcessManager {
   void shutdown_all();
 
   /**
-   * ensures all processes exited and check for crashes.
+   * ensures all processes exited and checks for crashes.
    */
   void ensure_clean_exit();
+
+  /**
+   * ensures given process exited with expected return value and checks for
+   * crashes.
+   */
+  void check_exit_code(
+      ProcessWrapper &process, int expected_exit_code = EXIT_SUCCESS,
+      std::chrono::milliseconds timeout = kDefaultWaitForExitTimeout);
+
+  /**
+   * ensures given port is ready for accepting connections, prints some debug
+   * data otherwise.
+   *
+   * @param process       process that should be listening on that port
+   * @param port          TCP port number to check
+   * @param timeout       maximum timeout to wait for the port
+   * @param hostname      name/IP address of the network host to check
+   */
+  void check_port_ready(
+      ProcessWrapper &process, uint16_t port,
+      std::chrono::milliseconds timeout = kDefaultPortReadyTimeout,
+      const std::string &hostname = "127.0.0.1");
+
+  /**
+   * ensures given port is NOT ready for accepting connections, prints some
+   * debug data otherwise.
+   *
+   * @param process       process that should be listening on that port
+   * @param port          TCP port number to check
+   * @param timeout       maximum timeout to wait for the port
+   * @param hostname      name/IP address of the network host to check
+   */
+  void check_port_not_ready(
+      ProcessWrapper &process, uint16_t port,
+      std::chrono::milliseconds timeout = kDefaultPortReadyTimeout,
+      const std::string &hostname = "127.0.0.1");
 
   /** @brief Launches the MySQLRouter process.
    *
@@ -108,13 +144,15 @@ class ProcessManager {
    * @param x_port  port number where the mock server will accept x client
    *                  connections
    * @param module_prefix base-path for javascript modules used by the tests
+   * @param bind_address listen address for the mock server to bind to
    *
    * @returns handle to the launched proccess
    */
   ProcessWrapper &launch_mysql_server_mock(
       const std::string &json_file, unsigned port, int expected_exit_code = 0,
       bool debug_mode = false, uint16_t http_port = 0, uint16_t x_port = 0,
-      const std::string &module_prefix = "");
+      const std::string &module_prefix = "",
+      const std::string &bind_address = "0.0.0.0");
 
   /** @brief Launches a process.
    *
@@ -193,6 +231,10 @@ class ProcessManager {
   void get_params(const std::string &command,
                   const std::vector<std::string> &params_vec,
                   const char *out_params[kMaxLaunchedProcessParams]) const;
+
+  void check_port(bool should_be_ready, ProcessWrapper &process, uint16_t port,
+                  std::chrono::milliseconds timeout,
+                  const std::string &hostname);
 
   static Path origin_dir_;
   static Path data_dir_;

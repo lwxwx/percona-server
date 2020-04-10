@@ -88,10 +88,8 @@ dberr_t srv_undo_tablespaces_upgrade();
 
 /** Start InnoDB.
 @param[in]	create_new_db		Whether to create a new database
-@param[in]	scan_directories	Scan directories for .ibd files for
-                                        recovery "dir1;dir2; ... dirN"
 @return DB_SUCCESS or error code */
-dberr_t srv_start(bool create_new_db, const std::string &scan_directories);
+dberr_t srv_start(bool create_new_db);
 
 /** Fix up an undo tablespace if it was in the process of being truncated
 when the server crashed. This is the second call and is done after the DD
@@ -107,9 +105,13 @@ dberr_t srv_undo_tablespace_fixup(const char *space_name, const char *file_name,
 any tables (including data dictionary tables) can be accessed. */
 void srv_dict_recover_on_restart();
 
-/** Start up the remaining InnoDB service threads.
+/** Start up the InnoDB service threads which are independent of DDL recovery
 @param[in]	bootstrap	True if this is in bootstrap */
 void srv_start_threads(bool bootstrap);
+
+/** Start the remaining InnoDB service threads which must wait for
+complete DD recovery(post the DDL recovery) */
+void srv_start_threads_after_ddl_recovery();
 
 /** Shut down all InnoDB background tasks that may look up objects in
 the data dictionary. */

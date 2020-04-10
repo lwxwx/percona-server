@@ -60,6 +60,29 @@ struct redo_log_key;
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
 
+/** Maximum number of tablespaces to be scanned by a thread while scanning
+for available tablespaces during server startup. This is a hard maximum.
+If the number of files to be scanned is more than
+FIL_SCAN_MAX_TABLESPACES_PER_THREAD,
+then additional threads will be spawned to scan the additional files in
+parallel. */
+constexpr size_t FIL_SCAN_MAX_TABLESPACES_PER_THREAD = 8000;
+
+/** Maximum number of threads that will be used for scanning the tablespace
+files. This can be further adjusted depending on the number of available
+cores. */
+constexpr size_t FIL_SCAN_MAX_THREADS = 16;
+
+/** Number of threads per core. */
+constexpr size_t FIL_SCAN_THREADS_PER_CORE = 2;
+
+/** Calculate the number of threads that can be spawned to scan the given
+number of files taking into the consideration, number of cores available
+on the machine.
+@param[in]	num_files	Number of files to be scanned
+@return number of threads to be spawned for scanning the files */
+size_t fil_get_scan_threads(size_t num_files);
+
 /** This tablespace name is used internally during file discovery to open a
 general tablespace before the data dictionary is recovered and available. */
 static constexpr char general_space_name[] = "innodb_general";
@@ -318,6 +341,9 @@ struct fil_space_t {
   /** Only used for redo log encryption: the currently active key handle */
   redo_log_key *encryption_redo_key;
 
+  /** Only used for redo log encryption: the redo encryption's key uuid */
+  std::unique_ptr<char[]> encryption_redo_key_uuid;
+
   /** Encryption is in progress */
   encryption_op_type encryption_op_in_progress;
 
@@ -386,12 +412,6 @@ class Fil_path {
   static constexpr auto OS_SEPARATOR = OS_PATH_SEPARATOR;
 
   /** Directory separators that are supported. */
-#if defined(__SUNPRO_CC)
-  static char *SEPARATOR;
-  static char *DOT_SLASH;
-  static char *DOT_DOT_SLASH;
-  static char *SLASH_DOT_DOT_SLASH;
-#else
   static constexpr auto SEPARATOR = "\\/";
 #ifdef _WIN32
   static constexpr auto DOT_SLASH = ".\\";
@@ -402,8 +422,6 @@ class Fil_path {
   static constexpr auto DOT_DOT_SLASH = "../";
   static constexpr auto SLASH_DOT_DOT_SLASH = "/../";
 #endif /* _WIN32 */
-
-#endif /* __SUNPRO_CC */
 
   /** Various types of file paths. */
   enum path_type { absolute, relative, file_name_only, invalid };
@@ -448,52 +466,122 @@ class Fil_path {
     return (m_path.length());
   }
 
+  /** Return the absolute path by value. If m_abs_path is null, calculate
+  it and return it by value without trying to reset this const object.
+  m_abs_path can be empty if the path did not exist when this object
+  was constructed.
+  @return the absolute path by value. */
+  const std::string abs_path() const MY_ATTRIBUTE((warn_unused_result)) {
+    if (m_abs_path.empty()) {
+      return (get_real_path(m_path));
+    }
+
+    return (m_abs_path);
+  }
+
   /** @return the length of m_abs_path */
   size_t abs_len() const MY_ATTRIBUTE((warn_unused_result)) {
     return (m_abs_path.length());
   }
 
-  /** Determine if this path is equal to the other path.
-  @param[in]	lhs		Path to compare to
-  @return true if the paths are the same */
-  bool operator==(const Fil_path &lhs) const {
-    return (m_path.compare(lhs.m_path));
-  }
-
-  /** Check if m_path is the same as path.
-  @param[in]	path	directory path to compare to
+  /** Check if m_path is the same as this other path.
+  @param[in]  other  directory path to compare to
   @return true if m_path is the same as path */
-  bool is_same_as(const std::string &path) const
+  bool is_same_as(const Fil_path &other) const
       MY_ATTRIBUTE((warn_unused_result)) {
-    if (m_path.empty() || path.empty()) {
+    if (path().empty() || other.path().empty()) {
       return (false);
     }
 
-    return (m_abs_path == get_real_path(path));
+    return (abs_path() == other.abs_path());
   }
 
-  /** Check if m_path is the parent of name.
-  @param[in]	name		Path to compare to
-  @return true if m_path is an ancestor of name */
-  bool is_ancestor(const std::string &name) const
+  /** Determine if this path is equal to the other path.
+  @param[in]  other		path to compare to
+  @return true if the paths are the same */
+  bool operator==(const Fil_path &other) const { return (is_same_as(other)); }
+
+  /** Check if this path is the same as the other path.
+  @param[in]  other  directory path to compare to
+  @return true if this path is the same as the other path */
+  bool is_same_as(const std::string &other) const
       MY_ATTRIBUTE((warn_unused_result)) {
-    if (m_path.empty() || name.empty()) {
+    if (path().empty() || other.empty()) {
       return (false);
     }
 
-    return (is_ancestor(m_abs_path, get_real_path(name)));
+    Fil_path other_path(other);
+
+    return (abs_path() == other_path.abs_path());
   }
 
-  /** Check if m_path is the parent of other.m_path.
-  @param[in]	other		Path to compare to
+  /** Check if two path strings are equal. Put them into Fil_path objects
+  so that they can be compared correctly.
+  @param[in]  first   first path to check
+  @param[in]  second  socond path to check
+  @return true if these two paths are the same */
+  static bool is_same_as(const std::string &first, const std::string &second)
+      MY_ATTRIBUTE((warn_unused_result)) {
+    if (first.empty() || second.empty()) {
+      return (false);
+    }
+
+    Fil_path first_path(first);
+    Fil_path second_path(second);
+
+    return (first_path == second_path);
+  }
+
+  /** Check if m_path is the parent of the other path.
+  @param[in]  other  path to compare to
   @return true if m_path is an ancestor of name */
   bool is_ancestor(const Fil_path &other) const
       MY_ATTRIBUTE((warn_unused_result)) {
-    if (m_path.empty() || other.m_path.empty()) {
+    if (path().empty() || other.path().empty()) {
       return (false);
     }
 
-    return (is_ancestor(m_abs_path, other.m_abs_path));
+    const std::string ancestor = abs_path();
+    const std::string descendant = other.abs_path();
+
+    if (descendant.length() <= ancestor.length()) {
+      return (false);
+    }
+
+    return (std::equal(ancestor.begin(), ancestor.end(), descendant.begin()));
+  }
+
+  /** Check if this Fil_path is an ancestor of the other path.
+  @param[in]  other  path to compare to
+  @return true if this Fil_path is an ancestor of the other path */
+  bool is_ancestor(const std::string &other) const
+      MY_ATTRIBUTE((warn_unused_result)) {
+    if (path().empty() || other.empty()) {
+      return (false);
+    }
+
+    Fil_path descendant(other);
+
+    return (is_ancestor(descendant));
+  }
+
+  /** Check if the first path is an ancestor of the second.
+  Do not assume that these paths have been converted to real paths
+  and are ready to compare. If the two paths are the same
+  we will return false.
+  @param[in]  first   Parent path to check
+  @param[in]  second  Descendent path to check
+  @return true if the first path is an ancestor of the second */
+  static bool is_ancestor(const std::string &first, const std::string &second)
+      MY_ATTRIBUTE((warn_unused_result)) {
+    if (first.empty() || second.empty()) {
+      return (false);
+    }
+
+    Fil_path ancestor(first);
+    Fil_path descendant(second);
+
+    return (ancestor.is_ancestor(descendant));
   }
 
   /** @return true if m_path exists and is a file. */
@@ -501,11 +589,6 @@ class Fil_path {
 
   /** @return true if m_path exists and is a directory. */
   bool is_directory_and_exists() const MY_ATTRIBUTE((warn_unused_result));
-
-  /** Return the absolute path */
-  const std::string &abs_path() const MY_ATTRIBUTE((warn_unused_result)) {
-    return (m_abs_path);
-  }
 
   /** This validation is only for ':'.
   @return true if the path is valid. */
@@ -516,37 +599,43 @@ class Fil_path {
   @return true if a circular section if found, false if not */
   bool is_circular() const MY_ATTRIBUTE((warn_unused_result));
 
+  /** Determine if the file or directory is considered HIDDEN.
+  Most file systems identify the HIDDEN attribute by a '.' preceeding the
+  basename.  On Windows, a HIDDEN path is identified by a file attribute.
+  We will use the preceeding '.' to indicate a HIDDEN attribute on ALL
+  file systems so that InnoDB tablespaces and their directory structure
+  remain portable.
+  @param[in]  path  The full or relative path of a file or directory.
+  @return true if the directory or path is HIDDEN. */
+  static bool is_hidden(std::string path);
+
+#ifdef _WIN32
+  /** Use the WIN32_FIND_DATA struncture to determine if the file or
+  directory is HIDDEN.  Consider a SYSTEM attribute also as an indicator
+  that it is HIDDEN to InnoDB.
+  @param[in]  dirent  A directory entry obtained from a call to FindFirstFile()
+  or FindNextFile()
+  @return true if the directory or path is HIDDEN. */
+  static bool is_hidden(WIN32_FIND_DATA &dirent);
+#endif /* WIN32 */
+
   /** Remove quotes e.g., 'a;b' or "a;b" -> a;b.
-  Assumes matching quotes.
+  This will only remove the quotes if they are matching on the whole string.
+  This will not work if each delimited string is quoted since this is called
+  before the string is parsed.
   @return pathspec with the quotes stripped */
-  static std::string parse(const char *pathspec) {
+  static std::string remove_quotes(const char *pathspec) {
     std::string path(pathspec);
 
     ut_ad(!path.empty());
 
-    if (path.size() >= 2 && (path.front() == '\'' || path.back() == '"')) {
+    if (path.size() >= 2 && ((path.front() == '\'' && path.back() == '\'') ||
+                             (path.front() == '"' && path.back() == '"'))) {
       path.erase(0, 1);
-
-      if (path.back() == '\'' || path.back() == '"') {
-        path.erase(path.size() - 1);
-      }
+      path.erase(path.size() - 1);
     }
 
     return (path);
-  }
-
-  /** Convert the paths into absolute paths and compare them. The
-  paths to compare must be valid paths, otherwise the result is
-  undefined.
-  @param[in]	lhs		Filename to compare
-  @param[in]	rhs		Filename to compare
-  @return true if they are the same */
-  static bool equal(const std::string &lhs, const std::string &rhs)
-      MY_ATTRIBUTE((warn_unused_result)) {
-    Fil_path path1(lhs);
-    Fil_path path2(rhs);
-
-    return (path1.abs_path().compare(path2.abs_path()) == 0);
   }
 
   /** @return true if the path is an absolute path. */
@@ -637,26 +726,29 @@ class Fil_path {
   static os_file_type_t get_file_type(const std::string &path)
       MY_ATTRIBUTE((warn_unused_result));
 
-  /** Get the real path for a directory or a file name, useful for
-  comparing symlinked files.
-  @param[in]	path		Directory or filename
-  @return the absolute path of dir + filename, or "" on error.  */
-  static std::string get_real_path(const std::string &path)
+  /** Return a string to display the file type of a path.
+  @param[in]  path  path name
+  @return true if the path exists and is a file . */
+  static const char *get_file_type_string(const std::string &path);
+
+  /** Return a string to display the file type of a path.
+  @param[in]  type  OS file type
+  @return true if the path exists and is a file . */
+  static const char *get_file_type_string(os_file_type_t type);
+
+  /** Get the real path for a directory or a file name. This path can be
+  used to compare with another absolute path. It will be converted to
+  lower case on case insensitive file systems and if it is a directory,
+  it will end with a directory separator. The call to my_realpath() may
+  fail on non-Windows platforms if the path does not exist. If so, the
+  parameter 'force' determines what to return.
+  @param[in]  path   directory or filename to convert to a real path
+  @param[in]  force  if true and my_realpath() fails, use the path provided.
+                     if false and my_realpath() fails, return a null string.
+  @return  the absolute path prepared for making comparisons with other real
+           paths. */
+  static std::string get_real_path(const std::string &path, bool force = true)
       MY_ATTRIBUTE((warn_unused_result));
-
-  /** Check if lhs is the ancestor of rhs. If the two paths are the
-  same it will return false.
-  @param[in]	lhs		Parent path to check
-  @param[in]	rhs		Descendent path to check
-  @return true if lhs is an ancestor of rhs */
-  static bool is_ancestor(const std::string &lhs, const std::string &rhs)
-      MY_ATTRIBUTE((warn_unused_result)) {
-    if (lhs.empty() || rhs.empty() || rhs.length() <= lhs.length()) {
-      return (false);
-    }
-
-    return (std::equal(lhs.begin(), lhs.end(), rhs.begin()));
-  }
 
   /** Check if the name is an undo tablespace name.
   @param[in]	name		Tablespace name
@@ -674,6 +766,23 @@ class Fil_path {
 
     return (path.size() >= len &&
             path.compare(path.size() - len, len, suffix) == 0);
+  }
+
+  /** Check if the file has the the specified suffix and truncate
+  @param[in]		sfx	suffix to look for
+  @param[in,out]	path	Filename to check
+  @return true if the suffix is found and truncated. */
+  static bool truncate_suffix(ib_file_suffix sfx, std::string &path) {
+    const auto suffix = dot_ext[sfx];
+    size_t len = strlen(suffix);
+
+    if (path.size() < len ||
+        path.compare(path.size() - len, len, suffix) != 0) {
+      return (false);
+    }
+
+    path.resize(path.size() - len);
+    return (true);
   }
 
   /** Check if a character is a path separator ('\' or '/')
@@ -735,12 +844,22 @@ class Fil_path {
   /** Create an IBD path name after replacing the basename in an old path
   with a new basename.  The old_path is a full path name including the
   extension.  The tablename is in the normal form "schema/tablename".
-  @param[in]	path_in			Pathname
-  @param[in]	name_in			Contains new base name
+  @param[in]	path_in		Pathname
+  @param[in]	name_in		Contains new base name
+  @param[in]	extn		File extension
   @return new full pathname */
-  static std::string make_new_ibd(const std::string &path_in,
-                                  const std::string &name_in)
+  static std::string make_new_path(const std::string &path_in,
+                                   const std::string &name_in,
+                                   ib_file_suffix extn)
       MY_ATTRIBUTE((warn_unused_result));
+
+  /** Parse file-per-table file name and build Innodb dictionary table name.
+  @param[in]	file_path	File name with complete path
+  @param[in]	extn		File extension
+  @param[out]	dict_name	Innodb dictionary table name
+  @return true, if successful. */
+  static bool parse_file_path(const std::string &file_path, ib_file_suffix extn,
+                              std::string &dict_name);
 
   /** This function reduces a null-terminated full remote path name
   into the path that is sent by MySQL for DATA DIRECTORY clause.
@@ -755,11 +874,6 @@ class Fil_path {
   The result is used to inform a SHOW CREATE TABLE command.
   @param[in,out]	data_dir_path	Full path/data_dir_path */
   static void make_data_dir_path(char *data_dir_path);
-
-  /** @return the null path */
-  static const Fil_path &null() MY_ATTRIBUTE((warn_unused_result)) {
-    return (s_null_path);
-  }
 
 #ifndef UNIV_HOTBACKUP
   /** Check if the filepath provided is in a valid placement.
@@ -788,13 +902,13 @@ class Fil_path {
 
   /** A full absolute path to the same file. */
   std::string m_abs_path;
-
-  /** Empty (null) path. */
-  static Fil_path s_null_path;
 };
 
 /** The MySQL server --datadir value */
 extern Fil_path MySQL_datadir_path;
+
+/** The MySQL server --innodb-undo-directory value */
+extern Fil_path MySQL_undo_path;
 
 /** Initial size of a single-table tablespace in pages */
 constexpr size_t FIL_IBD_FILE_INITIAL_SIZE = 7;
@@ -1910,6 +2024,28 @@ void fil_tablespace_open_init_for_recovery(bool recovery);
 bool fil_tablespace_lookup_for_recovery(space_id_t space_id)
     MY_ATTRIBUTE((warn_unused_result));
 
+/** Compare and update space name and dd path for partitioned table. Uniformly
+converts partition separators and names to lower case.
+@param[in]	space_id	tablespace ID
+@param[in]	fsp_flags	tablespace flags
+@param[in]	update_space	update space name
+@param[in,out]	space_name	tablespace name
+@param[in,out]	dd_path		file name with complete path
+@return true, if names are updated. */
+bool fil_update_partition_name(space_id_t space_id, uint32_t fsp_flags,
+                               bool update_space, std::string &space_name,
+                               std::string &dd_path);
+
+/** Add tablespace to the set of tablespaces to be updated in DD.
+@param[in]	dd_object_id	Server DD tablespace ID
+@param[in]	space_id	Innodb tablespace ID
+@param[in]	space_name	New tablespace name
+@param[in]	old_path	Old Path in the data dictionary
+@param[in]	new_path	New path to be update in dictionary */
+void fil_add_moved_space(dd::Object_id dd_object_id, space_id_t space_id,
+                         const char *space_name, const std::string &old_path,
+                         const std::string &new_path);
+
 /** Lookup the tablespace ID and return the path to the file. The filename
 is ignored when testing for equality. Only the path up to the file name is
 considered for matching: e.g. ./test/a.ibd == ./test/b.ibd.
@@ -1933,10 +2069,19 @@ or MLOG_FILE_RENAME record. These could not be recovered
 ignore redo log records during the apply phase */
 bool fil_check_missing_tablespaces() MY_ATTRIBUTE((warn_unused_result));
 
+/** Normalize and save a directory to scan for datafiles.
+@param[in]  directory    directory to scan for ibd and ibu files
+@param[in]  is_undo_dir  true for an undo directory */
+void fil_set_scan_dir(const std::string &directory, bool is_undo_dir = false);
+
+/** Normalize and save a list of directories to scan for datafiles.
+@param[in]  directories  Directories to scan for ibd and ibu files
+                         in the form:  "dir1;dir2; ... dirN" */
+void fil_set_scan_dirs(const std::string &directories);
+
 /** Discover tablespaces by reading the header from .ibd files.
-@param[in]	directories	Directories to scan
 @return DB_SUCCESS if all goes well */
-dberr_t fil_scan_for_tablespaces(const std::string &directories);
+dberr_t fil_scan_for_tablespaces();
 
 /** Open the tabelspace and also get the tablespace filenames, space_id must
 already be known.
@@ -1988,6 +2133,13 @@ and old name are same, no update done.
                                 will be updated
 @param[in]	name		new name for tablespace */
 void fil_space_update_name(fil_space_t *space, const char *name);
+
+/** Adjust file name for import for partition files in different letter case.
+@param[in]	table	Innodb dict table
+@param[in]	path	file path to open
+@param[in]	extn	file extension */
+void fil_adjust_name_import(dict_table_t *table, const char *path,
+                            ib_file_suffix extn);
 
 /** Mark space as corrupt
 @param space_id	space id */

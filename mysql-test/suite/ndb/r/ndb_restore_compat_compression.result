@@ -78,6 +78,7 @@ PRIMARY KEY  (`dardpo`,`dardtestard`)
 ) ENGINE=ndbcluster DEFAULT CHARSET=latin1;
 Warnings:
 Warning	1681	Integer display width is deprecated and will be removed in a future release.
+Warning	1063	Max value for column dardtestard in table test.t7_c is less than autoincrement prefetch size. Please decrease ndb_autoincrement_prefetch_sz
 INSERT INTO `t7_c` VALUES ('2.6.2.4',24,'CECHP','54545','0','0','5'),('2.2.5.4',26,'CANFA','33223','1','1','4'),('4.3.2.4',28,'ITALD','54222','1','0','5'),('129..0.0.eins',28,'G','99999','1','1','5'),('1.1.1.1',24,'AUTPT','32323','0','1','3');
 CREATE TABLE `t8_c` (
 `kattjame` varchar(32) NOT NULL default '',
@@ -160,6 +161,10 @@ create table t10 engine=myisam as select * from t10_c;
 create table t11 engine=myisam as select * from t11_c;
 ForceVarPart: 0
 ForceVarPart: 1
+SET @old_ndb_metadata_check_server2 = @@global.ndb_metadata_check;
+SET GLOBAL ndb_metadata_check = false;
+SET @old_ndb_metadata_check_server1 = @@global.ndb_metadata_check;
+SET GLOBAL ndb_metadata_check = false;
 drop table t1_c,t2_c,t3_c,t4_c,t5_c,t6_c,t7_c,t8_c,t9_c,t10_c,t11_c;
 ForceVarPart: 0
 ForceVarPart: 1
@@ -574,14 +579,10 @@ select * from t11_c) a;
 count(*)
 1
 drop table t1_c,t3_c,t4_c,t5_c,t6_c,t7_c,t8_c,t9_c,t10_c,t11_c;
-Backup Id = the_backup_id
-Nodeid = 1
-Analyse node group map
+select output_line from ndb_restore_output where output_line like '%t2_c%' order by output_line;
+output_line
 Create table `test/def/t2_c` failed: 721: Schema object with given name already exists
 Restore: Failed to restore table: `test/def/t2_c` ... Exiting 
-
-NDBT_ProgramExit: 1 - Failed
-
 CREATE TABLE t11_c (
 c1 int primary key, c2 char(10), c3 varchar(10)
 ) ENGINE=ndbcluster DEFAULT CHARSET=latin1;
@@ -611,18 +612,18 @@ engine=ndb;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL AUTO_INCREMENT,
-  `b` int(11) DEFAULT NULL,
+  `a` int NOT NULL AUTO_INCREMENT,
+  `b` int DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ndbcluster AUTO_INCREMENT=200 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+) ENGINE=ndbcluster AUTO_INCREMENT=200 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='NDB_TABLE=READ_BACKUP=1'
 drop table t1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL AUTO_INCREMENT,
-  `b` int(11) DEFAULT NULL,
+  `a` int NOT NULL AUTO_INCREMENT,
+  `b` int DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ndbcluster AUTO_INCREMENT=200 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+) ENGINE=ndbcluster AUTO_INCREMENT=200 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='NDB_TABLE=READ_BACKUP=1'
 drop table t1;
 drop table t1;
 create table t1 (a int, b int, c int not null, 
@@ -746,13 +747,12 @@ select count(1) from mysql.ndb_apply_status where server_id=0;
 count(1)
 1
 drop table t1;
-Backup Id = the_backup_id
+select output_line from ndb_restore_output where output_line like '%not specified%' order by output_line;
+output_line
 Backup file node ID not specified, please provide --nodeid
-
-NDBT_ProgramExit: 2 - Wrong arguments
-
-Nodeid = 2
+select output_line from ndb_restore_output where output_line like '%not specified%' order by output_line;
+output_line
+Backup file node ID not specified, please provide --nodeid
 Backup ID not specified, please provide --backupid
-
-NDBT_ProgramExit: 2 - Wrong arguments
-
+SET GLOBAL ndb_metadata_check = @old_ndb_metadata_check_server2;
+SET GLOBAL ndb_metadata_check = @old_ndb_metadata_check_server1;

@@ -282,24 +282,26 @@ static inline bool check_audit_mask(const unsigned long *lhs,
 }
 
 /**
-  Fill query and query charset info extracted from the thread object.
+  Fill query info extracted from the thread object and return
+  the thread object charset info.
 
   @param[in]  thd     Thread data.
   @param[out] query   SQL query text.
-  @param[out] charset SQL query charset.
+
+  @return SQL query charset.
 */
-inline void thd_get_audit_query(THD *thd, MYSQL_LEX_CSTRING *query,
-                                const CHARSET_INFO **charset) {
+inline const CHARSET_INFO *thd_get_audit_query(THD *thd,
+                                               MYSQL_LEX_CSTRING *query) {
   if (!thd->rewritten_query.length()) mysql_rewrite_query(thd);
 
   if (thd->rewritten_query.length()) {
     query->str = thd->rewritten_query.ptr();
     query->length = thd->rewritten_query.length();
-    *charset = thd->rewritten_query.charset();
+    return thd->rewritten_query.charset();
   } else {
     query->str = thd->query().str;
     query->length = thd->query().length;
-    *charset = thd->charset();
+    return thd->charset();
   }
 }
 
@@ -376,8 +378,8 @@ int mysql_audit_notify(THD *thd, mysql_event_general_subclass_t subclass,
   event.general_rows = thd->get_stmt_da()->current_row_for_condition();
   event.general_sql_command = sql_statement_names[thd->lex->sql_command];
 
-  thd_get_audit_query(thd, &event.general_query,
-                      (const CHARSET_INFO **)&event.general_charset);
+  event.general_charset = const_cast<CHARSET_INFO *>(
+      thd_get_audit_query(thd, &event.general_query));
 
   event.general_time = thd->query_start_in_secs();
 
@@ -539,7 +541,7 @@ static int mysql_audit_notify(THD *thd,
   event.connection_id = thd->thread_id();
   event.sql_command_id = thd->lex->sql_command;
 
-  thd_get_audit_query(thd, &event.query, &event.query_charset);
+  event.query_charset = thd_get_audit_query(thd, &event.query);
 
   lex_cstring_set(&str, table->db);
   event.table_database.str = str.str;
@@ -602,6 +604,7 @@ int mysql_audit_table_access_notify(THD *thd, TABLE_LIST *table) {
       break;
     case SQLCOM_SELECT:
     case SQLCOM_HA_READ:
+    case SQLCOM_ANALYZE:
       set_table_access_subclass(&subclass, &subclass_name,
                                 AUDIT_EVENT(MYSQL_AUDIT_TABLE_ACCESS_READ));
       break;
@@ -735,7 +738,7 @@ int mysql_audit_notify(THD *thd, mysql_event_authorization_subclass_t subclass,
   event.connection_id= thd->thread_id();
   event.sql_command_id= thd->lex->sql_command;
 
-  thd_get_audit_query(thd, &event.query, &event.query_charset);
+  event.query_charset = thd_get_audit_query(thd, &event.query);
 
   LEX_CSTRING obj_str;
 
@@ -870,7 +873,7 @@ int mysql_audit_notify(THD *thd, mysql_event_query_subclass_t subclass,
 
   event.sql_command_id = thd->lex->sql_command;
 
-  thd_get_audit_query(thd, &event.query, &event.query_charset);
+  event.query_charset = thd_get_audit_query(thd, &event.query);
 
   return event_class_dispatch_error(thd, MYSQL_AUDIT_QUERY_CLASS, subclass_name,
                                     &event);
@@ -889,7 +892,7 @@ int mysql_audit_notify(THD *thd, mysql_event_stored_program_subclass_t subclass,
   event.connection_id = thd->thread_id();
   event.sql_command_id = thd->lex->sql_command;
 
-  thd_get_audit_query(thd, &event.query, &event.query_charset);
+  event.query_charset = thd_get_audit_query(thd, &event.query);
 
   LEX_CSTRING obj_str;
 
@@ -923,7 +926,7 @@ int mysql_audit_notify(THD *thd, mysql_event_authentication_subclass_t subclass,
   event.connection_id = thd->thread_id();
   event.sql_command_id = thd->lex->sql_command;
 
-  thd_get_audit_query(thd, &event.query, &event.query_charset);
+  event.query_charset = thd_get_audit_query(thd, &event.query);
 
   LEX_CSTRING obj_str;
 
@@ -1059,7 +1062,7 @@ static bool acquire_plugins(THD *thd, plugin_ref plugin, void *arg) {
 */
 int mysql_audit_acquire_plugins(THD *thd, mysql_event_class_t event_class,
                                 unsigned long event_subclass) {
-  DBUG_ENTER("mysql_audit_acquire_plugins");
+  DBUG_TRACE;
   unsigned long global_mask = mysql_global_audit_mask[event_class];
 
   if (thd && !check_audit_mask(global_mask, event_subclass) &&
@@ -1102,7 +1105,7 @@ int mysql_audit_acquire_plugins(THD *thd, mysql_event_class_t event_class,
   }
 
   /* Check whether there is a plugin registered for this event. */
-  DBUG_RETURN(check_audit_mask(global_mask, event_subclass) ? 1 : 0);
+  return check_audit_mask(global_mask, event_subclass) ? 1 : 0;
 }
 
 /**
@@ -1254,7 +1257,7 @@ static bool calc_class_mask(THD *, plugin_ref plugin, void *arg) {
   st_mysql_audit *data = plugin_data<st_mysql_audit *>(plugin);
   if (data)
     add_audit_mask(reinterpret_cast<unsigned long *>(arg), data->class_mask);
-  return 0;
+  return false;
 }
 
 /**
@@ -1307,7 +1310,8 @@ int finalize_audit_plugin(st_plugin_int *plugin) {
 static int plugins_dispatch(THD *thd, plugin_ref plugin, void *arg) {
   const struct st_mysql_event_generic *event_generic =
       (const struct st_mysql_event_generic *)arg;
-  unsigned long subclass = (unsigned long)*(int *)event_generic->event;
+  unsigned long subclass = static_cast<unsigned long>(
+      *static_cast<const int *>(event_generic->event));
   st_mysql_audit *data = plugin_data<st_mysql_audit *>(plugin);
 
   /* Check to see if the plugin is interested in this event */

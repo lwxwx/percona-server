@@ -51,6 +51,8 @@
 
 using namespace std::string_literals;
 
+using namespace std::chrono_literals;
+
 class RestRoutingApiTest
     : public RestApiComponentTest,
       public ::testing::WithParamInterface<RestApiTestParams> {
@@ -171,52 +173,58 @@ TEST_P(RestRoutingApiTest, ensure_openapi) {
       conf_dir_.name(), mysql_harness::join(config_sections, "\n"),
       &default_section)};
 
+  SCOPED_TRACE("// starting router");
   ProcessWrapper &http_server = launch_router({"-c", conf_file});
 
   // doesn't really matter which file we use here, we are not going to do any
   // queries
-  const std::string json_stmts =
-      get_data_dir().join("bootstrap_big_data.js").str();
+  const std::string json_stmts = get_data_dir().join("bootstrap_gr.js").str();
 
   SCOPED_TRACE("// launch the server mock");
   auto &server_mock =
       launch_mysql_server_mock(json_stmts, mock_port_, EXIT_SUCCESS, false);
 
-  ASSERT_TRUE(wait_for_port_ready(mock_port_, 5000))
-      << server_mock.get_full_output();
+  SCOPED_TRACE("// checking port is ready");
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(server_mock, mock_port_, 5000ms));
   // wait for route being available if we expect it to be and plan to do some
   // connections to it (which are routes: "ro" and "Aaz")
   for (size_t i = 3; i < kRoutesQty; ++i) {
-    ASSERT_TRUE(wait_route_ready(std::chrono::milliseconds(5000),
-                                 route_names[i], http_port_, "127.0.0.1",
-                                 kRestApiUsername, kRestApiPassword))
+    ASSERT_TRUE(wait_route_ready(5000ms, route_names[i], http_port_,
+                                 "127.0.0.1", kRestApiUsername,
+                                 kRestApiPassword))
         << http_server.get_full_output() << "\n"
         << http_server.get_full_logfile();
   }
 
   // make 3 connections to route "ro"
   mysqlrouter::MySQLSession client_ro_1;
-  EXPECT_NO_THROW(client_ro_1.connect("127.0.0.1", routing_ports_[4],
-                                      "username", "password", "", ""));
+  EXPECT_NO_THROW(client_ro_1.connect("127.0.0.1", routing_ports_[4], "root",
+                                      "fake-pass", "", ""));
   mysqlrouter::MySQLSession client_ro_2;
-  EXPECT_NO_THROW(client_ro_2.connect("127.0.0.1", routing_ports_[4],
-                                      "username", "password", "", ""));
+  EXPECT_NO_THROW(client_ro_2.connect("127.0.0.1", routing_ports_[4], "root",
+                                      "fake-pass", "", ""));
   mysqlrouter::MySQLSession client_ro_3;
-  EXPECT_NO_THROW(client_ro_3.connect("127.0.0.1", routing_ports_[4],
-                                      "username", "password", "", ""));
+  EXPECT_NO_THROW(client_ro_3.connect("127.0.0.1", routing_ports_[4], "root",
+                                      "fake-pass", "", ""));
 
   // make 1 connection to route "Aaz"
   mysqlrouter::MySQLSession client_Aaz_1;
-  EXPECT_NO_THROW(client_Aaz_1.connect("127.0.0.1", routing_ports_[3],
-                                       "username", "password", "", ""));
+  EXPECT_NO_THROW(client_Aaz_1.connect("127.0.0.1", routing_ports_[3], "root",
+                                       "fake-pass", "", ""));
 
   // call wait_port_ready a few times on "123" to trigger blocked client
   // on that route (we set max_connect_errors to 2)
   for (size_t i = 0; i < 3; ++i) {
-    ASSERT_TRUE(wait_for_port_ready(routing_ports_[2], 500))
+    ASSERT_TRUE(wait_for_port_ready(routing_ports_[2], 500ms))
         << http_server.get_full_output() << "\n"
         << http_server.get_full_logfile();
   }
+
+  // wait a bit until the routing plugin really closed the sockets
+  //
+  // the routing plugin has a server-greeting-timeout of 100ms
+  // add a few more on top for our close-and-forget in wait_for_port_ready()
+  std::this_thread::sleep_for(200ms);
 
   EXPECT_NO_FATAL_FAILURE(
       fetch_and_validate_schema_and_resource(GetParam(), http_server));
@@ -942,8 +950,8 @@ TEST_F(RestRoutingApiTest, routing_api_no_auth) {
       conf_dir_.name(), mysql_harness::join(config_sections, "\n"))};
   auto &router = launch_router({"-c", conf_file}, EXIT_FAILURE);
 
-  const unsigned wait_for_process_exit_timeout{10000};
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), EXIT_FAILURE);
+  const auto wait_for_process_exit_timeout{10000ms};
+  check_exit_code(router, EXIT_FAILURE, wait_for_process_exit_timeout);
 
   const std::string router_output = router.get_full_logfile();
   EXPECT_NE(router_output.find("plugin 'rest_routing' init failed: option "
@@ -969,8 +977,8 @@ TEST_F(RestRoutingApiTest, invalid_realm) {
       conf_dir_.name(), mysql_harness::join(config_sections, "\n"))};
   auto &router = launch_router({"-c", conf_file}, EXIT_FAILURE);
 
-  const unsigned wait_for_process_exit_timeout{10000};
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), EXIT_FAILURE);
+  const auto wait_for_process_exit_timeout{10000ms};
+  check_exit_code(router, EXIT_FAILURE, wait_for_process_exit_timeout);
 
   const std::string router_output = router.get_full_logfile();
   EXPECT_NE(
@@ -994,8 +1002,8 @@ TEST_F(RestRoutingApiTest, routing_api_no_rest_api) {
       conf_dir_.name(), mysql_harness::join(config_sections, "\n"))};
   auto &router = launch_router({"-c", conf_file}, EXIT_FAILURE);
 
-  const unsigned wait_for_process_exit_timeout{10000};
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), EXIT_FAILURE);
+  const auto wait_for_process_exit_timeout{10000ms};
+  check_exit_code(router, EXIT_FAILURE, wait_for_process_exit_timeout);
 
   const std::string router_output = router.get_full_output();
   EXPECT_NE(router_output.find("Plugin 'rest_routing' needs plugin "
@@ -1025,8 +1033,8 @@ TEST_F(RestRoutingApiTest, rest_routing_section_twice) {
       conf_dir_.name(), mysql_harness::join(config_sections, "\n"))};
   auto &router = launch_router({"-c", conf_file}, EXIT_FAILURE);
 
-  const unsigned wait_for_process_exit_timeout{10000};
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), EXIT_FAILURE);
+  const auto wait_for_process_exit_timeout{10000ms};
+  check_exit_code(router, EXIT_FAILURE, wait_for_process_exit_timeout);
 
   const std::string router_output = router.get_full_output();
   EXPECT_NE(router_output.find(
@@ -1052,8 +1060,8 @@ TEST_F(RestRoutingApiTest, rest_routing_section_has_key) {
       conf_dir_.name(), mysql_harness::join(config_sections, "\n"))};
   auto &router = launch_router({"-c", conf_file}, EXIT_FAILURE);
 
-  const unsigned wait_for_process_exit_timeout{10000};
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), EXIT_FAILURE);
+  const auto wait_for_process_exit_timeout{10000ms};
+  check_exit_code(router, EXIT_FAILURE, wait_for_process_exit_timeout);
 
   const std::string router_output = router.get_full_logfile();
   EXPECT_NE(
@@ -1097,7 +1105,7 @@ TEST_P(RestRoutingApiTestCluster, ensure_openapi_cluster) {
   std::vector<uint16_t> node_classic_ports;
   uint16_t first_node_http_port{0};
   const std::string json_metadata =
-      get_data_dir().join("metadata_2_secondaries.js").str();
+      get_data_dir().join("metadata_dynamic_nodes.js").str();
   for (size_t i = 0; i < 3; ++i) {
     node_classic_ports.push_back(port_pool_.get_next_available());
     if (i == 0) first_node_http_port = port_pool_.get_next_available();
@@ -1105,8 +1113,7 @@ TEST_P(RestRoutingApiTestCluster, ensure_openapi_cluster) {
     nodes.push_back(&launch_mysql_server_mock(
         json_metadata, node_classic_ports[i], EXIT_SUCCESS, false,
         i == 0 ? first_node_http_port : 0));
-    bool ready = wait_for_port_ready(node_classic_ports[i]);
-    ASSERT_TRUE(ready) << nodes[i]->get_full_output();
+    ASSERT_NO_FATAL_FAILURE(check_port_ready(*nodes[i], node_classic_ports[i]));
   }
 
   ASSERT_TRUE(
@@ -1180,16 +1187,16 @@ TEST_P(RestRoutingApiTestCluster, ensure_openapi_cluster) {
 
   // make 1 connection to route "rw"
   mysqlrouter::MySQLSession client_ro_1;
-  EXPECT_NO_THROW(client_ro_1.connect("127.0.0.1", routing_ports_[0],
-                                      "username", "password", "", ""));
+  EXPECT_NO_THROW(client_ro_1.connect("127.0.0.1", routing_ports_[0], "root",
+                                      "fake-pass", "", ""));
 
   // make 2 connection to route "ro"
   mysqlrouter::MySQLSession client_rw_1;
-  EXPECT_NO_THROW(client_rw_1.connect("127.0.0.1", routing_ports_[1],
-                                      "username", "password", "", ""));
+  EXPECT_NO_THROW(client_rw_1.connect("127.0.0.1", routing_ports_[1], "root",
+                                      "fake-pass", "", ""));
   mysqlrouter::MySQLSession client_rw_2;
-  EXPECT_NO_THROW(client_rw_2.connect("127.0.0.1", routing_ports_[1],
-                                      "username", "password", "", ""));
+  EXPECT_NO_THROW(client_rw_2.connect("127.0.0.1", routing_ports_[1], "root",
+                                      "fake-pass", "", ""));
 
   EXPECT_NO_FATAL_FAILURE(
       fetch_and_validate_schema_and_resource(GetParam(), http_server));

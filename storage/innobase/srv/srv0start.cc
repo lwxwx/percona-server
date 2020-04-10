@@ -441,7 +441,18 @@ static dberr_t create_log_files(char *logfilename, size_t dirnamelen, lsn_t lsn,
 
     log_space->flags |= FSP_FLAGS_MASK_ENCRYPTION;
 
-    redo_log_key *mkey = redo_log_key_mgr.generate_new_key_without_storing();
+    ut_ad(strlen(server_uuid) == 0);
+    redo_log_key *mkey =
+        redo_log_key_mgr.fetch_or_generate_default_key(nullptr);
+
+    if (mkey == nullptr) {
+      ib::error(ER_REDO_ENCRYPTION_CANT_FETCH_DEFAULT_KEY);
+      return (DB_ERROR);
+    }
+
+    // default percona_redo should be of version 0, which is invalid - thus no
+    // version
+    ut_ad(mkey->version == REDO_LOG_ENCRYPT_NO_VERSION);
 
     fsp_flags_set_encryption(log_space->flags);
     err = fil_set_encryption(log_space->id, alg,
@@ -452,7 +463,12 @@ static dberr_t create_log_files(char *logfilename, size_t dirnamelen, lsn_t lsn,
       return (DB_ERROR);
     }
     log_space->encryption_redo_key = mkey;
+    // We always store here REDO_LOG_ENCRYPT_NO_VERSION. For keyring encryption
+    // this is indication that default percona_redo key was used and should
+    // be rotated.
     log_space->encryption_key_version = REDO_LOG_ENCRYPT_NO_VERSION;
+    // we do not have server_uuid yet
+    ut_ad(log_space->encryption_redo_key_uuid == nullptr);
 
     ut_ad(err == DB_SUCCESS);
   }
@@ -504,7 +520,8 @@ static dberr_t create_log_files(char *logfilename, size_t dirnamelen, lsn_t lsn,
   if (FSP_FLAGS_GET_ENCRYPTION(log_space->flags) &&
       !log_write_encryption(
           log_space->encryption_key, log_space->encryption_iv, true,
-          static_cast<redo_log_encrypt_enum>(srv_redo_log_encrypt))) {
+          static_cast<redo_log_encrypt_enum>(srv_redo_log_encrypt),
+          log_space->encryption_key_version)) {
     return (DB_ERROR);
   }
 
@@ -696,9 +713,11 @@ static dberr_t srv_undo_tablespace_enable_encryption(space_id_t space_id) {
 
 /** Try to read encryption metadata from an undo tablespace.
 @param[in]	fh		file handle of undo log file
+@param[in]  file_name file name
 @param[in]	space		undo tablespace
 @return DB_SUCCESS if success */
 static dberr_t srv_undo_tablespace_read_encryption(pfs_os_file_t fh,
+                                                   const char *file_name,
                                                    fil_space_t *space) {
   IORequest request;
   ulint n_read = 0;
@@ -714,8 +733,8 @@ static dberr_t srv_undo_tablespace_read_encryption(pfs_os_file_t fh,
   /* Don't want unnecessary complaints about partial reads. */
   request.disable_partial_io_warnings();
 
-  err = os_file_read_no_error_handling(request, fh, first_page, 0, page_size,
-                                       &n_read);
+  err = os_file_read_no_error_handling(request, file_name, fh, first_page, 0,
+                                       page_size, &n_read);
 
   if (err != DB_SUCCESS) {
     ib::info(ER_IB_MSG_1076, space->name, ut_strerr(err));
@@ -734,6 +753,11 @@ static dberr_t srv_undo_tablespace_read_encryption(pfs_os_file_t fh,
   if (crypt_data == nullptr) {
     crypt_data = fil_space_read_crypt_data(space_page_size, first_page);
     space->crypt_data = crypt_data;
+  }
+
+  if (is_space_keyring_v1_encrypted(space)) {
+    ib::error(ER_UPGRADE_KEYRING_V1_ENCRYPTION);
+    return (DB_FAIL);
   }
 
   /* Return if the encryption metadata is empty. */
@@ -861,9 +885,7 @@ is available so now we know the space_name, file_name and previous space_id.
 @return error code */
 dberr_t srv_undo_tablespace_fixup(const char *space_name, const char *file_name,
                                   space_id_t space_id) {
-  if (!fsp_is_undo_tablespace(space_id)) {
-    return (DB_SUCCESS);
-  }
+  ut_ad(fsp_is_undo_tablespace(space_id));
 
   space_id_t space_num = undo::id2num(space_id);
   if (!undo::is_active_truncate_log_present(space_num)) {
@@ -1005,7 +1027,7 @@ static dberr_t srv_undo_tablespace_open(undo::Tablespace &undo_space) {
   /* Read the encryption metadata in this undo tablespace.
   If the encryption info in the first page cannot be decrypted
   by the master key, this table cannot be opened. */
-  err = srv_undo_tablespace_read_encryption(fh, space);
+  err = srv_undo_tablespace_read_encryption(fh, file_name, space);
 
   /* The file handle will no longer be needed. */
   success = os_file_close(fh);
@@ -1046,7 +1068,7 @@ static dberr_t srv_undo_tablespace_open_by_id(space_id_t space_id) {
   std::string scanned_name = fil_system_open_fetch(space_id);
 
   if (scanned_name.length() != 0 &&
-      !Fil_path::equal(undo_space.file_name(), scanned_name.c_str())) {
+      !Fil_path::is_same_as(undo_space.file_name(), scanned_name.c_str())) {
     ib::error(ER_IB_MSG_FOUND_WRONG_UNDO_SPACE, undo_space.file_name(),
               ulong{space_id}, scanned_name.c_str());
 
@@ -1089,7 +1111,7 @@ static dberr_t srv_undo_tablespace_open_by_num(space_id_t space_num) {
   must match the default undo filename and must be found in
   srv_undo_directory. */
   bool has_implicit_name =
-      Fil_path::equal(undo_space.file_name(), scanned_name.c_str());
+      Fil_path::is_same_as(undo_space.file_name(), scanned_name.c_str());
 
   if (is_default || has_implicit_name) {
     if (!has_implicit_name) {
@@ -1415,10 +1437,12 @@ dberr_t srv_undo_tablespaces_upgrade() {
   for (const auto space_id : *trx_sys_undo_spaces) {
     undo::Tablespace undo_space(space_id);
 
-    dberr_t err =
-        fil_delete_tablespace(undo_space.id(), BUF_REMOVE_ALL_NO_WRITE);
+    fil_space_close(undo_space.id());
+
+    auto err = fil_delete_tablespace(undo_space.id(), BUF_REMOVE_ALL_NO_WRITE);
+
     if (err != DB_SUCCESS) {
-      ib::warn(ER_XB_UNDO_DELETE_FAILURE, undo_space.file_name());
+      ib::warn(ER_IB_MSG_57_UNDO_SPACE_DELETE_FAIL, undo_space.space_name());
     }
   }
 
@@ -1797,8 +1821,14 @@ void srv_shutdown_all_bg_threads() {
         os_event_set(log_scrub_event);
       }
 
-      if (srv_n_fil_crypt_threads_started) {
+      if (srv_threads.m_crypt_threads_n) {
         os_event_set(fil_crypt_threads_event);
+      }
+
+      /* Stop srv_redo_log_follow_thread thread */
+      if (srv_thread_is_active(srv_threads.m_changed_page_tracker)) {
+        os_event_reset(srv_redo_log_tracked_event);
+        os_event_set(srv_checkpoint_completed_event);
       }
     }
 
@@ -1973,6 +2003,15 @@ static dberr_t srv_sys_enable_encryption(bool create_new_db) {
   fil_space_t *space = fil_space_get(TRX_SYS_SPACE);
   dberr_t err = DB_SUCCESS;
 
+  // Fail startup if sys space is encrypted with crypt_data v1
+  // This should only happen on upgrade
+  if (srv_sys_space.keyring_encryption_info.page0_has_crypt_data &&
+      srv_sys_space.keyring_encryption_info.type != CRYPT_SCHEME_UNENCRYPTED &&
+      srv_sys_space.keyring_encryption_info.private_version == 1) {
+    ib::error(ER_UPGRADE_KEYRING_V1_ENCRYPTION);
+    return (DB_ERROR);
+  }
+
   if (create_new_db && srv_sys_tablespace_encrypt) {
     fsp_flags_set_encryption(space->flags);
     srv_sys_space.set_flags(space->flags);
@@ -2020,10 +2059,8 @@ static dberr_t srv_sys_enable_encryption(bool create_new_db) {
 
 /** Start InnoDB.
 @param[in]	create_new_db		Whether to create a new database
-@param[in]	scan_directories	Scan directories for .ibd files for
-                                        recovery "dir1;dir2; ... dirN"
 @return DB_SUCCESS or error code */
-dberr_t srv_start(bool create_new_db, const std::string &scan_directories) {
+dberr_t srv_start(bool create_new_db) {
   lsn_t flushed_lsn;
 
   /* just for assertions */
@@ -2154,6 +2191,26 @@ dberr_t srv_start(bool create_new_db, const std::string &scan_directories) {
 
   fil_init(srv_max_n_open_files);
 
+  /* This is the default directory for IBD and IBU files. Put it first
+  in the list of known directories. */
+  fil_set_scan_dir(MySQL_datadir_path.path());
+
+  /* Add --innodb-data-home-dir as a known location for IBD and IBU files
+  if it is not already there. */
+  ut_ad(srv_data_home != nullptr && *srv_data_home != '\0');
+  fil_set_scan_dir(Fil_path::remove_quotes(srv_data_home));
+
+  /* Add --innodb-directories as known locations for IBD and IBU files. */
+  if (srv_innodb_directories != nullptr && *srv_innodb_directories != 0) {
+    fil_set_scan_dirs(Fil_path::remove_quotes(srv_innodb_directories));
+  }
+
+  /* For the purpose of file discovery at startup, we need to scan
+  --innodb-undo-directory also. */
+  fil_set_scan_dir(Fil_path::remove_quotes(MySQL_undo_path), true);
+
+  ib::info(ER_IB_MSG_378) << "Directories to scan '" << fil_get_dirs() << "'";
+
   /* Must replace clone files before scanning directories. When
   clone replaces current database, cloned files are moved to data files
   at this stage. */
@@ -2163,7 +2220,7 @@ dberr_t srv_start(bool create_new_db, const std::string &scan_directories) {
     return (srv_init_abort(err));
   }
 
-  err = fil_scan_for_tablespaces(scan_directories);
+  err = fil_scan_for_tablespaces();
 
   if (err != DB_SUCCESS) {
     return (srv_init_abort(err));
@@ -2194,14 +2251,6 @@ dberr_t srv_start(bool create_new_db, const std::string &scan_directories) {
       if (!srv_monitor_file) {
         return (srv_init_abort(DB_ERROR));
       }
-    }
-
-    mutex_create(LATCH_ID_SRV_DICT_TMPFILE, &srv_dict_tmpfile_mutex);
-
-    srv_dict_tmpfile = os_file_create_tmpfile(NULL);
-
-    if (!srv_dict_tmpfile) {
-      return (srv_init_abort(DB_ERROR));
     }
 
     mutex_create(LATCH_ID_SRV_MISC_TMPFILE, &srv_misc_tmpfile_mutex);
@@ -2513,7 +2562,8 @@ files_checked:
   if (create_new_db) {
     ut_a(!srv_read_only_mode);
 
-    ut_a(log_sys->last_checkpoint_lsn == LOG_START_LSN + LOG_BLOCK_HDR_SIZE);
+    ut_a(log_sys->last_checkpoint_lsn.load() ==
+         LOG_START_LSN + LOG_BLOCK_HDR_SIZE);
 
     ut_a(flushed_lsn == LOG_START_LSN + LOG_BLOCK_HDR_SIZE);
 
@@ -2623,6 +2673,7 @@ files_checked:
     if (err == DB_SUCCESS) {
       /* Initialize the change buffer. */
       err = dict_boot();
+      DBUG_EXECUTE_IF("ib_dic_boot_error", err = DB_ERROR;);
     }
 
     if (err != DB_SUCCESS) {
@@ -3157,7 +3208,9 @@ void srv_start_threads(bool bootstrap) {
             - there are less possible flows - smaller risk of bug.
     Now we start allowing periodical checkpoints! Since now, it's
     hard to predict when checkpoints are written! */
+    log_limits_mutex_enter(*log_sys);
     log_sys->periodical_checkpoints_enabled = true;
+    log_limits_mutex_exit(*log_sys);
   }
 
   srv_threads.m_buf_resize =
@@ -3201,12 +3254,6 @@ void srv_start_threads(bool bootstrap) {
     ibuf_update_max_tablespace_id();
   }
 
-  /* Create the buffer pool dump/load thread */
-  srv_threads.m_buf_dump =
-      os_thread_create(buf_dump_thread_key, buf_dump_thread);
-
-  srv_threads.m_buf_dump.start();
-
   /* Create the dict stats gathering thread */
   srv_threads.m_dict_stats =
       os_thread_create(dict_stats_thread_key, dict_stats_thread);
@@ -3224,6 +3271,38 @@ void srv_start_threads(bool bootstrap) {
   fil_system_release();
 
   srv_start_state_set(SRV_START_STATE_STAT);
+}
+
+void srv_start_threads_after_ddl_recovery() {
+  /* Start the buffer pool dump/load thread, which will access spaces thus
+        must wait for DDL recovery */
+  srv_threads.m_buf_dump =
+      os_thread_create(buf_dump_thread_key, buf_dump_thread);
+
+  srv_threads.m_buf_dump.start();
+
+  /* Resume unfinished (un)encryption process in background thread. */
+  if (!ts_encrypt_ddl_records.empty()) {
+    srv_threads.m_ts_alter_encrypt =
+        os_thread_create(srv_ts_alter_encrypt_thread_key,
+                         fsp_init_resume_alter_encrypt_tablespace);
+
+    srv_threads.m_ts_alter_encrypt.start();
+
+    /* Wait till shared MDL is taken by background thread for all tablespaces,
+    for which (un)encryption is to be rolled forward. */
+    mysql_mutex_lock(&resume_encryption_cond_m);
+    mysql_cond_wait(&resume_encryption_cond, &resume_encryption_cond_m);
+    mysql_mutex_unlock(&resume_encryption_cond_m);
+  }
+
+  /* Start and consume all GTIDs for recovered transactions. */
+  auto &gtid_persistor = clone_sys->get_gtid_persistor();
+  gtid_persistor.start();
+
+  /* Now the InnoDB Metadata and file system should be consistent.
+  Start the Purge thread */
+  srv_start_purge_threads();
 }
 
 #if 0
@@ -3363,7 +3442,7 @@ void srv_pre_dd_shutdown() {
       }
     }
 
-    if (srv_threads.m_encryption_threads_active) {
+    if (srv_threads.m_crypt_threads_n > 0) {
       wait = true;
       if ((count % 600) == 0) {
         ib::info(ER_XB_MSG_WAIT_FOR_KEYRING_ENCRYPT_THREAD)
@@ -3434,7 +3513,7 @@ static void srv_shutdown_background_threads() {
   const Thread_to_stop threads_to_stop[]{
 
       {"lock_wait_timeout", srv_threads.m_lock_wait_timeout,
-       std::bind(os_event_set, lock_sys->timeout_event), SRV_SHUTDOWN_CLEANUP},
+       lock_set_timeout_event, SRV_SHUTDOWN_CLEANUP},
 
       {"error_monitor", srv_threads.m_error_monitor,
        std::bind(os_event_set, srv_error_event), SRV_SHUTDOWN_CLEANUP},
@@ -3630,7 +3709,7 @@ static lsn_t srv_shutdown_log() {
   /* Validate lsn and write it down. */
   ut_a(log_lsn_validate(lsn) || srv_force_recovery >= SRV_FORCE_NO_LOG_REDO);
 
-  ut_a(lsn == log_sys->last_checkpoint_lsn ||
+  ut_a(lsn == log_sys->last_checkpoint_lsn.load() ||
        srv_force_recovery >= SRV_FORCE_NO_LOG_REDO);
 
   ut_a(lsn == log_get_lsn(*log_sys));
@@ -3684,6 +3763,14 @@ void srv_shutdown() {
   /* Warn if there are still some query threads alive. */
   if (srv_conc_get_active_threads() != 0) {
     ib::warn(ER_IB_MSG_1154, ulonglong{srv_conc_get_active_threads()});
+  }
+
+  /* Need to revert partition file names if minor upgrade fails. */
+  uint data_version = MYSQL_VERSION_ID;
+
+  if (!fsp_header_dict_get_server_version(&data_version) &&
+      data_version != MYSQL_VERSION_ID) {
+    srv_downgrade_partition_files = true;
   }
 
   ib::info(ER_IB_MSG_1247);
@@ -3742,9 +3829,6 @@ void srv_shutdown() {
   if (srv_monitor_file) {
     fclose(srv_monitor_file);
   }
-  if (srv_dict_tmpfile) {
-    fclose(srv_dict_tmpfile);
-  }
   if (srv_misc_tmpfile) {
     fclose(srv_misc_tmpfile);
   }
@@ -3770,11 +3854,6 @@ void srv_shutdown() {
       ut_free(srv_monitor_file_name);
     }
     mutex_free(&srv_monitor_file_mutex);
-  }
-
-  if (srv_dict_tmpfile) {
-    srv_dict_tmpfile = 0;
-    mutex_free(&srv_dict_tmpfile_mutex);
   }
 
   if (srv_misc_tmpfile) {
@@ -3831,11 +3910,6 @@ void srv_shutdown() {
   srv_start_state = SRV_START_STATE_NONE;
 }
 
-/** Get the encryption-data filename from the table name for a
-single-table tablespace.
-@param[in]	table		table object
-@param[out]	filename	filename
-@param[in]	max_len		filename max length */
 void srv_get_encryption_data_filename(dict_table_t *table, char *filename,
                                       ulint max_len) {
   /* Make sure the data_dir_path is set. */

@@ -27,6 +27,8 @@
 
 #include <gmock/gmock.h>
 
+#include "mock_server_rest_client.h"
+#include "mock_server_testutils.h"
 #include "mysql_session.h"
 #include "rest_metadata_client.h"
 #include "router_component_test.h"
@@ -68,7 +70,7 @@ class RouterRoutingStrategyTest : public RouterComponentTest {
   }
 
   std::string get_static_routing_section(
-      unsigned router_port, const std::vector<unsigned> &destinations,
+      unsigned router_port, const std::vector<uint16_t> &destinations,
       const std::string &strategy, const std::string &mode = "") {
     std::string result =
         "[routing:test_default]\n"
@@ -142,7 +144,7 @@ class RouterRoutingStrategyTest : public RouterComponentTest {
                                  {"set", passwd_filename, kRestApiUsername},
                                  EXIT_SUCCESS, true);
       cmd.register_response("Please enter password", kRestApiPassword + "\n");
-      EXPECT_EQ(cmd.wait_for_exit(), 0) << cmd.get_full_output();
+      check_exit_code(cmd, EXIT_SUCCESS);
     }
 
     return "[rest_api]\n"
@@ -187,35 +189,21 @@ class RouterRoutingStrategyTest : public RouterComponentTest {
   }
 
   ProcessWrapper &launch_cluster_node(unsigned cluster_port,
-                                      const std::string &data_dir,
-                                      const std::string &tmp_dir) {
-    const std::string json_my_port_template =
-        Path(data_dir).join("my_port.js").str();
-    const std::string json_my_port =
-        Path(tmp_dir)
-            .join("my_port_" + std::to_string(cluster_port) + ".json")
-            .str();
-    std::map<std::string, std::string> env_vars = {
-        {"MY_PORT", std::to_string(cluster_port)},
-    };
-    rewrite_js_to_tracefile(json_my_port_template, json_my_port, env_vars);
+                                      const std::string &data_dir) {
+    const std::string js_file = Path(data_dir).join("my_port.js").str();
     auto &cluster_node = ProcessManager::launch_mysql_server_mock(
-        json_my_port, cluster_port, EXIT_SUCCESS, false);
-    bool ready = wait_for_port_ready(cluster_port);
-    EXPECT_TRUE(ready) << cluster_node.get_full_output();
+        js_file, cluster_port, EXIT_SUCCESS, false);
 
     return cluster_node;
   }
 
   ProcessWrapper &launch_standalone_server(unsigned server_port,
-                                           const std::string &data_dir,
-                                           const std::string &tmp_dir) {
+                                           const std::string &data_dir) {
     // it' does the same thing, just an alias  for less confusion
-    return launch_cluster_node(server_port, data_dir, tmp_dir);
+    return launch_cluster_node(server_port, data_dir);
   }
 
   ProcessWrapper &launch_router_static(const std::string &conf_dir,
-                                       unsigned router_port,
                                        const std::string &routing_section,
                                        bool expect_error = false,
                                        bool log_to_console = true) {
@@ -229,40 +217,22 @@ class RouterRoutingStrategyTest : public RouterComponentTest {
     const int expected_exit_code = expect_error ? EXIT_FAILURE : EXIT_SUCCESS;
     auto &router =
         ProcessManager::launch_router({"-c", conf_file}, expected_exit_code);
-    if (!expect_error) {
-      bool ready = wait_for_port_ready(router_port);
-      EXPECT_TRUE(ready) << (log_to_console ? router.get_full_output()
-                                            : router.get_full_logfile());
-    }
 
     return router;
   }
 
-  ProcessWrapper &launch_router(unsigned router_port,
-                                const std::string &temp_test_dir,
+  ProcessWrapper &launch_router(const std::string &temp_test_dir,
                                 const std::string &metadata_cache_section,
-                                const std::string &routing_section,
-                                bool catch_stderr = true,
-                                bool with_sudo = false, bool wait_ready = true,
-                                bool log_to_stdout = false) {
+                                const std::string &routing_section) {
     auto default_section = get_DEFAULT_defaults();
     init_keyring(default_section, temp_test_dir);
 
     // launch the router with metadata-cache configuration
-    if (log_to_stdout) {
-      default_section["logging_folder"] = "";
-    }
-
-    TempDirectory conf_dir("conf");
     const std::string conf_file = create_config_file(
-        conf_dir.name(), metadata_cache_section + routing_section,
+        temp_test_dir, metadata_cache_section + routing_section,
         &default_section);
-    auto &router = ProcessManager::launch_router(
-        {"-c", conf_file}, EXIT_SUCCESS, catch_stderr, with_sudo);
-    if (wait_ready) {
-      bool ready = wait_for_port_ready(router_port);
-      EXPECT_TRUE(ready) << router.get_full_logfile();
-    }
+    auto &router = ProcessManager::launch_router({"-c", conf_file},
+                                                 EXIT_SUCCESS, true, false);
 
     return router;
   }
@@ -278,6 +248,7 @@ class RouterRoutingStrategyTest : public RouterComponentTest {
 };
 
 struct MetadataCacheTestParams {
+  std::string tracefile;
   std::string role;
   std::string routing_strategy;
   std::string mode;
@@ -286,12 +257,14 @@ struct MetadataCacheTestParams {
   std::vector<unsigned> expected_node_connections;
   bool round_robin;
 
-  MetadataCacheTestParams(const std::string &role_,
+  MetadataCacheTestParams(const std::string &tracefile_,
+                          const std::string &role_,
                           const std::string &routing_strategy_,
                           const std::string &mode_,
                           std::vector<unsigned> expected_node_connections_,
                           bool round_robin_ = false)
-      : role(role_),
+      : tracefile(tracefile_),
+        role(role_),
         routing_strategy(routing_strategy_),
         mode(mode_),
         expected_node_connections(expected_node_connections_),
@@ -318,44 +291,30 @@ class RouterRoutingStrategyMetadataCache
 
 TEST_P(RouterRoutingStrategyMetadataCache, MetadataCacheRoutingStrategy) {
   auto test_params = GetParam();
+  const std::string tracefile = test_params.tracefile;
 
   TempDirectory temp_test_dir;
 
-  const std::vector<unsigned> cluster_nodes_ports{
+  const std::vector<uint16_t> cluster_nodes_ports{
+      port_pool_.get_next_available(),  // first is PRIMARY
+      port_pool_.get_next_available(), port_pool_.get_next_available(),
+      port_pool_.get_next_available()};
+  const std::vector<uint16_t> cluster_nodes_http_ports{
       port_pool_.get_next_available(),  // first is PRIMARY
       port_pool_.get_next_available(), port_pool_.get_next_available(),
       port_pool_.get_next_available()};
 
   std::vector<ProcessWrapper *> cluster_nodes;
 
-  std::map<std::string, std::string> primary_json_env_vars = {
-      {"PRIMARY_HOST", "127.0.0.1:" + std::to_string(cluster_nodes_ports[0])},
-      {"SECONDARY_1_HOST",
-       "127.0.0.1:" + std::to_string(cluster_nodes_ports[1])},
-      {"SECONDARY_2_HOST",
-       "127.0.0.1:" + std::to_string(cluster_nodes_ports[2])},
-      {"SECONDARY_3_HOST",
-       "127.0.0.1:" + std::to_string(cluster_nodes_ports[3])},
-
-      {"PRIMARY_PORT", std::to_string(cluster_nodes_ports[0])},
-      {"SECONDARY_1_PORT", std::to_string(cluster_nodes_ports[1])},
-      {"SECONDARY_2_PORT", std::to_string(cluster_nodes_ports[2])},
-      {"SECONDARY_3_PORT", std::to_string(cluster_nodes_ports[3])},
-
-      {"MY_PORT", std::to_string(cluster_nodes_ports[0])},
-  };
-
   // launch the primary node working also as metadata server
-  const std::string json_primary_node_template =
-      get_data_dir().join("metadata_3_secondaries.js").str();
-  const std::string json_primary_node =
-      Path(temp_test_dir.name()).join("metadata_3_secondaries.js").str();
-  rewrite_js_to_tracefile(json_primary_node_template, json_primary_node,
-                          primary_json_env_vars);
+  const auto json_file = get_data_dir().join(tracefile).str();
+  const auto http_port = cluster_nodes_http_ports[0];
   auto &primary_node = launch_mysql_server_mock(
-      json_primary_node, cluster_nodes_ports[0], EXIT_SUCCESS, false);
-  bool ready = wait_for_port_ready(cluster_nodes_ports[0]);
-  EXPECT_TRUE(ready) << primary_node.get_full_output();
+      json_file, cluster_nodes_ports[0], EXIT_SUCCESS, false, http_port);
+  ASSERT_NO_FATAL_FAILURE(
+      check_port_ready(primary_node, cluster_nodes_ports[0]));
+  EXPECT_TRUE(MockServerRestClient(http_port).wait_for_rest_endpoint_ready());
+  set_mock_metadata(http_port, "", cluster_nodes_ports);
   cluster_nodes.emplace_back(&primary_node);
 
   // launch the router with metadata-cache configuration
@@ -369,15 +328,19 @@ TEST_P(RouterRoutingStrategyMetadataCache, MetadataCacheRoutingStrategy) {
   const std::string monitoring_section =
       get_monitoring_section(monitoring_port, temp_test_dir.name());
 
-  auto &router = launch_router(router_port, temp_test_dir.name(),
+  auto &router = launch_router(temp_test_dir.name(),
                                metadata_cache_section + monitoring_section,
                                routing_section);
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_port))
+      << router.get_full_output();
 
   // launch the secondary cluster nodes
   for (unsigned port = 1; port < cluster_nodes_ports.size(); ++port) {
-    auto &secondary_node = launch_cluster_node(
-        cluster_nodes_ports[port], get_data_dir().str(), temp_test_dir.name());
+    auto &secondary_node =
+        launch_cluster_node(cluster_nodes_ports[port], get_data_dir().str());
     cluster_nodes.emplace_back(&secondary_node);
+    ASSERT_NO_FATAL_FAILURE(
+        check_port_ready(secondary_node, cluster_nodes_ports[port]));
   }
 
   // give the router a chance to initialise metadata-cache module
@@ -417,7 +380,7 @@ TEST_P(RouterRoutingStrategyMetadataCache, MetadataCacheRoutingStrategy) {
       if (i == 0) {  // first-connection
         const auto &real_port_iter =
             std::find(cluster_nodes_ports.begin(), cluster_nodes_ports.end(),
-                      (unsigned)std::atoi(node_port.c_str()));
+                      static_cast<uint16_t>(std::atoi(node_port.c_str())));
         ASSERT_NE(real_port_iter, cluster_nodes_ports.end());
         auto port_id_ = real_port_iter - std::begin(cluster_nodes_ports);
 
@@ -444,43 +407,84 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Values(
         // test round-robin on SECONDARY servers
         // we expect 1->2->3->1 for 4 consecutive connections
-        MetadataCacheTestParams("SECONDARY", "round-robin", "", {1, 2, 3},
+        MetadataCacheTestParams("metadata_3_secondaries_pass_v2_gr.js",
+                                "SECONDARY", "round-robin", "", {1, 2, 3},
+                                /*round-robin=*/true),
+
+        // the same for old metadata
+        MetadataCacheTestParams("metadata_3_secondaries_pass.js", "SECONDARY",
+                                "round-robin", "", {1, 2, 3},
                                 /*round-robin=*/true),
 
         // test first-available on SECONDARY servers
         // we expect 1->1->1 for 3 consecutive connections
-        MetadataCacheTestParams("SECONDARY", "first-available", "", {1, 1, 1}),
+        MetadataCacheTestParams("metadata_3_secondaries_pass_v2_gr.js",
+                                "SECONDARY", "first-available", "", {1, 1, 1}),
+
+        // the same for old metadata
+        MetadataCacheTestParams("metadata_3_secondaries_pass.js", "SECONDARY",
+                                "first-available", "", {1, 1, 1}),
 
         // *basic* test round-robin-with-fallback
         // we expect 1->2->3->1 for 4 consecutive connections
         // as there are SECONDARY servers available (PRIMARY id=0 should not be
         // used)
-        MetadataCacheTestParams("SECONDARY", "round-robin-with-fallback", "",
+        MetadataCacheTestParams("metadata_3_secondaries_pass_v2_gr.js",
+                                "SECONDARY", "round-robin-with-fallback", "",
                                 {1, 2, 3},
+                                /*round-robin=*/true),
+
+        // the same for old metadata
+        MetadataCacheTestParams("metadata_3_secondaries_pass.js", "SECONDARY",
+                                "round-robin-with-fallback", "", {1, 2, 3},
                                 /*round-robin=*/true),
 
         // test round-robin on PRIMARY_AND_SECONDARY
         // we expect the primary to participate in the round-robin from the
         // beginning we expect 0->1->2->3->0 for 5 consecutive connections
-        MetadataCacheTestParams("PRIMARY_AND_SECONDARY", "round-robin", "",
+        MetadataCacheTestParams("metadata_3_secondaries_pass_v2_gr.js",
+                                "PRIMARY_AND_SECONDARY", "round-robin", "",
+                                {0, 1, 2, 3},
+                                /*round-robin=*/true),
+
+        // the same for old metadata
+        MetadataCacheTestParams("metadata_3_secondaries_pass.js",
+                                "PRIMARY_AND_SECONDARY", "round-robin", "",
                                 {0, 1, 2, 3},
                                 /*round-robin=*/true),
 
         // test round-robin with allow-primary-reads=yes
         // this should work similar to PRIMARY_AND_SECONDARY
         // we expect 0->1->2->3->0 for 5 consecutive connections
-        MetadataCacheTestParams("SECONDARY&allow_primary_reads=yes", "",
+        MetadataCacheTestParams("metadata_3_secondaries_pass_v2_gr.js",
+                                "SECONDARY&allow_primary_reads=yes", "",
+                                "read-only", {0, 1, 2, 3},
+                                /*round-robin=*/true),
+
+        // the same for old metadata
+        MetadataCacheTestParams("metadata_3_secondaries_pass.js",
+                                "SECONDARY&allow_primary_reads=yes", "",
                                 "read-only", {0, 1, 2, 3},
                                 /*round-robin=*/true),
 
         // test first-available on PRIMARY
         // we expect 0->0->0 for 2 consecutive connections
-        MetadataCacheTestParams("PRIMARY", "first-available", "", {0, 0}),
+        MetadataCacheTestParams("metadata_3_secondaries_pass_v2_gr.js",
+                                "PRIMARY", "first-available", "", {0, 0}),
+
+        // the same for old metadata
+        MetadataCacheTestParams("metadata_3_secondaries_pass.js", "PRIMARY",
+                                "first-available", "", {0, 0}),
 
         // test round-robin on PRIMARY
         // there is single primary so we expect 0->0->0 for 2 consecutive
         // connections
-        MetadataCacheTestParams("PRIMARY", "round-robin", "", {0, 0})));
+        MetadataCacheTestParams("metadata_3_secondaries_pass_v2_gr.js",
+                                "PRIMARY", "round-robin", "", {0, 0}),
+
+        // the same for old metadata
+        MetadataCacheTestParams("metadata_3_secondaries_pass.js", "PRIMARY",
+                                "round-robin", "", {0, 0})));
 
 ////////////////////////////////////////
 /// STATIC ROUTING TESTS
@@ -499,15 +503,16 @@ TEST_P(RouterRoutingStrategyTestRoundRobin, StaticRoutingStrategyRoundRobin) {
   TempDirectory temp_test_dir;
   TempDirectory conf_dir("conf");
 
-  const std::vector<unsigned> server_ports{port_pool_.get_next_available(),
+  const std::vector<uint16_t> server_ports{port_pool_.get_next_available(),
                                            port_pool_.get_next_available(),
                                            port_pool_.get_next_available()};
 
   // launch the standalone servers
   std::vector<ProcessWrapper *> server_instances;
   for (auto &server_port : server_ports) {
-    auto &secondary_node = launch_standalone_server(
-        server_port, get_data_dir().str(), temp_test_dir.name());
+    auto &secondary_node =
+        launch_standalone_server(server_port, get_data_dir().str());
+    ASSERT_NO_FATAL_FAILURE(check_port_ready(secondary_node, server_port));
     server_instances.emplace_back(&secondary_node);
   }
 
@@ -518,7 +523,8 @@ TEST_P(RouterRoutingStrategyTestRoundRobin, StaticRoutingStrategyRoundRobin) {
   const auto mode = GetParam().second;
   const std::string routing_section = get_static_routing_section(
       router_port, server_ports, routing_strategy, mode);
-  launch_router_static(conf_dir.name(), router_port, routing_section);
+  auto &router = launch_router_static(conf_dir.name(), routing_section);
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_port));
 
   std::this_thread::sleep_for(
       std::chrono::milliseconds(wait_for_static_ready_timeout));
@@ -561,15 +567,17 @@ TEST_P(RouterRoutingStrategyTestFirstAvailable,
   TempDirectory temp_test_dir;
   TempDirectory conf_dir("conf");
 
-  const std::vector<unsigned> server_ports{port_pool_.get_next_available(),
+  const std::vector<uint16_t> server_ports{port_pool_.get_next_available(),
                                            port_pool_.get_next_available(),
                                            port_pool_.get_next_available()};
 
   // launch the standalone servers
   std::vector<ProcessWrapper *> server_instances;
   for (auto &server_port : server_ports) {
-    auto &secondary_node = launch_standalone_server(
-        server_port, get_data_dir().str(), temp_test_dir.name());
+    auto &secondary_node =
+        launch_standalone_server(server_port, get_data_dir().str());
+    ASSERT_NO_FATAL_FAILURE(check_port_ready(secondary_node, server_port));
+
     server_instances.emplace_back(&secondary_node);
   }
 
@@ -580,7 +588,8 @@ TEST_P(RouterRoutingStrategyTestFirstAvailable,
   const auto mode = GetParam().second;
   const std::string routing_section = get_static_routing_section(
       router_port, server_ports, routing_strategy, mode);
-  launch_router_static(conf_dir.name(), router_port, routing_section);
+  auto &router = launch_router_static(conf_dir.name(), routing_section);
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_port));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -605,8 +614,10 @@ TEST_P(RouterRoutingStrategyTestFirstAvailable,
   EXPECT_EQ("", node_port);
 
   // bring back 1st server
-  server_instances.emplace_back(&launch_standalone_server(
-      server_ports[0], get_data_dir().str(), temp_test_dir.name()));
+  server_instances.emplace_back(
+      &launch_standalone_server(server_ports[0], get_data_dir().str()));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(
+      *server_instances[server_instances.size() - 1], server_ports[0]));
   // we should now succesfully connect to this server
   connect_client_and_query_port(router_port, node_port);
   EXPECT_EQ(std::to_string(server_ports[0]), node_port);
@@ -635,15 +646,16 @@ TEST_F(RouterRoutingStrategyStatic, StaticRoutingStrategyNextAvailable) {
   TempDirectory temp_test_dir;
   TempDirectory conf_dir("conf");
 
-  const std::vector<unsigned> server_ports{port_pool_.get_next_available(),
+  const std::vector<uint16_t> server_ports{port_pool_.get_next_available(),
                                            port_pool_.get_next_available(),
                                            port_pool_.get_next_available()};
 
   // launch the standalone servers
   std::vector<ProcessWrapper *> server_instances;
   for (auto &server_port : server_ports) {
-    auto &secondary_node = launch_standalone_server(
-        server_port, get_data_dir().str(), temp_test_dir.name());
+    auto &secondary_node =
+        launch_standalone_server(server_port, get_data_dir().str());
+    ASSERT_NO_FATAL_FAILURE(check_port_ready(secondary_node, server_port));
     server_instances.emplace_back(&secondary_node);
   }
 
@@ -651,7 +663,8 @@ TEST_F(RouterRoutingStrategyStatic, StaticRoutingStrategyNextAvailable) {
   const auto router_port = port_pool_.get_next_available();
   const std::string routing_section =
       get_static_routing_section(router_port, server_ports, "next-available");
-  launch_router_static(conf_dir.name(), router_port, routing_section);
+  auto &router = launch_router_static(conf_dir.name(), routing_section);
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_port));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -676,8 +689,10 @@ TEST_F(RouterRoutingStrategyStatic, StaticRoutingStrategyNextAvailable) {
   EXPECT_EQ("", node_port);
 
   // bring back 1st server
-  server_instances.emplace_back(&launch_standalone_server(
-      server_ports[0], get_data_dir().str(), temp_test_dir.name()));
+  server_instances.emplace_back(
+      &launch_standalone_server(server_ports[0], get_data_dir().str()));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(
+      *server_instances[server_instances.size() - 1], server_ports[0]));
   // we should NOT connect to this server (in next-available we NEVER go back)
   connect_client_and_query_port(router_port, node_port, /*should_fail=*/true);
   EXPECT_EQ("", node_port);
@@ -693,11 +708,10 @@ TEST_F(RouterRoutingStrategyStatic, InvalidStrategyName) {
   const auto router_port = port_pool_.get_next_available();
   const std::string routing_section = get_static_routing_section_error(
       router_port, {1, 2}, "round-robin-with-fallback", "read-only");
-  auto &router =
-      launch_router_static(conf_dir.name(), router_port, routing_section,
-                           /*expect_error=*/true);
+  auto &router = launch_router_static(conf_dir.name(), routing_section,
+                                      /*expect_error=*/true);
 
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), 1);
+  check_exit_code(router, EXIT_FAILURE);
   EXPECT_TRUE(
       router.expect_output("Configuration error: option routing_strategy in "
                            "[routing:test_default] is invalid; "
@@ -713,11 +727,10 @@ TEST_F(RouterRoutingStrategyStatic, InvalidMode) {
   const auto router_port = port_pool_.get_next_available();
   const std::string routing_section = get_static_routing_section_error(
       router_port, {1, 2}, "invalid", "read-only");
-  auto &router =
-      launch_router_static(conf_dir.name(), router_port, routing_section,
-                           /*expect_error=*/true);
+  auto &router = launch_router_static(conf_dir.name(), routing_section,
+                                      /*expect_error=*/true);
 
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), 1);
+  check_exit_code(router, EXIT_FAILURE);
   EXPECT_TRUE(router.expect_output(
       "option routing_strategy in [routing:test_default] is invalid; valid are "
       "first-available, next-available, and round-robin (was 'invalid')"))
@@ -731,11 +744,10 @@ TEST_F(RouterRoutingStrategyStatic, BothStrategyAndModeMissing) {
   const auto router_port = port_pool_.get_next_available();
   const std::string routing_section =
       get_static_routing_section(router_port, {1, 2}, "");
-  auto &router =
-      launch_router_static(conf_dir.name(), router_port, routing_section,
-                           /*expect_error=*/true);
+  auto &router = launch_router_static(conf_dir.name(), routing_section,
+                                      /*expect_error=*/true);
 
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), 1);
+  check_exit_code(router, EXIT_FAILURE);
   EXPECT_TRUE(
       router.expect_output("Configuration error: option routing_strategy in "
                            "[routing:test_default] is required"))
@@ -749,11 +761,10 @@ TEST_F(RouterRoutingStrategyStatic, RoutingSrtategyEmptyValue) {
   const auto router_port = port_pool_.get_next_available();
   const std::string routing_section =
       get_static_routing_section_error(router_port, {1, 2}, "", "read-only");
-  auto &router =
-      launch_router_static(conf_dir.name(), router_port, routing_section,
-                           /*expect_error=*/true);
+  auto &router = launch_router_static(conf_dir.name(), routing_section,
+                                      /*expect_error=*/true);
 
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), EXIT_FAILURE);
+  check_exit_code(router, EXIT_FAILURE);
   EXPECT_TRUE(
       router.expect_output("Configuration error: option routing_strategy in "
                            "[routing:test_default] needs a value"))
@@ -767,11 +778,10 @@ TEST_F(RouterRoutingStrategyStatic, ModeEmptyValue) {
   const auto router_port = port_pool_.get_next_available();
   const std::string routing_section = get_static_routing_section_error(
       router_port, {1, 2}, "first-available", "");
-  auto &router =
-      launch_router_static(conf_dir.name(), router_port, routing_section,
-                           /*expect_error=*/true);
+  auto &router = launch_router_static(conf_dir.name(), routing_section,
+                                      /*expect_error=*/true);
 
-  EXPECT_EQ(router.wait_for_exit(wait_for_process_exit_timeout), 1);
+  check_exit_code(router, EXIT_FAILURE);
   EXPECT_TRUE(
       router.expect_output("Configuration error: option mode in "
                            "[routing:test_default] needs a value"))

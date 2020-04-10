@@ -358,6 +358,9 @@ struct MDL_key {
 
     Different types of objects exist in different namespaces
      - GLOBAL is used for the global read lock.
+     - BACKUP_LOCK is to block any operations that could cause
+       inconsistent backup. Such operations are most DDL statements,
+       and some administrative statements.
      - TABLESPACE is for tablespaces.
      - SCHEMA is for schemas (aka databases).
      - TABLE is for tables and views.
@@ -371,9 +374,6 @@ struct MDL_key {
      - SRID is for spatial reference systems
      - ACL_CACHE is for ACL caches
      - COLUMN_STATISTICS is for column statistics, such as histograms
-     - BACKUP_LOCK is to block any operations that could cause
-       inconsistent backup. Such operations are most DDL statements,
-       and some administrative statements.
      - RESOURCE_GROUPS is for resource groups.
      - FOREIGN_KEY is for foreign key names.
      - CHECK_CONSTRAINT is for check constraint names.
@@ -382,6 +382,7 @@ struct MDL_key {
   */
   enum enum_mdl_namespace {
     GLOBAL = 0,
+    BACKUP_LOCK,
     TABLESPACE,
     SCHEMA,
     TABLE,
@@ -395,7 +396,6 @@ struct MDL_key {
     SRID,
     ACL_CACHE,
     COLUMN_STATISTICS,
-    BACKUP_LOCK, /* Oracle LOCK INSTANCE FOR BACKUP */
     RESOURCE_GROUPS,
     FOREIGN_KEY,
     CHECK_CONSTRAINT,
@@ -857,8 +857,8 @@ class MDL_request {
 
     - TABLE_LIST objects are sometimes default-constructed. We plan to remove
       this as there is no practical reason, the call to the default
-      constructor is always followed by either a call to
-      TABLE_LIST::init_one_table() or memberwise assignments.
+      constructor is always followed by either a call to TABLE_LIST::operator=
+      or memberwise assignments.
 
     - In some legacy cases TABLE_LIST objects are copy-assigned without
       intention to copy the TABLE_LIST::mdl_request member. In this cases they

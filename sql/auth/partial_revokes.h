@@ -88,13 +88,10 @@ class DB_restrictions final : public Abstract_restrictions {
   DB_restrictions &operator=(const DB_restrictions &restrictions);
   DB_restrictions &operator=(DB_restrictions &&restrictions);
   bool operator==(const DB_restrictions &restrictions) const;
-  void add(const std::string &db_name, const std::set<std::string> &privs);
   void add(const std::string &db_name, const ulong revoke_privs);
   void add(const DB_restrictions &restrictions);
   bool add(const Json_object &json_object);
 
-  void remove(const std::string &db_name,
-              const std::set<std::string> &revoke_privs);
   void remove(const std::string &db_name, const ulong revoke_privs);
   void remove(const ulong revoke_privs);
 
@@ -137,7 +134,6 @@ class Restrictions {
 
   const DB_restrictions &db() const;
   void set_db(const DB_restrictions &db_restrictions);
-  void add_db(const DB_restrictions &db_restrictions);
   void clear_db();
   bool is_empty() const;
 
@@ -166,7 +162,7 @@ class Restrictions_aggregator_factory {
       const ulong grantor_access, const ulong grantee_access,
       const DB_restrictions &grantor_restrictions,
       const DB_restrictions &grantee_restrictions, const ulong required_access,
-      const Db_access_map *db_map, const Db_access_map *db_wild_map);
+      Db_access_map *db_map);
 
  private:
   static Auth_id fetch_grantor(const Security_context *sctx);
@@ -269,7 +265,6 @@ class DB_restrictions_aggregator : public Restrictions_aggregator {
                                  const ulong restrictions_mask) noexcept;
   enum class SQL_OP { SET_ROLE, GLOBAL_GRANT };
   void aggregate_restrictions(SQL_OP sql_op, const Db_access_map *m_db_map,
-                              const Db_access_map *m_db_wild_map,
                               DB_restrictions &restrictions);
   ulong get_grantee_db_access(const std::string &db_name) const;
   void get_grantee_db_access(const std::string &db_name, ulong &access) const;
@@ -301,15 +296,14 @@ class DB_restrictions_aggregator_set_role final
       const ulong grantor_global_access, const ulong grantee_global_access,
       const DB_restrictions &grantor_restrictions,
       const DB_restrictions &grantee_restrictions, const ulong requested_access,
-      const Db_access_map *db_map, const Db_access_map *db_wild_map);
+      Db_access_map *db_map);
 
   Status validate() override;
-  void aggregate(DB_restrictions &restrictions) override;
+  void aggregate(DB_restrictions &db_restrictions) override;
   friend class Restrictions_aggregator_factory;
 
  private:
-  const Db_access_map *m_db_map;
-  const Db_access_map *m_db_wild_map;
+  Db_access_map *m_db_map;
 };
 
 /**

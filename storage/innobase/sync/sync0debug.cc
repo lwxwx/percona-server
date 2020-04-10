@@ -113,8 +113,7 @@ struct LatchDebug {
   typedef OSMutex Mutex;
 
   /** Comparator for the ThreadMap. */
-  struct os_thread_id_less
-      : public std::binary_function<os_thread_id_t, os_thread_id_t, bool> {
+  struct os_thread_id_less {
     /** @return true if lhs < rhs */
     bool operator()(const os_thread_id_t &lhs,
                     const os_thread_id_t &rhs) const UNIV_NOTHROW {
@@ -352,8 +351,7 @@ struct LatchDebug {
 
  private:
   /** Comparator for the Levels . */
-  struct latch_level_less
-      : public std::binary_function<latch_level_t, latch_level_t, bool> {
+  struct latch_level_less {
     /** @return true if lhs < rhs */
     bool operator()(const latch_level_t &lhs,
                     const latch_level_t &rhs) const UNIV_NOTHROW {
@@ -430,6 +428,7 @@ LatchDebug::LatchDebug() {
   LEVEL_MAP_INSERT(SYNC_RECV);
   LEVEL_MAP_INSERT(SYNC_LOG_ONLINE);
   LEVEL_MAP_INSERT(SYNC_LOG_SN);
+  LEVEL_MAP_INSERT(SYNC_LOG_LIMITS);
   LEVEL_MAP_INSERT(SYNC_LOG_WRITER);
   LEVEL_MAP_INSERT(SYNC_LOG_WRITE_NOTIFIER);
   LEVEL_MAP_INSERT(SYNC_LOG_FLUSH_NOTIFIER);
@@ -697,6 +696,7 @@ Latches *LatchDebug::check_order(const latch_t *latch,
     case SYNC_LOG_FLUSHER:
     case SYNC_LOG_WRITE_NOTIFIER:
     case SYNC_LOG_FLUSH_NOTIFIER:
+    case SYNC_LOG_LIMITS:
     case SYNC_LOG_ARCH:
     case SYNC_PAGE_ARCH:
     case SYNC_PAGE_ARCH_OPER:
@@ -1300,6 +1300,8 @@ static void sync_latch_meta_init() UNIV_NOTHROW {
   LATCH_ADD_MUTEX(LOG_FLUSH_NOTIFIER, SYNC_LOG_FLUSH_NOTIFIER,
                   log_flush_notifier_mutex_key);
 
+  LATCH_ADD_MUTEX(LOG_LIMITS, SYNC_LOG_LIMITS, log_limits_mutex_key);
+
   LATCH_ADD_RWLOCK(LOG_SN, SYNC_LOG_SN, log_sn_lock_key);
 
   LATCH_ADD_MUTEX(LOG_ARCH, SYNC_LOG_ARCH, log_sys_arch_mutex_key);
@@ -1346,9 +1348,6 @@ static void sync_latch_meta_init() UNIV_NOTHROW {
   LATCH_ADD_MUTEX(RW_LOCK_LIST, SYNC_NO_ORDER_CHECK, rw_lock_list_mutex_key);
 
   LATCH_ADD_MUTEX(RW_LOCK_MUTEX, SYNC_NO_ORDER_CHECK, rw_lock_mutex_key);
-
-  LATCH_ADD_MUTEX(SRV_DICT_TMPFILE, SYNC_DICT_OPERATION,
-                  srv_dict_tmpfile_mutex_key);
 
   LATCH_ADD_MUTEX(SRV_INNODB_MONITOR, SYNC_NO_ORDER_CHECK,
                   srv_innodb_monitor_mutex_key);
@@ -1439,7 +1438,8 @@ static void sync_latch_meta_init() UNIV_NOTHROW {
   LATCH_ADD_RWLOCK(BUF_BLOCK_DEBUG, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
 #endif /* UNIV_DEBUG */
 
-  LATCH_ADD_RWLOCK(DICT_OPERATION, SYNC_DICT, dict_operation_lock_key);
+  LATCH_ADD_RWLOCK(DICT_OPERATION, SYNC_DICT_OPERATION,
+                   dict_operation_lock_key);
 
   LATCH_ADD_RWLOCK(RSEGS, SYNC_RSEGS, rsegs_lock_key);
 

@@ -1139,6 +1139,11 @@ if needed.
 UNIV_INLINE
 ulint buf_pool_size_align(ulint size);
 
+/** Adjust the proposed chunk unit size so that it satisfies all invariants
+@param[in]      size    proposed size of buffer pool chunk unit in bytes
+@return adjusted size which meets invariants */
+ulonglong buf_pool_adjust_chunk_unit(ulonglong size);
+
 /** Calculate the checksum of a page from compressed table and update the
 page.
 @param[in,out]  page              page to update
@@ -1513,6 +1518,12 @@ struct buf_block_t {
   @return next page number of the current buffer block. */
   page_no_t get_next_page_no() const {
     return (mach_read_from_4(frame + FIL_PAGE_NEXT));
+  }
+
+  /** Get the prev page number of the current buffer block.
+  @return prev page number of the current buffer block. */
+  page_no_t get_prev_page_no() const {
+    return (mach_read_from_4(frame + FIL_PAGE_PREV));
   }
 
   /** Get the page type of the current buffer block.

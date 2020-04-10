@@ -26,15 +26,17 @@
 #include <sys/types.h>
 #include <algorithm>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <unordered_set>
 
+#include "field_types.h"
 #include "m_ctype.h"
-#include "my_base.h"
 #include "my_dbug.h"
 #include "my_inttypes.h"
 #include "my_sys.h"
 #include "my_table_map.h"
+#include "my_time.h"
 #include "mysql/udf_registration_types.h"
 #include "mysqld_error.h"
 #include "sql/derror.h"  // ER_THD
@@ -48,6 +50,7 @@
 #include "sql/key_spec.h"
 #include "sql/mem_root_array.h"
 #include "sql/parse_tree_nodes.h"  // PT_*
+#include "sql/parser_yystype.h"
 #include "sql/sql_array.h"
 #include "sql/sql_class.h"
 #include "sql/sql_const.h"
@@ -58,10 +61,10 @@
 #include "sql/sql_optimizer.h"  // JOIN
 #include "sql/sql_resolver.h"   // find_order_in_list
 #include "sql/sql_show.h"
-#include "sql/sql_time.h"
 #include "sql/sql_tmp_table.h"  // free_tmp_table
 #include "sql/system_variables.h"
 #include "sql/table.h"
+#include "sql/thd_raii.h"
 #include "sql/window_lex.h"
 #include "sql_string.h"
 #include "template_utils.h"
@@ -125,7 +128,7 @@ bool Window::check_window_functions(THD *thd, SELECT_LEX *select) {
   m_opt_lead_lag.m_offsets.init(thd->mem_root);
 
   while ((wf = li++)) {
-    Evaluation_requirements reqs;
+    Window_evaluation_requirements reqs;
 
     Item_sum *wfs = down_cast<Item_sum *>(wf);
     if (wfs->check_wf_semantics(thd, select, &reqs)) return true;
@@ -480,7 +483,7 @@ bool Window::resolve_reference(THD *thd, Item_sum *wf, PT_window **m_window) {
 }
 
 void Window::check_partition_boundary() {
-  DBUG_ENTER("check_partition_boundary");
+  DBUG_TRACE;
   bool anything_changed = false;
 
   if (m_part_row_number == 0)  // first row in first partition
@@ -507,12 +510,10 @@ void Window::check_partition_boundary() {
   } else {
     m_part_row_number++;
   }
-
-  DBUG_VOID_RETURN;
 }
 
 void Window::reset_order_by_peer_set() {
-  DBUG_ENTER("reset_order_by_peer_set");
+  DBUG_TRACE;
 
   List_iterator<Cached_item> li(m_order_by_items);
   Cached_item *item;
@@ -524,12 +525,10 @@ void Window::reset_order_by_peer_set() {
     */
     (void)item->cmp();
   }
-
-  DBUG_VOID_RETURN;
 }
 
 bool Window::in_new_order_by_peer_set(bool compare_all_order_by_items) {
-  DBUG_ENTER("in_new_order_by_peer_set");
+  DBUG_TRACE;
   bool anything_changed = false;
 
   List_iterator<Cached_item> li(m_order_by_items);
@@ -540,7 +539,7 @@ bool Window::in_new_order_by_peer_set(bool compare_all_order_by_items) {
     if (!compare_all_order_by_items) break;
   }
 
-  DBUG_RETURN(anything_changed);
+  return anything_changed;
 }
 
 bool Window::before_or_after_frame(bool before) {
@@ -716,7 +715,7 @@ bool Window::resolve_window_ordering(THD *thd, Ref_item_array ref_item_array,
                                      TABLE_LIST *tables, List<Item> &fields,
                                      List<Item> &all_fields, ORDER *o,
                                      bool partition_order) {
-  DBUG_ENTER("resolve_window_ordering");
+  DBUG_TRACE;
   DBUG_ASSERT(o);
 
   const char *sav_where = thd->where;
@@ -728,12 +727,12 @@ bool Window::resolve_window_ordering(THD *thd, Ref_item_array ref_item_array,
     /* Order by position is not allowed for windows: legacy SQL 1992 only */
     if (oi->type() == Item::INT_ITEM && oi->basic_const_item()) {
       my_error(ER_WINDOW_ILLEGAL_ORDER_BY, MYF(0), printable_name());
-      DBUG_RETURN(true);
+      return true;
     }
 
     if (find_order_in_list(thd, ref_item_array, tables, order, fields,
                            all_fields, false, true))
-      DBUG_RETURN(true);
+      return true;
     oi = *order->item;
 
     if (order->used_alias) {
@@ -743,10 +742,10 @@ bool Window::resolve_window_ordering(THD *thd, Ref_item_array ref_item_array,
         argument of a window function, or any function.
       */
       my_error(ER_BAD_FIELD_ERROR, MYF(0), oi->item_name.ptr(), thd->where);
-      DBUG_RETURN(true);
+      return true;
     }
 
-    if (!oi->fixed && oi->fix_fields(thd, order->item)) DBUG_RETURN(true);
+    if (!oi->fixed && oi->fix_fields(thd, order->item)) return true;
     oi = *order->item;  // fix_fields() may have changed *order->item
 
     /*
@@ -756,7 +755,7 @@ bool Window::resolve_window_ordering(THD *thd, Ref_item_array ref_item_array,
     if (oi->has_wf()) {
       my_error(ER_WINDOW_NESTED_WINDOW_FUNC_USE_IN_WINDOW_SPEC, MYF(0),
                printable_name());
-      DBUG_RETURN(true);
+      return true;
     }
 
     /*
@@ -765,12 +764,12 @@ bool Window::resolve_window_ordering(THD *thd, Ref_item_array ref_item_array,
     */
     if (oi->has_aggregation() && oi->type() != Item::SUM_FUNC_ITEM) {
       oi->split_sum_func(thd, ref_item_array, all_fields);
-      if (thd->is_error()) DBUG_RETURN(true);
+      if (thd->is_error()) return true;
     }
   }
 
   thd->where = sav_where;
-  DBUG_RETURN(false);
+  return false;
 }
 
 bool Window::equal_sort(Window *w1, Window *w2) {
@@ -1176,14 +1175,14 @@ bool Window::setup_windows(THD *thd, SELECT_LEX *select,
           const Window *seen_orderer = nullptr;
 
           /* SR 10.d) No redefines of ORDER BY along inheritance path */
-          for (const Window *w = leaf; w != nullptr; w = w->m_ancestor) {
-            if (w->m_order_by != nullptr) {
+          for (const Window *w3 = leaf; w3 != nullptr; w3 = w3->m_ancestor) {
+            if (w3->m_order_by != nullptr) {
               if (seen_orderer != nullptr) {
                 my_error(ER_WINDOW_NO_REDEFINE_ORDER_BY, MYF(0),
-                         seen_orderer->printable_name(), w->printable_name());
+                         seen_orderer->printable_name(), w3->printable_name());
                 return true;
               } else {
-                seen_orderer = w;
+                seen_orderer = w3;
               }
             }
           }
@@ -1473,6 +1472,13 @@ void Window::print(const THD *thd, String *str, enum_query_type qt,
 
     str->append(") ");
   }
+}
+
+const char *Window::printable_name() const {
+  if (m_name == nullptr) return "<unnamed window>";
+  // Since Item_string::val_str() ignores the argument, it is safe
+  // to use nullptr as argument.
+  return m_name->val_str(nullptr)->ptr();
 }
 
 void Window::reset_all_wf_state() {

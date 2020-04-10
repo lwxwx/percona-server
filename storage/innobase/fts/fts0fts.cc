@@ -1664,19 +1664,18 @@ dberr_t fts_drop_tables(trx_t *trx, dict_table_t *table,
 static MY_ATTRIBUTE((warn_unused_result)) dberr_t
     fts_lock_common_tables(THD *thd, fts_table_t *fts_table) {
   for (ulint i = 0; fts_common_tables[i] != NULL; ++i) {
-    MDL_ticket *exclusiv_mdl = nullptr;
-    char db_n[NAME_LEN + 1];
-    char table_n[NAME_LEN + 1];
-    char table_name[MAX_FULL_NAME_LEN];
-
     fts_table->suffix = fts_common_tables[i];
 
+    char table_name[MAX_FULL_NAME_LEN];
     fts_get_table_name(fts_table, table_name);
 
-    dd_parse_tbl_name(table_name, db_n, table_n, nullptr, nullptr, nullptr);
+    std::string db_n;
+    std::string table_n;
+    dict_name::get_table(table_name, db_n, table_n);
 
-    if (dd::acquire_exclusive_table_mdl(thd, db_n, table_n, false,
-                                        &exclusiv_mdl)) {
+    MDL_ticket *exclusiv_mdl = nullptr;
+    if (dd::acquire_exclusive_table_mdl(thd, db_n.c_str(), table_n.c_str(),
+                                        false, &exclusiv_mdl)) {
       return (DB_ERROR);
     }
   }
@@ -1695,19 +1694,18 @@ dberr_t fts_lock_index_tables(THD *thd, dict_index_t *index) {
   FTS_INIT_INDEX_TABLE(&fts_table, NULL, FTS_INDEX_TABLE, index);
 
   for (i = 0; i < FTS_NUM_AUX_INDEX; ++i) {
-    char table_name[MAX_FULL_NAME_LEN];
-    MDL_ticket *exclusiv_mdl = nullptr;
-    char db_n[NAME_LEN + 1];
-    char table_n[NAME_LEN + 1];
-
     fts_table.suffix = fts_get_suffix(i);
 
+    char table_name[MAX_FULL_NAME_LEN];
     fts_get_table_name(&fts_table, table_name);
 
-    dd_parse_tbl_name(table_name, db_n, table_n, nullptr, nullptr, nullptr);
+    std::string db_n;
+    std::string table_n;
+    dict_name::get_table(table_name, db_n, table_n);
 
-    if (dd::acquire_exclusive_table_mdl(thd, db_n, table_n, false,
-                                        &exclusiv_mdl)) {
+    MDL_ticket *exclusiv_mdl = nullptr;
+    if (dd::acquire_exclusive_table_mdl(thd, db_n.c_str(), table_n.c_str(),
+                                        false, &exclusiv_mdl)) {
       return (DB_ERROR);
     }
   }
@@ -4074,9 +4072,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result)) dberr_t
   dberr_t error = DB_SUCCESS;
   ibool print_error = FALSE;
   dict_table_t *table = index_cache->index->table;
-  /* We use this to deduce threshold value of time
-  that we can let sync to go on holding cache lock */
-  const float cutoff = 0.98;
+  const float cutoff = 0.98f;
   ulint lock_threshold =
       (srv_fatal_semaphore_wait_threshold % SRV_SEMAPHORE_WAIT_EXTENSION) *
       cutoff;
@@ -4141,7 +4137,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result)) dberr_t
                                &fts_table, &word->text, fts_node);
 
         DBUG_EXECUTE_IF("fts_instrument_sync_write",
-                        os_thread_sleep(15000000););
+                        os_thread_sleep(10000000););
 
         DEBUG_SYNC_C("fts_write_node");
         DBUG_EXECUTE_IF("fts_write_node_crash", DBUG_SUICIDE(););
@@ -4377,7 +4373,6 @@ static dberr_t fts_sync(fts_sync_t *sync, bool unlock_cache, bool wait,
 
     rw_lock_x_lock(&cache->lock);
   }
-
   sync->unlock_cache = unlock_cache;
   sync->in_progress = true;
 

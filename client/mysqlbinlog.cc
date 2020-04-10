@@ -35,6 +35,7 @@
 #include "client/mysqlbinlog.h"
 
 #include <fcntl.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -46,6 +47,8 @@
 
 #include "caching_sha2_passwordopt-vars.h"
 #include "client/client_priv.h"
+#include "compression.h"
+#include "libbinlogevents/include/trx_boundary_parser.h"
 #include "my_byteorder.h"
 #include "my_dbug.h"
 #include "my_default.h"
@@ -282,8 +285,8 @@ static const char *default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
 #endif
 static const char *load_default_groups[] = {"mysqlbinlog", "client", 0};
 
-static bool one_database = 0, disable_log_bin = 0;
-static bool opt_hexdump = 0;
+static bool one_database = false, disable_log_bin = false;
+static bool opt_hexdump = false;
 const char *base64_output_mode_names[] = {"NEVER", "AUTO", "UNSPEC",
                                           "DECODE-ROWS", NullS};
 TYPELIB base64_output_mode_typelib = {
@@ -291,7 +294,7 @@ TYPELIB base64_output_mode_typelib = {
     nullptr};
 static enum_base64_output_mode opt_base64_output_mode = BASE64_OUTPUT_UNSPEC;
 static char *opt_base64_output_mode_str = nullptr;
-static bool opt_remote_alias = 0;
+static bool opt_remote_alias = false;
 const char *remote_proto_names[] = {"BINLOG-DUMP-NON-GTIDS",
                                     "BINLOG-DUMP-GTIDS", NullS};
 TYPELIB remote_proto_typelib = {array_elements(remote_proto_names) - 1, "",
@@ -305,11 +308,11 @@ static char *opt_remote_proto_str = nullptr;
 static char *database = nullptr;
 static char *output_file = nullptr;
 static char *rewrite = nullptr;
-bool force_opt = 0, short_form = 0, idempotent_mode = 0;
+bool force_opt = false, short_form = false, idempotent_mode = false;
 static bool debug_info_flag, debug_check_flag;
-static bool force_if_open_opt = 1, raw_mode = 0;
-static bool to_last_remote_log = 0, stop_never = 0;
-static bool opt_verify_binlog_checksum = 1;
+static bool force_if_open_opt = true, raw_mode = false;
+static bool to_last_remote_log = false, stop_never = false;
+static bool opt_verify_binlog_checksum = true;
 static ulonglong offset = 0;
 static int64 stop_never_slave_server_id = -1;
 static int64 connection_server_id = -1;
@@ -344,6 +347,8 @@ Sid_map *global_sid_map = nullptr;
 Checkable_rwlock *global_sid_lock = nullptr;
 Gtid_set *gtid_set_included = nullptr;
 Gtid_set *gtid_set_excluded = nullptr;
+static uint opt_zstd_compress_level = default_zstd_compression_level;
+static char *opt_compress_algorithm = nullptr;
 
 static bool opt_print_table_metadata;
 
@@ -370,8 +375,9 @@ enum Exit_status {
   Options that will be used to filter out events.
 */
 static char *opt_include_gtids_str = nullptr, *opt_exclude_gtids_str = nullptr;
-static bool opt_skip_gtids = 0;
+static bool opt_skip_gtids = false;
 static bool filter_based_on_gtids = false;
+static bool opt_require_row_format = false;
 
 /* It is set to true when BEGIN is found, and false when the transaction ends.
  */
@@ -525,12 +531,12 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   char *fname, *ptr;
   File file;
   File_name_record rec;
-  DBUG_ENTER("Load_log_processor::process_first_event");
+  DBUG_TRACE;
 
   if (!(fname =
             (char *)my_malloc(PSI_NOT_INSTRUMENTED, full_len, MYF(MY_WME)))) {
     error("Out of memory.");
-    DBUG_RETURN(ERROR_STOP);
+    return ERROR_STOP;
   }
 
   memcpy(fname, target_dir_name, target_dir_name_len);
@@ -542,7 +548,7 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   if ((file = create_unique_file(fname, ptr)) < 0) {
     error("Could not construct local filename %s%s.", target_dir_name, bname);
     my_free(fname);
-    DBUG_RETURN(ERROR_STOP);
+    return ERROR_STOP;
   }
 
   rec.fname = fname;
@@ -563,7 +569,7 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
     error("Failed closing file.");
     retval = ERROR_STOP;
   }
-  DBUG_RETURN(retval);
+  return retval;
 }
 
 /**
@@ -604,7 +610,7 @@ Exit_status Load_log_processor::process(Begin_load_query_log_event *blqe) {
   @retval OK_CONTINUE No error, the program should continue.
 */
 Exit_status Load_log_processor::process(Append_block_log_event *ae) {
-  DBUG_ENTER("Load_log_processor::process");
+  DBUG_TRACE;
   File_names::iterator it = file_names.find(ae->file_id);
   const char *fname = ((it != file_names.end()) ? (*it).second.fname : nullptr);
 
@@ -613,7 +619,7 @@ Exit_status Load_log_processor::process(Append_block_log_event *ae) {
     Exit_status retval = OK_CONTINUE;
     if (((file = my_open(fname, O_APPEND | O_WRONLY, MYF(MY_WME))) < 0)) {
       error("Failed opening file %s", fname);
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
     if (my_write(file, (uchar *)ae->block, ae->block_len,
                  MYF(MY_WME | MY_NABP))) {
@@ -624,7 +630,7 @@ Exit_status Load_log_processor::process(Append_block_log_event *ae) {
       error("Failed closing file %s", fname);
       retval = ERROR_STOP;
     }
-    DBUG_RETURN(retval);
+    return retval;
   }
 
   /*
@@ -636,7 +642,7 @@ Exit_status Load_log_processor::process(Append_block_log_event *ae) {
       "Ignoring Append_block as there is no "
       "Begin_load_query_log_event for file_id: %u",
       ae->file_id);
-  DBUG_RETURN(OK_CONTINUE);
+  return OK_CONTINUE;
 }
 
 static Load_log_processor load_processor;
@@ -944,7 +950,7 @@ static Exit_status process_event(PRINT_EVENT_INFO *print_event_info,
                                  const char *logname) {
   char ll_buff[21];
   Log_event_type ev_type = ev->get_type_code();
-  DBUG_ENTER("process_event");
+  DBUG_TRACE;
   Exit_status retval = OK_CONTINUE;
   IO_CACHE *const head = &print_event_info->head_cache;
 
@@ -1346,7 +1352,7 @@ end:
     Destroy the log_event object.
   */
   delete ev;
-  DBUG_RETURN(retval);
+  return retval;
 }
 
 static struct my_option my_long_options[] = {
@@ -1591,7 +1597,25 @@ static struct my_option my_long_options[] = {
      &opt_print_table_metadata, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
     {"compress", 'C', "Use compression in server/client protocol.",
      &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}};
+    {"compression-algorithms", 0,
+     "Use compression algorithm in server/client protocol. Valid values "
+     "are any combination of 'zstd','zlib','uncompressed'.",
+     &opt_compress_algorithm, &opt_compress_algorithm, 0, GET_STR, REQUIRED_ARG,
+     0, 0, 0, 0, 0, 0},
+    {"zstd-compression-level", 0,
+     "Use this compression level in the client/server protocol, in case "
+     "--compression-algorithms=zstd. Valid range is between 1 and 22, "
+     "inclusive. Default is 3.",
+     &opt_zstd_compress_level, &opt_zstd_compress_level, 0, GET_UINT,
+     REQUIRED_ARG, 3, 1, 22, 0, 0, 0},
+    {"require-row-format", 0,
+     "Fail when printing an event that was not logged using row format or "
+     "other forbidden events like Load instructions or the creation/deletion "
+     "of temporary tables.",
+     &opt_require_row_format, &opt_require_row_format, 0, GET_BOOL, NO_ARG, 0,
+     0, 0, 0, 0, 0},
+    {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+};
 
 /**
   Auxiliary function used by error() and warning().
@@ -1704,7 +1728,7 @@ static my_time_t convert_str_to_timestamp(const char *str) {
 
 extern "C" bool get_one_option(int optid, const struct my_option *opt,
                                char *argument) {
-  bool tty_password = 0;
+  bool tty_password = false;
   switch (optid) {
 #ifndef DBUG_OFF
     case '#':
@@ -1714,14 +1738,14 @@ extern "C" bool get_one_option(int optid, const struct my_option *opt,
 #include "sslopt-case.h"
 
     case 'd':
-      one_database = 1;
+      one_database = true;
       break;
     case OPT_REWRITE_DB: {
       char *from_db = argument, *p, *to_db;
       if (!(p = strstr(argument, "->"))) {
         sql_print_error(
             "Bad syntax in mysqlbinlog-rewrite-db - missing '->'!\n");
-        return 1;
+        return true;
       }
       to_db = p + 2;
       while (p > argument && my_isspace(mysqld_charset, p[-1])) p--;
@@ -1729,13 +1753,13 @@ extern "C" bool get_one_option(int optid, const struct my_option *opt,
       if (!*from_db) {
         sql_print_error(
             "Bad syntax in mysqlbinlog-rewrite-db - empty FROM db!\n");
-        return 1;
+        return true;
       }
       while (*to_db && my_isspace(mysqld_charset, *to_db)) to_db++;
       if (!*to_db) {
         sql_print_error(
             "Bad syntax in mysqlbinlog-rewrite-db - empty TO db!\n");
-        return 1;
+        return true;
       }
       /* Add the database to the mapping */
       map_mysqlbinlog_rewrite_db[from_db] = to_db;
@@ -1756,10 +1780,10 @@ extern "C" bool get_one_option(int optid, const struct my_option *opt,
         while (*argument) *argument++ = 'x'; /* Destroy argument */
         if (*start) start[1] = 0;            /* Cut length of argument */
       } else
-        tty_password = 1;
+        tty_password = true;
       break;
     case 'R':
-      opt_remote_alias = 1;
+      opt_remote_alias = true;
       opt_remote_proto = BINLOG_DUMP_NON_GTID;
       break;
     case OPT_REMOTE_PROTO:
@@ -1792,7 +1816,7 @@ extern "C" bool get_one_option(int optid, const struct my_option *opt,
       exit(0);
     case OPT_STOP_NEVER:
       /* wait-for-data implicitly sets to-last-log */
-      to_last_remote_log = 1;
+      to_last_remote_log = true;
       break;
     case '?':
       usage();
@@ -1808,7 +1832,7 @@ extern "C" bool get_one_option(int optid, const struct my_option *opt,
   }
   if (tty_password) pass = get_tty_password(NullS);
 
-  return 0;
+  return false;
 }
 
 static int parse_args(int *argc, char ***argv) {
@@ -1850,6 +1874,13 @@ static Exit_status safe_connect() {
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
 
+  if (opt_compress_algorithm)
+    mysql_options(mysql, MYSQL_OPT_COMPRESSION_ALGORITHMS,
+                  opt_compress_algorithm);
+
+  mysql_options(mysql, MYSQL_OPT_ZSTD_COMPRESSION_LEVEL,
+                &opt_zstd_compress_level);
+
   if (opt_default_auth && *opt_default_auth)
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
 
@@ -1876,7 +1907,7 @@ static Exit_status safe_connect() {
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;
   }
-  mysql->reconnect = 1;
+  mysql->reconnect = true;
   return OK_CONTINUE;
 }
 
@@ -1895,7 +1926,7 @@ static Exit_status safe_connect() {
 */
 static Exit_status dump_single_log(PRINT_EVENT_INFO *print_event_info,
                                    const char *logname) {
-  DBUG_ENTER("dump_single_log");
+  DBUG_TRACE;
 
   Exit_status rc = OK_CONTINUE;
 
@@ -1911,15 +1942,15 @@ static Exit_status dump_single_log(PRINT_EVENT_INFO *print_event_info,
       DBUG_ASSERT(0);
       break;
   }
-  DBUG_RETURN(rc);
+  return rc;
 }
 
 static Exit_status dump_multiple_logs(int argc, char **argv) {
-  DBUG_ENTER("dump_multiple_logs");
+  DBUG_TRACE;
   Exit_status rc = OK_CONTINUE;
 
   PRINT_EVENT_INFO print_event_info;
-  if (!print_event_info.init_ok()) DBUG_RETURN(ERROR_STOP);
+  if (!print_event_info.init_ok()) return ERROR_STOP;
   /*
      Set safe delimiter, to dump things
      like CREATE PROCEDURE safely
@@ -1934,6 +1965,7 @@ static Exit_status dump_multiple_logs(int argc, char **argv) {
   print_event_info.base64_output_mode = opt_base64_output_mode;
   print_event_info.skip_gtids = opt_skip_gtids;
   print_event_info.print_table_metadata = opt_print_table_metadata;
+  print_event_info.require_row_format = opt_require_row_format;
 
   // Dump all logs.
   my_off_t save_stop_position = stop_position;
@@ -1979,7 +2011,7 @@ static Exit_status dump_multiple_logs(int argc, char **argv) {
     fprintf(result_file, "DELIMITER ;\n");
     my_stpcpy(print_event_info.delimiter, ";");
   }
-  DBUG_RETURN(rc);
+  return rc;
 }
 
 /**
@@ -1992,7 +2024,7 @@ static Exit_status dump_multiple_logs(int argc, char **argv) {
   @retval OK_CONTINUE No error, the program should continue.
 */
 static Exit_status check_master_version() {
-  DBUG_ENTER("check_master_version");
+  DBUG_TRACE;
   MYSQL_RES *res = nullptr;
   MYSQL_ROW row;
   const char *version;
@@ -2003,7 +2035,7 @@ static Exit_status check_master_version() {
         "Could not find server version: "
         "Query failed when checking master version: %s",
         mysql_error(mysql));
-    DBUG_RETURN(ERROR_STOP);
+    return ERROR_STOP;
   }
   if (!(row = mysql_fetch_row(res))) {
     error(
@@ -2049,11 +2081,11 @@ static Exit_status check_master_version() {
   }
 
   mysql_free_result(res);
-  DBUG_RETURN(OK_CONTINUE);
+  return OK_CONTINUE;
 
 err:
   mysql_free_result(res);
-  DBUG_RETURN(ERROR_STOP);
+  return ERROR_STOP;
 }
 
 static uint get_dump_flags() { return stop_never ? 0 : BINLOG_DUMP_NON_BLOCK; }
@@ -2115,7 +2147,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
   char *event_buf = nullptr;
   ulong event_len;
 
-  DBUG_ENTER("dump_remote_log_entries");
+  DBUG_TRACE;
 
   log_file_name[0] = 0;
 
@@ -2124,9 +2156,9 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
     we cannot re-use the same connection as before, because it is now dead
     (COM_BINLOG_DUMP kills the thread when it finishes).
   */
-  if ((retval = safe_connect()) != OK_CONTINUE) DBUG_RETURN(retval);
+  if ((retval = safe_connect()) != OK_CONTINUE) return retval;
 
-  if ((retval = check_master_version()) != OK_CONTINUE) DBUG_RETURN(retval);
+  if ((retval = check_master_version()) != OK_CONTINUE) return retval;
 
   /*
     Fake a server ID to log continously. This will show as a
@@ -2176,14 +2208,18 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
 
   if (mysql_binlog_open(mysql, &rpl)) {
     error("Open binlog error: %s", mysql_error(mysql));
-    DBUG_RETURN(ERROR_STOP);
+    return ERROR_STOP;
   }
+
+  Transaction_boundary_parser transaction_parser(
+      Transaction_boundary_parser::TRX_BOUNDARY_PARSER_RECEIVER);
+  transaction_parser.reset();
 
   for (;;) {
     if (mysql_binlog_fetch(mysql, &rpl))  // Error packet
     {
       error("Got error reading packet from server: %s", mysql_error(mysql));
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     } else if (rpl.size == 0)  // EOF
       break;
 
@@ -2201,13 +2237,13 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
     if (!(event_buf =
               (char *)my_malloc(key_memory_log_event, event_len + 1, MYF(0)))) {
       error("Out of memory.");
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
     memcpy(event_buf, rpl.buffer + 1, event_len);
     if (rewrite_db_filter(&event_buf, &event_len, glob_description_event)) {
       error("Got a fatal error while applying rewrite db filter.");
       my_free(event_buf);
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
 
     if (!raw_mode || (type == binary_log::ROTATE_EVENT) ||
@@ -2219,7 +2255,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
       if (read_error.has_error()) {
         error("Could not construct log event object: %s", read_error.get_str());
         my_free(event_buf);
-        DBUG_RETURN(ERROR_STOP);
+        return ERROR_STOP;
       }
       ev->register_temp_buf(event_buf);
     }
@@ -2256,7 +2292,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
           if (!to_last_remote_log) {
             if ((rev->ident_len != rpl.file_name_length) ||
                 memcmp(rev->new_log_ident, logname, rpl.file_name_length)) {
-              DBUG_RETURN(OK_CONTINUE);
+              return OK_CONTINUE;
             }
             /*
               Otherwise, this is a fake Rotate for our log, at the very
@@ -2295,17 +2331,38 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
               DBUG_EVALUATE_IF("simulate_create_log_file_error_for_FD_event", 1,
                                0)) {
             error("Could not create log file '%s'", log_file_name);
-            DBUG_RETURN(ERROR_STOP);
+            return ERROR_STOP;
           }
           DBUG_EXECUTE_IF("simulate_result_file_write_error_for_FD_event",
                           DBUG_SET("+d,simulate_fwrite_error"););
           if (my_fwrite(result_file, (const uchar *)BINLOG_MAGIC,
                         BIN_LOG_HEADER_SIZE, MYF(MY_NABP))) {
             error("Could not write into log file '%s'", log_file_name);
-            DBUG_RETURN(ERROR_STOP);
+            return ERROR_STOP;
           }
         }
         glob_description_event = dynamic_cast<Format_description_event &>(*ev);
+      }
+
+      if (opt_require_row_format) {
+        bool info_error{false};
+        binary_log::Log_event_basic_info log_event_info;
+        std::tie(info_error, log_event_info) = extract_log_event_basic_info(
+            (const char *)event_buf, event_len, &glob_description_event);
+
+        if (!info_error) {
+          transaction_parser.feed_event(log_event_info, false);
+          if (transaction_parser.check_row_logging_constraints(
+                  log_event_info)) {
+            error(
+                "Event being written violates the --require-row-format "
+                "parameter constraints.");
+            return ERROR_STOP;
+          }
+        } else {
+          error("Unexpected event being evaluated under --require-row-format.");
+          return ERROR_STOP;
+        }
       }
 
       if (raw_mode) {
@@ -2328,7 +2385,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
         ev = nullptr;
       }
 
-      if (retval != OK_CONTINUE) DBUG_RETURN(retval);
+      if (retval != OK_CONTINUE) return retval;
     }
     /*
       Let's adjust offset for remote log as for local log to produce
@@ -2337,7 +2394,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
     old_off += rpl.size - 1;
   }
   mysql_binlog_close(mysql, &rpl);
-  DBUG_RETURN(OK_CONTINUE);
+  return OK_CONTINUE;
 }
 
 /**
@@ -2533,10 +2590,14 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
     return ERROR_STOP;
   }
 
+  Transaction_boundary_parser transaction_parser(
+      Transaction_boundary_parser::TRX_BOUNDARY_PARSER_APPLIER);
+  transaction_parser.reset();
+
   if (fdle != nullptr) {
     retval = process_event(print_event_info, fdle,
                            mysqlbinlog_file_reader.event_start_pos(), logname);
-    if (retval != OK_CONTINUE) goto end;
+    if (retval != OK_CONTINUE) return retval;
   }
 
   if (strcmp(logname, "-") == 0)
@@ -2569,39 +2630,57 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
            LOG_EVENT_BINLOG_IN_USE_F) ||
           mysqlbinlog_file_reader.get_error_type() ==
               Binlog_read_error::READ_EOF)
-        goto end;
+        return retval;
 
       error(
           "Could not read entry at offset %s: "
           "Error in log format or read error 1.",
           llstr(old_off, llbuff));
       error("%s", mysqlbinlog_file_reader.get_error_str());
-      goto err;
+      return ERROR_STOP;
     }
+
+    if (opt_require_row_format) {
+      bool info_error{false};
+      binary_log::Log_event_basic_info log_event_info;
+      std::tie(info_error, log_event_info) = extract_log_event_basic_info(ev);
+
+      if (!info_error) {
+        transaction_parser.feed_event(log_event_info, false);
+        if (transaction_parser.check_row_logging_constraints(log_event_info)) {
+          error(
+              "Event being written violates the --require-row-format "
+              "parameter constraints.");
+          delete ev;
+          return ERROR_STOP;
+        }
+      } else {
+        error("Unexpected event being evaluated under --require-row-format.");
+        delete ev;
+        return ERROR_STOP;
+      }
+    }
+
     if ((retval = process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
-      goto end;
+      return retval;
   }
 
   /* NOTREACHED */
 
-err:
-  retval = ERROR_STOP;
-
-end:
   return retval;
 }
 
 /* Post processing of arguments to check for conflicts and other setups */
 static int args_post_process(void) {
-  DBUG_ENTER("args_post_process");
+  DBUG_TRACE;
 
   if (opt_remote_alias && opt_remote_proto != BINLOG_DUMP_NON_GTID) {
     error(
         "The option read-from-remote-server cannot be used when "
         "read-from-remote-master is defined and is not equal to "
         "BINLOG-DUMP-NON-GTIDS");
-    DBUG_RETURN(ERROR_STOP);
+    return ERROR_STOP;
   }
 
   if (raw_mode) {
@@ -2612,12 +2691,12 @@ static int args_post_process(void) {
       error(
           "The --raw flag requires one of --read-from-remote-master or "
           "--read-from-remote-server");
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
 
     if (opt_include_gtids_str != nullptr) {
       error("You cannot use --include-gtids and --raw together.");
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
 
     if (opt_remote_proto == BINLOG_DUMP_NON_GTID &&
@@ -2626,7 +2705,7 @@ static int args_post_process(void) {
           "You cannot use both of --exclude-gtids and --raw together "
           "with one of --read-from-remote-server or "
           "--read-from-remote-master=BINLOG-DUMP-NON-GTID.");
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
 
     if (stop_position != (ulonglong)(~(my_off_t)0))
@@ -2638,7 +2717,7 @@ static int args_post_process(void) {
     if (!(result_file =
               my_fopen(output_file, O_WRONLY | MY_FOPEN_BINARY, MYF(MY_WME)))) {
       error("Could not create log file '%s'", output_file);
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
   }
 
@@ -2649,7 +2728,7 @@ static int args_post_process(void) {
         RETURN_STATUS_OK) {
       error("Could not configure --include-gtids '%s'", opt_include_gtids_str);
       global_sid_lock->unlock();
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
   }
 
@@ -2658,7 +2737,7 @@ static int args_post_process(void) {
         RETURN_STATUS_OK) {
       error("Could not configure --exclude-gtids '%s'", opt_exclude_gtids_str);
       global_sid_lock->unlock();
-      DBUG_RETURN(ERROR_STOP);
+      return ERROR_STOP;
     }
   }
 
@@ -2667,12 +2746,12 @@ static int args_post_process(void) {
   if (connection_server_id == 0 && stop_never)
     error("Cannot set --server-id=0 when --stop-never is specified.");
   if (connection_server_id != -1 && stop_never_slave_server_id != -1)
-    error(
-        "Cannot set --connection-server-id= %lld and"
-        "--stop-never-slave-server-id= %lld. ",
-        connection_server_id, stop_never_slave_server_id);
+    error("Cannot set --connection-server-id= %" PRId64
+          " and"
+          "--stop-never-slave-server-id= %" PRId64 ". ",
+          connection_server_id, stop_never_slave_server_id);
 
-  DBUG_RETURN(OK_CONTINUE);
+  return OK_CONTINUE;
 }
 
 /**
@@ -2710,7 +2789,7 @@ inline bool gtid_client_init() {
 int main(int argc, char **argv) {
   Exit_status retval = OK_CONTINUE;
   MY_INIT(argv[0]);
-  DBUG_ENTER("main");
+  DBUG_TRACE;
   DBUG_PROCESS(argv[0]);
 
   my_init_time();  // for time functions
@@ -2806,6 +2885,10 @@ int main(int argc, char **argv) {
     fprintf(result_file,
             "/*!50700 SET @@SESSION.RBR_EXEC_MODE=IDEMPOTENT*/;\n\n");
 
+  if (opt_require_row_format) {
+    fprintf(result_file, "/*!80019 SET @@SESSION.REQUIRE_ROW_FORMAT=1*/;\n\n");
+  }
+
   retval = dump_multiple_logs(argc, argv);
 
   if (!raw_mode) {
@@ -2837,7 +2920,6 @@ int main(int argc, char **argv) {
   if (result_file && (result_file != stdout)) my_fclose(result_file, MYF(0));
   cleanup();
 
-  my_free_open_file_info();
   load_processor.destroy();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);

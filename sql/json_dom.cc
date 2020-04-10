@@ -47,6 +47,7 @@
 #include "m_string.h"  // my_gcvt, _dig_vec_lower
 #include "malloc_allocator.h"
 #include "my_byteorder.h"
+#include "my_compare.h"
 #include "my_dbug.h"
 #include "my_decimal.h"
 #include "my_double2ulonglong.h"
@@ -1682,7 +1683,7 @@ static bool wrapper_to_string(const Json_wrapper &wr, String *buffer,
       if (reserve(buffer, length)) return true;
       char *ptr = buffer->ptr() + buffer->length();
       my_decimal m;
-      if (wr.get_decimal_data(&m) || decimal2string(&m, ptr, &length, 0, 0, 0))
+      if (wr.get_decimal_data(&m) || decimal2string(&m, ptr, &length))
         return true; /* purecov: inspected */
       buffer->length(buffer->length() + length);
       break;
@@ -2233,22 +2234,21 @@ get_seek_func(const Json_path_iterator &it, const Json_seek_params &params) {
   if (it != params.m_last_leg) {
     switch ((*it)->get_type()) {
       case jpl_member:
-        return [](Val v, It it, Param p) { return seek_member(v, it, p); };
+        return [](Val v, It i, Param p) { return seek_member(v, i, p); };
       case jpl_array_cell:
-        return [](Val v, It it, Param p) { return seek_array_cell(v, it, p); };
+        return [](Val v, It i, Param p) { return seek_array_cell(v, i, p); };
       case jpl_array_range:
       case jpl_array_cell_wildcard:
-        return [](Val v, It it, Param p) { return seek_array_range(v, it, p); };
+        return [](Val v, It i, Param p) { return seek_array_range(v, i, p); };
       case jpl_member_wildcard:
-        return [](Val v, It it, Param p) {
-          return seek_member_wildcard(v, it, p);
-        };
+        return
+            [](Val v, It i, Param p) { return seek_member_wildcard(v, i, p); };
       case jpl_ellipsis:
-        return [](Val v, It it, Param p) { return seek_ellipsis(v, it, p); };
+        return [](Val v, It i, Param p) { return seek_ellipsis(v, i, p); };
     }
   }
 
-  return [](Val v, It it, Param p) { return seek_end(v, it, p); };
+  return [](Val v, It i, Param p) { return seek_end(v, i, p); };
 }
 
 bool Json_wrapper::seek(const Json_seekable_path &path, size_t legs,
@@ -2311,19 +2311,6 @@ size_t Json_wrapper::length() const {
     default:
       return 1;
   }
-}
-
-/**
-  Compare two numbers of the same type.
-  @param val1 the first number
-  @param val2 the second number
-  @retval -1 if val1 is less than val2,
-  @retval 0 if val1 is equal to val2,
-  @retval 1 if val1 is greater than val2
-*/
-template <class T>
-static int compare_numbers(T val1, T val2) {
-  return (val1 < val2) ? -1 : ((val1 == val2) ? 0 : 1);
 }
 
 #ifdef MYSQL_SERVER
@@ -2553,7 +2540,7 @@ static constexpr int type_comparison[num_json_types][num_json_types] = {
   /* INT */       {1,  0,  0,  0,  0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
   /* UINT */      {1,  0,  0,  0,  0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
   /* DOUBLE */    {1,  0,  0,  0,  0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-  /* STRING */    {1,  1,  1,  1,  1,  0, -1, -1, -1, -1, -1, -1, -1,  0, -1},
+  /* STRING */    {1,  1,  1,  1,  1,  0, -1, -1, -1, -1, -1, -1, -1, -1, -1},
   /* OBJECT */    {1,  1,  1,  1,  1,  1,  0, -1, -1, -1, -1, -1, -1, -1, -1},
   /* ARRAY */     {1,  1,  1,  1,  1,  1,  1,  0, -1, -1, -1, -1, -1, -1, -1},
   /* BOOLEAN */   {1,  1,  1,  1,  1,  1,  1,  1,  0, -1, -1, -1, -1, -1, -1},
@@ -2561,7 +2548,7 @@ static constexpr int type_comparison[num_json_types][num_json_types] = {
   /* TIME */      {1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  0, -1, -1, -1, -1},
   /* DATETIME */  {1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  0, -1, -1},
   /* TIMESTAMP */ {1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  0,  0, -1, -1},
-  /* OPAQUE */    {1,  1,  1,  1,  1,  0,  1,  1,  1,  1,  1,  1,  1,  0, -1},
+  /* OPAQUE */    {1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  0, -1},
   /* ERROR */     {1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1},
 };
 // clang-format on
@@ -2575,9 +2562,9 @@ int Json_wrapper::compare(const Json_wrapper &other,
   DBUG_ASSERT(other_type != enum_json_type::J_ERROR);
 
   // Check if the type tells us which value is bigger.
-  int cmp = type_comparison[static_cast<int>(this_type)]
-                           [static_cast<int>(other_type)];
-  if (cmp != 0) return cmp;
+  int type_cmp = type_comparison[static_cast<int>(this_type)]
+                                [static_cast<int>(other_type)];
+  if (type_cmp != 0) return type_cmp;
 
   // Same or similar type. Go on and inspect the values.
 
@@ -2616,7 +2603,7 @@ int Json_wrapper::compare(const Json_wrapper &other,
           If their sizes are different, the object with the smallest
           number of elements is smaller than the other object.
         */
-        cmp = compare_numbers(length(), other.length());
+        int cmp = compare_numbers(length(), other.length());
         if (cmp != 0) return cmp;
 
         /*
@@ -2767,7 +2754,7 @@ int Json_wrapper::compare(const Json_wrapper &other,
         return compare_numbers(TIME_to_longlong_packed(val_a),
                                TIME_to_longlong_packed(val_b));
       }
-    case enum_json_type::J_OPAQUE:
+    case enum_json_type::J_OPAQUE: {
       if (other_type == enum_json_type::J_STRING) {
         // String might be stored as J_OPAQUE, check this case
         if (field_type() == MYSQL_TYPE_VARCHAR ||
@@ -2783,11 +2770,12 @@ int Json_wrapper::compare(const Json_wrapper &other,
         Opaque values are equal to other opaque values with the same
         field type and the same binary representation.
       */
-      cmp = compare_numbers(field_type(), other.field_type());
+      int cmp = compare_numbers(field_type(), other.field_type());
       if (cmp == 0)
         cmp = compare_json_strings(get_data(), get_data_length(),
                                    other.get_data(), other.get_data_length());
       return cmp;
+    }
     case enum_json_type::J_NULL:
       // Null is always equal to other nulls.
       DBUG_ASSERT(this_type == other_type);
@@ -2821,7 +2809,7 @@ static void handle_coercion_error(enum_coercion_error cr_error,
       */
       push_warning_printf(
           current_thd, Sql_condition::SL_WARNING, error_code,
-          ER_THD(current_thd, error_code), target_type, "", msgnam,
+          ER_THD_NONCONST(current_thd, error_code), target_type, "", msgnam,
           current_thd->get_stmt_da()->current_row_for_condition());
       return;
     }
@@ -3381,9 +3369,8 @@ size_t Json_wrapper::make_sort_key(uchar *to, size_t to_length) const {
     case enum_json_type::J_DECIMAL: {
       my_decimal dec;
       if (get_decimal_data(&dec)) break; /* purecov: inspected */
-      char buff[DECIMAL_MAX_STR_LENGTH + 1];
-      String str(buff, sizeof(buff), &my_charset_numeric);
-      if (my_decimal2string(E_DEC_FATAL_ERROR, &dec, 0, 0, 0, &str))
+      StringBuffer<DECIMAL_MAX_STR_LENGTH + 1> str(&my_charset_numeric);
+      if (my_decimal2string(E_DEC_FATAL_ERROR, &dec, &str))
         break; /* purecov: inspected */
       make_json_numeric_sort_key(str.ptr(), str.length(), dec.sign(), &key);
       break;

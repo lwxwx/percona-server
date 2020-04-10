@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2015, 2019, Oracle and/or its affiliates. All rights reserved.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License, version 2.0,
@@ -53,10 +53,10 @@ class CapabilityHanderTlsTestSuite : public Test {
         .WillRepeatedly(Return(&mock_ssl_context));
   }
 
-  StrictMock<ngs::test::Mock_vio> mock_connection;
-  StrictMock<xpl::test::Mock_client> mock_client;
-  StrictMock<ngs::test::Mock_ssl_context> mock_ssl_context;
-  StrictMock<ngs::test::Mock_server> mock_server;
+  StrictMock<Mock_vio> mock_connection;
+  StrictMock<Mock_client> mock_client;
+  StrictMock<Mock_ssl_context> mock_ssl_context;
+  StrictMock<Mock_server> mock_server;
 
   Capability_tls sut;
 };
@@ -100,7 +100,7 @@ TEST_F(CapabilityHanderTlsTestSuite,
   EXPECT_CALL(mock_connection, get_type())
       .WillOnce(Return(xpl::Connection_type::Connection_tls));
 
-  sut.get(any);
+  sut.get(&any);
 
   ASSERT_EQ(::Mysqlx::Datatypes::Any::SCALAR, any.type());
   ASSERT_EQ(::Mysqlx::Datatypes::Scalar::V_BOOL, any.scalar().type());
@@ -207,17 +207,17 @@ INSTANTIATE_TEST_CASE_P(FaildInstantiationAlreadyDisabled,
 class CapabilityHanderAuthMechTestSuite : public Test {
  public:
   CapabilityHanderAuthMechTestSuite() : sut(mock_client) {
-    mock_server = std::make_shared<StrictMock<ngs::test::Mock_server>>();
+    mock_server = std::make_shared<StrictMock<Mock_server>>();
 
     EXPECT_CALL(mock_client, connection())
         .WillRepeatedly(ReturnRef(mock_connection));
     EXPECT_CALL(mock_client, server()).WillRepeatedly(ReturnRef(*mock_server));
   }
 
-  std::shared_ptr<StrictMock<ngs::test::Mock_server>> mock_server;
+  std::shared_ptr<StrictMock<Mock_server>> mock_server;
 
-  StrictMock<ngs::test::Mock_vio> mock_connection;
-  StrictMock<xpl::test::Mock_client> mock_client;
+  StrictMock<Mock_vio> mock_connection;
+  StrictMock<Mock_client> mock_client;
 
   Capability_auth_mech sut;
 };
@@ -250,7 +250,7 @@ TEST_F(CapabilityHanderAuthMechTestSuite, get_doesNothing_whenEmptySetReceive) {
               get_authentication_mechanisms_void(_, Ref(mock_client)))
       .WillOnce(DoAll(SetArgReferee<0>(names), Return(true)));
 
-  sut.get(any);
+  sut.get(&any);
 
   ASSERT_EQ(::Mysqlx::Datatypes::Any::ARRAY, any.type());
   EXPECT_EQ(0, any.array().value_size());
@@ -268,7 +268,7 @@ TEST_F(CapabilityHanderAuthMechTestSuite,
               get_authentication_mechanisms_void(_, Ref(mock_client)))
       .WillOnce(DoAll(SetArgReferee<0>(names), Return(true)));
 
-  sut.get(any);
+  sut.get(&any);
 
   ASSERT_EQ(::Mysqlx::Datatypes::Any::ARRAY, any.type());
   ASSERT_EQ(static_cast<int>(names.size()), any.array().value_size());
@@ -292,7 +292,7 @@ class Capability_hander_client_interactive_test_suite : public Test {
   }
 
   std::unique_ptr<Capability_client_interactive> sut;
-  StrictMock<xpl::test::Mock_client> mock_client;
+  StrictMock<Mock_client> mock_client;
 };
 
 TEST_F(Capability_hander_client_interactive_test_suite,
@@ -313,7 +313,7 @@ TEST_F(Capability_hander_client_interactive_test_suite,
   const bool expected_result = true;
   ::Mysqlx::Datatypes::Any any;
 
-  sut->get(any);
+  sut->get(&any);
 
   ASSERT_EQ(::Mysqlx::Datatypes::Any::SCALAR, any.type());
   ASSERT_EQ(::Mysqlx::Datatypes::Scalar::V_BOOL, any.scalar().type());
@@ -328,7 +328,7 @@ TEST_F(Capability_hander_client_interactive_test_suite,
   const bool expected_result = false;
   ::Mysqlx::Datatypes::Any any;
 
-  sut->get(any);
+  sut->get(&any);
 
   ASSERT_EQ(::Mysqlx::Datatypes::Any::SCALAR, any.type());
   ASSERT_EQ(::Mysqlx::Datatypes::Scalar::V_BOOL, any.scalar().type());

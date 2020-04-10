@@ -1576,7 +1576,7 @@ class Fixup_data {
   bool fix_config_tables(THD *thd);
 
   /** Number of system configuration tables. */
-  static const size_t S_NUM_CONFIG_TABLES = 2;
+  static const size_t S_NUM_CONFIG_TABLES = 0;
 
   /** Array of configuration tables. */
   static const std::array<const char *, S_NUM_CONFIG_TABLES> s_config_tables;
@@ -1788,7 +1788,20 @@ class Fixup_data {
       auto dd_file = *(dd_space->files().begin());
       clone_add_to_list_file(CLONE_INNODB_OLD_FILES,
                              dd_file->filename().c_str());
+      /* In rare case, the undo might be kept halfway truncated due to some
+      error during truncate. Check and add truncate log file as old file if
+      present. */
+      undo::Tablespace undo_space(space_id);
+      const char *log_file_name = undo_space.log_file_name();
+
+      os_file_type_t type;
+      bool exists = false;
+      auto ret = os_file_status(log_file_name, &exists, &type);
+      if (ret && exists) {
+        clone_add_to_list_file(CLONE_INNODB_OLD_FILES, log_file_name);
+      }
     }
+
     /* Skip all undo tablespaces. */
     if (is_undo) {
       return (true);
@@ -1836,7 +1849,7 @@ class Fixup_data {
 /** All configuration tables for which data should not be cloned. From
 replication configurations only clone slave_master_info table needed by GR. */
 const std::array<const char *, Fixup_data::S_NUM_CONFIG_TABLES>
-    Fixup_data::s_config_tables = {"slave_relay_log_info", "slave_worker_info"};
+    Fixup_data::s_config_tables = {};
 
 bool Fixup_data::fix_config_tables(THD *thd) {
   /* No privilege check needed for individual tables. */

@@ -119,6 +119,21 @@ static monitor_info_t innodb_counter_info[] = {
     {"lock_deadlocks", "lock", "Number of deadlocks", MONITOR_DEFAULT_ON,
      MONITOR_DEFAULT_START, MONITOR_DEADLOCK},
 
+    {"lock_deadlock_false_positives", "lock",
+     "Number of times a heuristic found a spurious candidate deadlock cycle in "
+     "the wait-for graph",
+     MONITOR_DEFAULT_ON, MONITOR_DEFAULT_START,
+     MONITOR_DEADLOCK_FALSE_POSITIVES},
+
+    {"lock_deadlock_rounds", "lock",
+     "Number of times a wait-for graph was scanned in search for deadlocks",
+     MONITOR_DEFAULT_ON, MONITOR_DEFAULT_START, MONITOR_DEADLOCK_ROUNDS},
+
+    {"lock_threads_waiting", "lock",
+     "Number of query threads sleeping waiting for a lock",
+     static_cast<monitor_type_t>(MONITOR_DEFAULT_ON | MONITOR_DISPLAY_CURRENT),
+     MONITOR_DEFAULT_START, MONITOR_LOCK_THREADS_WAITING},
+
     {"lock_timeouts", "lock", "Number of lock timeouts", MONITOR_DEFAULT_ON,
      MONITOR_DEFAULT_START, MONITOR_TIMEOUT},
 
@@ -1306,6 +1321,34 @@ static monitor_info_t innodb_counter_info[] = {
      static_cast<monitor_type_t>(MONITOR_EXISTING | MONITOR_DEFAULT_ON),
      MONITOR_DEFAULT_START, MONITOR_OLVD_ROW_UPDTATED},
 
+    {"dml_system_reads", "dml", "Number of system rows read",
+     static_cast<monitor_type_t>(MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+     MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_READ},
+
+    {"dml_system_inserts", "dml", "Number of system rows inserted",
+     static_cast<monitor_type_t>(MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+     MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_INSERTED},
+
+    {"dml_system_deletes", "dml", "Number of system rows deleted",
+     static_cast<monitor_type_t>(MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+     MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_DELETED},
+
+    {"dml_system_updates", "dml", "Number of system rows updated",
+     static_cast<monitor_type_t>(MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+     MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_UPDATED},
+
+    /* ========== Counters for sampling operations ========== */
+    {"module_sampling", "sampling", "Statistics for sampling", MONITOR_MODULE,
+     MONITOR_DEFAULT_START, MONITOR_MODULE_SAMPLING_STATS},
+
+    {"sampled_pages_read", "sampling", "Number of sampled pages read",
+     static_cast<monitor_type_t>(MONITOR_EXISTING), MONITOR_DEFAULT_START,
+     MONITOR_SAMPLED_PAGES_READ},
+
+    {"sampled_pages_skipped", "sampling", "Number of sampled pages skipped",
+     static_cast<monitor_type_t>(MONITOR_EXISTING), MONITOR_DEFAULT_START,
+     MONITOR_SAMPLED_PAGES_SKIPPED},
+
     /* ========== Counters for DDL operations ========== */
     {"module_ddl", "ddl", "Statistics for DDLs", MONITOR_MODULE,
      MONITOR_DEFAULT_START, MONITOR_MODULE_DDL_STATS},
@@ -1840,6 +1883,34 @@ void srv_mon_process_existing_counter(
       value = srv_stats.n_rows_updated;
       break;
 
+    /* innodb_system_rows_read */
+    case MONITOR_OLVD_SYSTEM_ROW_READ:
+      value = srv_stats.n_system_rows_read;
+      break;
+
+    /* innodb_system_rows_inserted */
+    case MONITOR_OLVD_SYSTEM_ROW_INSERTED:
+      value = srv_stats.n_system_rows_inserted;
+      break;
+
+    /* innodb_system_rows_deleted */
+    case MONITOR_OLVD_SYSTEM_ROW_DELETED:
+      value = srv_stats.n_system_rows_deleted;
+      break;
+
+    /* innodb_system_rows_updated */
+    case MONITOR_OLVD_SYSTEM_ROW_UPDATED:
+      value = srv_stats.n_system_rows_updated;
+      break;
+
+    case MONITOR_SAMPLED_PAGES_READ:
+      value = srv_stats.n_sampled_pages_read;
+      break;
+
+    case MONITOR_SAMPLED_PAGES_SKIPPED:
+      value = srv_stats.n_sampled_pages_skipped;
+      break;
+
     /* innodb_row_lock_current_waits */
     case MONITOR_OVLD_ROW_LOCK_CURRENT_WAIT:
       value = srv_stats.n_lock_wait_current_count;
@@ -1947,7 +2018,7 @@ void srv_mon_process_existing_counter(
       break;
 
     case MONITOR_OVLD_LSN_CHECKPOINT:
-      value = (mon_type_t)log_sys->last_checkpoint_lsn;
+      value = (mon_type_t)log_sys->last_checkpoint_lsn.load();
       break;
 
     case MONITOR_OVLD_LSN_CHECKPOINT_AGE:

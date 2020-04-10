@@ -405,7 +405,7 @@ error:
 char *get_charsets_dir(char *buf) {
   const char *sharedir = SHAREDIR;
   char *res;
-  DBUG_ENTER("get_charsets_dir");
+  DBUG_TRACE;
 
   if (charsets_dir != NULL)
     strmake(buf, charsets_dir, FN_REFLEN - 1);
@@ -419,7 +419,7 @@ char *get_charsets_dir(char *buf) {
   }
   res = convert_dirname(buf, buf, NullS);
   DBUG_PRINT("info", ("charsets dir: '%s'", buf));
-  DBUG_RETURN(res);
+  return res;
 }
 
 CHARSET_INFO *all_charsets[MY_ALL_CHARSETS_SIZE] = {NULL};
@@ -547,7 +547,7 @@ const char *get_charset_name(uint charset_number) {
   return "?"; /* this mimics find_type() */
 }
 
-static CHARSET_INFO *get_internal_charset(MY_CHARSET_LOADER *loader,
+static CHARSET_INFO *get_internal_charset(MY_CHARSET_LOADER *loader_arg,
                                           uint cs_number, myf flags) {
   char buf[FN_REFLEN];
   CHARSET_INFO *cs;
@@ -575,8 +575,8 @@ static CHARSET_INFO *get_internal_charset(MY_CHARSET_LOADER *loader,
 
     if (cs->state & MY_CS_AVAILABLE) {
       if (!(cs->state & MY_CS_READY)) {
-        if ((cs->cset->init && cs->cset->init(cs, loader)) ||
-            (cs->coll->init && cs->coll->init(cs, loader))) {
+        if ((cs->cset->init && cs->cset->init(cs, loader_arg)) ||
+            (cs->coll->init && cs->coll->init(cs, loader_arg))) {
           cs = NULL;
         } else
           cs->state |= MY_CS_READY;
@@ -606,7 +606,7 @@ CHARSET_INFO *get_charset(uint cs_number, myf flags) {
     char index_file[FN_REFLEN + sizeof(MY_CHARSET_INDEX)], cs_string[23];
     my_stpcpy(get_charsets_dir(index_file), MY_CHARSET_INDEX);
     cs_string[0] = '#';
-    int10_to_str(cs_number, cs_string + 1, 10);
+    longlong10_to_str(cs_number, cs_string + 1, 10);
     my_error(EE_UNKNOWN_CHARSET, MYF(0), cs_string, index_file);
   }
   return cs;
@@ -659,7 +659,7 @@ CHARSET_INFO *my_charset_get_by_name(MY_CHARSET_LOADER *loader,
                                      myf flags) {
   uint cs_number;
   CHARSET_INFO *cs;
-  DBUG_ENTER("get_charset_by_csname");
+  DBUG_TRACE;
   DBUG_PRINT("enter", ("name: '%s'", cs_name));
 
   std::call_once(charsets_initialized, init_available_charsets);
@@ -673,7 +673,7 @@ CHARSET_INFO *my_charset_get_by_name(MY_CHARSET_LOADER *loader,
     my_error(EE_UNKNOWN_CHARSET, MYF(0), cs_name, index_file);
   }
 
-  DBUG_RETURN(cs);
+  return cs;
 }
 
 CHARSET_INFO *get_charset_by_csname(const char *cs_name, uint cs_flags,

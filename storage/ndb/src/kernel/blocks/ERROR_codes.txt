@@ -20,7 +20,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-Next QMGR 949
+Next QMGR 950
 Next NDBCNTR 1008
 Next NDBFS 2002
 Next DBACC 3006
@@ -30,10 +30,10 @@ Next DBDICT 6223
 Next DBDIH 7249
 Next DBTC 8117
 Next CMVMI 9000
-Next BACKUP 10050
+Next BACKUP 10051
 Next PGMAN 11010
 Next DBTUX 12010
-Next SUMA 13053
+Next SUMA 13054
 Next LGMAN 15002
 Next TSMAN 16002
 Next DBSPJ 17000
@@ -268,6 +268,7 @@ QMGR
       4) ndb_mgm -e "all start"
 947:  Treat restart error due to a node disconnection as CRASH_INSERTION.
 948:  Cause node to crash when first hearing of a node failure
+949:  Pause before enabling this node to accept connections from API nodes
 
 ERROR CODES FOR TESTING NODE FAILURE, FAILURE IN COPY FRAGMENT PROCESS:
 -----------------------------------------------------------------------
@@ -350,7 +351,7 @@ Error insertions used to test ACCKEYCONF/ABORT interleaving
       Allow one ABORT signal to be processed then set 5096
 5096: Cause ABORT messages to be indefinitely stalled
       ACCKEYCONF signal clears ERROR Insertion
-5097: ndbrequire(false)
+5097: ndbabort()
 
 
 
@@ -529,7 +530,6 @@ Test Crashes in handling node restarts
 
 7174: Crash starting node before sending DICT_LOCK_REQ
 7175: Master sends one fake START_PERMREF (ZNODE_ALREADY_STARTING_ERROR)
-7176: Slave NR pretends master does not support DICT lock (rolling upgrade)
 
 DICT:
 6000  Crash during NR when receiving DICTSTARTREQ
@@ -578,9 +578,6 @@ Test failures in various states in take over functionality
 7163: Block take over at sending of UPDATE_TOREQ at end of copy frag
 7164: Block take over at sending of END_TOREQ
 7169: Block take over at sending of UPDATE_TOREQ at end of copy
-
-5008: Crash at reception of EMPTY_LCPREQ (at master take over after NF)
-5009: Crash at sending of EMPTY_LCPCONF (at master take over after NF)
 
 Test Crashes in Handling Graceful Shutdown
 ------------------------------------------
@@ -641,6 +638,9 @@ Backup Stuff:
 10047: Delay start of scan for LCPs
 10048: Ensure that LCP runs with exactly 1 part
 10049: Abort backup with LogBufferFull when STOP_BACKUP_REQ breaks to sync path before trigger deletion
+10050: Change #records and #bytes backed up to a value > 2^32 to test
+       NDB_LE_BackupCompleted prints the 64-bit value out correctly
+       without truncating it to 32 bit values.
 
 11001: Send UTIL_SEQUENCE_REF (in master)
 

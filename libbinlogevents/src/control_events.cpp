@@ -91,7 +91,7 @@ Format_description_event::Format_description_event(uint8_t binlog_ver,
     : Binary_log_event(FORMAT_DESCRIPTION_EVENT),
       created(0),
       binlog_version(BINLOG_VERSION),
-      dont_set_created(0) {
+      dont_set_created(false) {
   binlog_version = binlog_ver;
   switch (binlog_ver) {
     case 4: /* MySQL 5.0 and above*/
@@ -252,7 +252,7 @@ Format_description_event::Format_description_event(
 
   READER_ASSERT_POSITION(LOG_EVENT_MINIMAL_HEADER_LEN + ST_CREATED_OFFSET);
   READER_TRY_SET(created, read_and_letoh<uint64_t>, 4);
-  dont_set_created = 1;
+  dont_set_created = true;
 
   READER_ASSERT_POSITION(LOG_EVENT_MINIMAL_HEADER_LEN +
                          ST_COMMON_HEADER_LEN_OFFSET);
@@ -597,7 +597,7 @@ Transaction_context_event::Transaction_context_event(
 void Transaction_context_event::clear_set(std::list<const char *> *set) {
   for (std::list<const char *>::iterator it = set->begin(); it != set->end();
        ++it)
-    bapi_free((void *)*it);
+    bapi_free(const_cast<char *>(*it));
   set->clear();
 }
 
@@ -605,9 +605,10 @@ void Transaction_context_event::clear_set(std::list<const char *> *set) {
   Destructor of the Transaction_context_event class.
 */
 Transaction_context_event::~Transaction_context_event() {
-  if (server_uuid) bapi_free((void *)server_uuid);
+  if (server_uuid) bapi_free(const_cast<char *>(server_uuid));
   server_uuid = nullptr;
-  if (encoded_snapshot_version) bapi_free((void *)encoded_snapshot_version);
+  if (encoded_snapshot_version)
+    bapi_free(const_cast<unsigned char *>(encoded_snapshot_version));
   encoded_snapshot_version = nullptr;
   clear_set(&write_set);
   clear_set(&read_set);

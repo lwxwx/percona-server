@@ -120,21 +120,6 @@ bool DB_restrictions::operator==(const DB_restrictions &restrictions) const {
 }
 
 /**
-  Add given set of privileges (in string format) and
-  add them to restriction list for given database.
-
-  @param [in] db_name Database information
-  @param [in] privs   Restricted access - In string format
-*/
-void DB_restrictions::add(const std::string &db_name,
-                          const std::set<std::string> &privs) {
-  for (const auto &priv : privs) {
-    auto priv_itr = global_acls_map.find(priv);
-    if (priv_itr != global_acls_map.end()) add(db_name, priv_itr->second);
-  }
-}
-
-/**
   Add given privileges as restricted for the database
 
   @param [in] db_name      Database information
@@ -213,26 +198,6 @@ bool DB_restrictions::add(const Json_object &json_object) {
     }
   }
   return false;
-}
-
-/**
-  Remove given set of privileges for a database from restriction list
-
-  @param [in] db_name      Database information
-  @param [in] revoke_privs List of privileges to remove
-*/
-void DB_restrictions::remove(const std::string &db_name,
-                             const std::set<std::string> &revoke_privs) {
-  auto rest_itr = m_restrictions.find(db_name);
-  if (rest_itr != m_restrictions.end()) {
-    for (auto &priv : revoke_privs) {
-      const auto &itr = global_acls_map.find(priv);
-      if (itr != global_acls_map.end()) {
-        auto &priv_mask = rest_itr->second;
-        priv_mask ^= (1UL << itr->second);
-      }
-    }
-  }
 }
 
 /**
@@ -481,14 +446,14 @@ Restrictions_aggregator_factory::create(
     const Auth_id &grantor, const Auth_id &grantee, const ulong grantor_access,
     const ulong grantee_access, const DB_restrictions &grantor_db_restrictions,
     const DB_restrictions &grantee_db_restrictions, const ulong required_access,
-    const Db_access_map *db_map, const Db_access_map *db_wild_map) {
+    Db_access_map *db_map) {
   std::unique_ptr<Restrictions_aggregator> aggregator = nullptr;
   /* Create aggregator only if partial_revokes system variable is ON */
   if (mysqld_partial_revokes() == false) return aggregator;
   /* As of now, only caters global grants */
   aggregator.reset(new DB_restrictions_aggregator_set_role(
       grantor, grantee, grantor_access, grantee_access, grantor_db_restrictions,
-      grantee_db_restrictions, required_access, db_map, db_wild_map));
+      grantee_db_restrictions, required_access, db_map));
   DBUG_ASSERT(aggregator);
   return aggregator;
 }
@@ -776,16 +741,12 @@ void DB_restrictions_aggregator::set_if_db_level_operation(
                                 is to be done.
   @param  [in]    db_map        DB_access_map used to fetch grantee's db access
                                 for SET ROLE
-  @param  [in]    db_wild_map   DB_access_map used to fetch grantee's db access
-                                for SET ROLE
   @param  [out]   restrictions  Fills the paramter with the generated
                                 DB_restrictions.
 
 */
 void DB_restrictions_aggregator::aggregate_restrictions(
-    SQL_OP sql_op, const Db_access_map *db_map,
-    const Db_access_map *db_wild_map MY_ATTRIBUTE((unused)),
-    DB_restrictions &restrictions) {
+    SQL_OP sql_op, const Db_access_map *db_map, DB_restrictions &restrictions) {
   if (m_grantor_rl.is_not_empty()) {
     if (test_all_bits(m_grantee_global_access, m_requested_access) &&
         m_grantee_rl.is_empty()) {
@@ -913,22 +874,19 @@ void DB_restrictions_aggregator::get_grantee_db_access(
   @param  [in]  grantor_db_restrictions Restrictions on the grantor
   @param  [in]  grantee_db_restrictions Restrictions on the grantee
   @param  [in]  requested_access  Requested privileges mask in the SQL statement
-  @param  [in]  db_map  Grantee's db_accees_map to fecth db access
-  @param  [in]  db_wild_map Grantee's db_accees_map to fecth db access
+  @param  [in,out]  db_map  Grantee's db_accees_map to fetch/update db access
 */
 DB_restrictions_aggregator_set_role::DB_restrictions_aggregator_set_role(
     const Auth_id &grantor, const Auth_id grantee,
     const ulong grantor_global_access, const ulong grantee_global_access,
     const DB_restrictions &grantor_db_restrictions,
     const DB_restrictions &grantee_db_restrictions,
-    const ulong requested_access, const Db_access_map *db_map,
-    const Db_access_map *db_wild_map)
+    const ulong requested_access, Db_access_map *db_map)
     : DB_restrictions_aggregator(grantor, grantee, grantor_global_access,
                                  grantee_global_access, grantor_db_restrictions,
                                  grantee_db_restrictions, requested_access,
                                  nullptr),
-      m_db_map(db_map),
-      m_db_wild_map(db_wild_map) {}
+      m_db_map(db_map) {}
 /**
   Evaluates the restrictions list of grantor and grantee, as well as requested
   privilege.
@@ -936,7 +894,7 @@ DB_restrictions_aggregator_set_role::DB_restrictions_aggregator_set_role(
      existing restrictions.
 
   @returns
-    @retval Status  Moves the object in the appriate status.
+    @retval Status  Moves the object in the appropiate status.
                     For instance :
                     - Validated, if validation was performed successfuly
                     - NO_op, if there is no aggregation of privileges required.
@@ -945,7 +903,7 @@ DB_restrictions_aggregator_set_role::DB_restrictions_aggregator_set_role(
 Restrictions_aggregator::Status
 DB_restrictions_aggregator_set_role::validate() {
   /*
-    It must be only Global Grant, if grantor and grantee both does not have
+    It must be only Global Grant, if grantor and grantee both do not have
     any restrictions attached.
   */
   if (m_grantor_rl.is_empty() && m_grantee_rl.is_empty())
@@ -965,23 +923,40 @@ DB_restrictions_aggregator_set_role::validate() {
   - else if grantee has restrictions
     - Remove the restrictions on which global grant is requested.
 
-  @param  [out]  restrictions  Fills the paramter with the generated
-                               DB_restrictions
+  @param  [out]  db_restrictions  Fills the paramter with the generated
+                                  DB_restrictions
 */
 void DB_restrictions_aggregator_set_role::aggregate(
-    DB_restrictions &restrictions) {
+    DB_restrictions &db_restrictions) {
   DBUG_ASSERT(m_status == Status::Validated);
 
   if (m_grantee_rl.is_not_empty()) {
     /*
-      At this point, we have already aggregated DB privileges.
-      From grantee's RL, remove restrictions that are now
-      covered through DB privileges.
+      At this point, we already have aggregated DB privileges and grantee's
+      restrictions. Therefore, negate the restrictions with the DB privileges.
+      In other words remove grantee's restrictions and corresponding grantor's
+      privilege.
     */
-    for (const auto &it : *m_db_map) m_grantee_rl.remove(it.first, it.second);
+    ulong restrictions, privileges;
+    for (auto it = m_db_map->begin(); it != m_db_map->end();) {
+      privileges = it->second;
+      if (m_grantee_rl.find(it->first, restrictions)) {
+        m_grantee_rl.remove(it->first, privileges);
+        privileges = (restrictions ^ privileges) & privileges;
+        if (privileges == 0)
+          // If DB does not have any privilege then remove it from db_map
+          it = m_db_map->erase(it);
+        else {
+          // Keep the remaining privileges intact in the db_map
+          it->second = privileges;
+          ++it;
+        }
+      } else {
+        ++it;
+      }
+    }
   }
-  aggregate_restrictions(SQL_OP::SET_ROLE, m_db_map, m_db_wild_map,
-                         restrictions);
+  aggregate_restrictions(SQL_OP::SET_ROLE, m_db_map, db_restrictions);
   m_status = Status::Aggregated;
 }
 
@@ -1015,7 +990,7 @@ DB_restrictions_aggregator_global_grant::
      existing restrictions.
 
   @returns
-    @retval Status  Moves the object in the appriate status.
+    @retval Status  Moves the object in the appropiate status.
                     For instance :
                     - Validated, if validation was performed successfuly
                     - NO_op, if there is no aggregation of privileges required.
@@ -1064,7 +1039,7 @@ DB_restrictions_aggregator_global_grant::validate() {
 void DB_restrictions_aggregator_global_grant::aggregate(
     DB_restrictions &restrictions) {
   DBUG_ASSERT(m_status == Status::Validated);
-  aggregate_restrictions(SQL_OP::GLOBAL_GRANT, nullptr, nullptr, restrictions);
+  aggregate_restrictions(SQL_OP::GLOBAL_GRANT, nullptr, restrictions);
   m_status = Status::Aggregated;
 }
 
@@ -1097,7 +1072,7 @@ DB_restrictions_aggregator_global_revoke::
   privilege.
 
   @returns
-    @retval Status  Moves the object in the appriate status.
+    @retval Status  Moves the object in the appropiate status.
                     For instance :
                     - Validated, if validation was performed successfuly
                     - NO_op, if there is no aggregation of privileges required.
@@ -1164,7 +1139,7 @@ void DB_restrictions_aggregator_global_revoke::aggregate(
     restriction list on the  database
 
   @returns
-    @retval Status  Moves the object in the appriate status.
+    @retval Status  Moves the object in the appropiate status.
                     For instance :
                     - Validated, if validation was performed successfuly
                     - NO_op, if there is no aggregation of privileges required.
@@ -1510,11 +1485,6 @@ const DB_restrictions &Restrictions::db() const { return m_db_restrictions; }
 /** Set given database restrictions */
 void Restrictions::set_db(const DB_restrictions &db_restrictions) {
   m_db_restrictions = db_restrictions;
-}
-
-/** Add given database restrictions */
-void Restrictions::add_db(const DB_restrictions &db_restrictions) {
-  m_db_restrictions.add(db_restrictions);
 }
 
 /** Clear database restrictions */

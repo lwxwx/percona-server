@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2019, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License, version 2.0, as published by the
@@ -1005,7 +1005,7 @@ func_start:
 
   /* Keep recs in first group to the old page, move recs in second
   groups to the new page. */
-  if (0
+  if (false
 #ifdef UNIV_ZIP_COPY
       || page_zip
 #endif
@@ -1179,10 +1179,12 @@ after_insert:
       ibuf_reset_free_bits(block);
     }
 
-    /* We need to clean the parent path here and search father
-    node later, otherwise, it's possible that find a wrong
-    parent. */
-    rtr_clean_rtr_info(cursor->rtr_info, true);
+    if (cursor->m_own_rtr_info) {
+      /* We need to clean the parent path here and search father node later,
+      otherwise, it's possible that find a wrong parent. */
+      rtr_clean_rtr_info(cursor->rtr_info, true);
+    }
+
     cursor->rtr_info = NULL;
     n_iterations++;
 
@@ -1339,7 +1341,8 @@ void rtr_page_copy_rec_list_end_no_locks(
       offsets2 =
           rec_get_offsets(cur_rec, index, offsets2, ULINT_UNDEFINED, &heap);
       cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec, offsets1, offsets2, index,
-                                   FALSE, &cur_matched_fields);
+                                   page_is_spatial_non_leaf(cur1_rec, index),
+                                   false, &cur_matched_fields);
       if (cmp < 0) {
         page_cur_move_to_prev(&page_cur);
         break;
@@ -1449,7 +1452,8 @@ void rtr_page_copy_rec_list_start_no_locks(
       offsets2 =
           rec_get_offsets(cur_rec, index, offsets2, ULINT_UNDEFINED, &heap);
       cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec, offsets1, offsets2, index,
-                                   FALSE, &cur_matched_fields);
+                                   page_is_spatial_non_leaf(cur1_rec, index),
+                                   false, &cur_matched_fields);
       if (cmp < 0) {
         page_cur_move_to_prev(&page_cur);
         cur_rec = page_cur_get_rec(&page_cur);

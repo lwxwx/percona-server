@@ -25,15 +25,27 @@
   @ref SslAcceptorContext implementation.
 */
 #include "sql/ssl_acceptor_context.h"
-#include <my_dir.h>
-#include <sql/mysqld.h>
-#include "my_config.h"
-#include "mysql.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "my_dir.h"
+#include "my_getopt.h"
+#include "my_inttypes.h"
+#include "my_io.h"
+#include "my_loglevel.h"
+#include "my_sys.h"
 #include "mysql/components/services/log_builtins.h"
+#include "mysql/status_var.h"
+#include "mysqld_error.h"
 #include "sql/auth/auth_common.h"
+#include "sql/mysqld.h"
 #include "sql/options_mysqld.h"
+#include "sql/sql_class.h"
 #include "sql/sql_initialize.h"
 #include "sql/sys_vars.h"
+#include "sql/sys_vars_shared.h"
+#include "violite.h"
 
 /**
   SSL context options
@@ -52,10 +64,12 @@ static char *opt_ssl_capath = NULL, *opt_ssl_cipher = NULL,
 
 static PolyLock_mutex lock_ssl_ctx(&LOCK_tls_ctx_options);
 
-SslAcceptorContext::SslAcceptorContextLockType *SslAcceptorContext::lock = NULL;
+SslAcceptorContext::SslAcceptorContextLockType *SslAcceptorContext::s_lock =
+    nullptr;
 
 void SslAcceptorContext::singleton_deinit() {
-  if (lock) delete lock;
+  delete s_lock;
+  s_lock = nullptr;
 }
 
 void SslAcceptorContext::singleton_flush(enum enum_ssl_init_error *error,
@@ -65,7 +79,7 @@ void SslAcceptorContext::singleton_flush(enum enum_ssl_init_error *error,
     delete newC;
     return;
   }
-  lock->write_wait_and_delete(newC);
+  s_lock->write_wait_and_delete(newC);
 }
 
 int SslAcceptorContext::show_ssl_ctx_sess_accept(THD *, SHOW_VAR *var,
@@ -455,15 +469,6 @@ bool SslAcceptorContext::have_ssl() {
 bool SslAcceptorContext::singleton_init(bool use_ssl_arg) {
   ssl_artifacts_status auto_detection_status;
 
-  /* turn certain options off for wolf */
-
-#ifdef HAVE_WOLFSSL
-  /* crl has no effect in wolfSSL. */
-  opt_ssl_crl = NULL;
-  opt_ssl_crlpath = NULL;
-  opt_ssl_fips_mode = SSL_FIPS_MODE_OFF;
-#endif /* HAVE_WOLFSSL */
-
   /*
     No need to take the ssl_ctx_lock lock here since it's being called
     from singleton_init().
@@ -474,11 +479,9 @@ bool SslAcceptorContext::singleton_init(bool use_ssl_arg) {
       LogErr(INFORMATION_LEVEL, ER_SSL_TRYING_DATADIR_DEFAULTS,
              DEFAULT_SSL_CA_CERT, DEFAULT_SSL_SERVER_CERT,
              DEFAULT_SSL_SERVER_KEY);
-#ifndef HAVE_WOLFSSL
     if (do_auto_cert_generation(auto_detection_status, &opt_ssl_ca,
                                 &opt_ssl_key, &opt_ssl_cert) == false)
       return true;
-#endif
   }
 
   /*
@@ -486,27 +489,14 @@ bool SslAcceptorContext::singleton_init(bool use_ssl_arg) {
     but we want the SSL material generation and/or validation (if supplied).
     So we keep it on.
 
-    For wolfSSL (since it can't auto-generate the certs from inside the
-    server) we need to hush the warning if in bootstrap mode, as in
-    that mode the server won't be listening for connections and thus
-    the lack of SSL material makes no real difference.
-    However if the user specified any of the --ssl options we keep the
-    warning as it's showing problems with the values supplied.
-
     For openssl, we don't hush the option since it would indicate a failure
     in auto-generation, bad key material explicitly specified or
     auto-generation disabled explcitly while SSL is still on.
   */
-  SslAcceptorContext *news = new SslAcceptorContext(
-      use_ssl_arg
-#ifdef HAVE_WOLFSSL
-      ,
-      (!opt_initialize || SSL_ARTIFACTS_NOT_FOUND != auto_detection_status)
-#endif
-  );
+  SslAcceptorContext *news = new SslAcceptorContext(use_ssl_arg);
 
-  lock = new SslAcceptorContext::SslAcceptorContextLockType(news);
-  if (!lock) {
+  s_lock = new SslAcceptorContext::SslAcceptorContextLockType(news);
+  if (!s_lock) {
     LogErr(WARNING_LEVEL, ER_SSL_LIBRARY_ERROR,
            "Error initializing the SSL context system structure");
     return true;
@@ -529,7 +519,6 @@ bool SslAcceptorContext::singleton_init(bool use_ssl_arg) {
   @retval NULL No errors found
   @retval non-null The text of the error from the library
 */
-#ifndef HAVE_WOLFSSL
 static const char *verify_store_cert(SSL_CTX *ctx, SSL *ssl) {
   const char *result = NULL;
   X509 *cert = SSL_get_certificate(ssl);
@@ -543,14 +532,11 @@ static const char *verify_store_cert(SSL_CTX *ctx, SSL *ssl) {
   if (sctx != NULL) X509_STORE_CTX_free(sctx);
   return result;
 }
-#else  /* HAVE_WOLFSSL */
-static const char *verify_store_cert(SSL_CTX *, SSL *) { return NULL; }
-#endif /* HAVE_WOLFSSL */
 
 SslAcceptorContext::SslAcceptorContext(bool use_ssl_arg, bool report_ssl_error,
                                        enum enum_ssl_init_error *out_error)
     : ssl_acceptor_fd(nullptr), acceptor(nullptr) {
-  enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
+  enum enum_ssl_init_error error_num = SSL_INITERR_NOERROR;
 
   read_parameters(&current_ca_, &current_capath_, &current_version_,
                   &current_cert_, &current_cipher_, &current_ciphersuites_,
@@ -560,12 +546,12 @@ SslAcceptorContext::SslAcceptorContext(bool use_ssl_arg, bool report_ssl_error,
     ssl_acceptor_fd = new_VioSSLAcceptorFd(
         current_key_.c_str(), current_cert_.c_str(), current_ca_.c_str(),
         current_capath_.c_str(), current_cipher_.c_str(),
-        current_ciphersuites_.c_str(), &error, current_crl_.c_str(),
+        current_ciphersuites_.c_str(), &error_num, current_crl_.c_str(),
         current_crlpath_.c_str(),
         process_tls_version(current_version_.c_str()));
 
     if (!ssl_acceptor_fd && report_ssl_error)
-      LogErr(WARNING_LEVEL, ER_SSL_LIBRARY_ERROR, sslGetErrString(error));
+      LogErr(WARNING_LEVEL, ER_SSL_LIBRARY_ERROR, sslGetErrString(error_num));
 
     if (ssl_acceptor_fd) acceptor = SSL_new(ssl_acceptor_fd->ssl_context);
 
@@ -577,7 +563,7 @@ SslAcceptorContext::SslAcceptorContext(bool use_ssl_arg, bool report_ssl_error,
         LogErr(WARNING_LEVEL, ER_SSL_SERVER_CERT_VERIFY_FAILED, error);
     }
   }
-  if (out_error) *out_error = error;
+  if (out_error) *out_error = error_num;
 }
 
 SslAcceptorContext::~SslAcceptorContext() {
@@ -606,9 +592,9 @@ ssl_artifacts_status SslAcceptorContext::auto_detect_ssl() {
 
     switch (result) {
       case 8:
-        opt_ssl_ca = (char *)DEFAULT_SSL_CA_CERT;
-        opt_ssl_cert = (char *)DEFAULT_SSL_SERVER_CERT;
-        opt_ssl_key = (char *)DEFAULT_SSL_SERVER_KEY;
+        opt_ssl_ca = DEFAULT_SSL_CA_CERT;
+        opt_ssl_cert = DEFAULT_SSL_SERVER_CERT;
+        opt_ssl_key = DEFAULT_SSL_SERVER_KEY;
         ret_status = SSL_ARTIFACTS_AUTO_DETECTED;
         break;
       case 4:

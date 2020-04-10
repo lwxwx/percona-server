@@ -33,6 +33,7 @@
 #include <time.h>
 
 #include "client/client_priv.h"
+#include "compression.h"
 #include "my_alloc.h"
 #include "my_dbug.h"
 #include "my_default.h"
@@ -60,22 +61,26 @@ static char *field_escape(char *to, const char *from, uint length);
 static char *add_load_option(char *ptr, const char *object,
                              const char *statement);
 
-static bool verbose = 0, lock_tables = 0, ignore_errors = 0, opt_delete = 0,
-            replace = 0, silent = 0, ignore = 0, opt_compress = 0,
-            opt_low_priority = 0, tty_password = 0;
-static bool debug_info_flag = 0, debug_check_flag = 0;
+static bool verbose = false, lock_tables = false, ignore_errors = false,
+            opt_delete = false, replace = false, silent = false, ignore = false,
+            opt_compress = false, opt_low_priority = false,
+            tty_password = false;
+static bool debug_info_flag = false, debug_check_flag = false;
 static uint opt_use_threads = 0, opt_local_file = 0, my_end_arg = 0;
 static char *opt_password = 0, *current_user = 0, *current_host = 0,
             *current_db = 0, *fields_terminated = 0, *lines_terminated = 0,
             *enclosed = 0, *opt_enclosed = 0, *escaped = 0, *opt_columns = 0;
 static const char *default_charset = MYSQL_AUTODETECT_CHARSET_NAME;
 static uint opt_enable_cleartext_plugin = 0;
-static bool using_opt_enable_cleartext_plugin = 0;
+static bool using_opt_enable_cleartext_plugin = false;
 static uint opt_mysql_port = 0, opt_protocol = 0;
 static char *opt_bind_addr = NULL;
 static char *opt_mysql_unix_port = 0;
 static char *opt_plugin_dir = 0, *opt_default_auth = 0;
 static longlong opt_ignore_lines = -1;
+static uint opt_zstd_compress_level = default_zstd_compression_level;
+static char *opt_compress_algorithm = nullptr;
+
 #include "caching_sha2_passwordopt-vars.h"
 #include "sslopt-vars.h"
 
@@ -211,6 +216,17 @@ static struct my_option my_long_options[] = {
      0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
     {"version", 'V', "Output version information and exit.", 0, 0, 0,
      GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+    {"compression-algorithms", 0,
+     "Use compression algorithm in server/client protocol. Valid values "
+     "are any combination of 'zstd','zlib','uncompressed'.",
+     &opt_compress_algorithm, &opt_compress_algorithm, 0, GET_STR, REQUIRED_ARG,
+     0, 0, 0, 0, 0, 0},
+    {"zstd-compression-level", 0,
+     "Use this compression level in the client/server protocol, in case "
+     "--compression-algorithms=zstd. Valid range is between 1 and 22, "
+     "inclusive. Default is 3.",
+     &opt_zstd_compress_level, &opt_zstd_compress_level, 0, GET_UINT,
+     REQUIRED_ARG, 3, 1, 22, 0, 0, 0},
     {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}};
 
 static const char *load_default_groups[] = {"mysqlimport", "client", 0};
@@ -250,9 +266,9 @@ static bool get_one_option(int optid, const struct my_option *opt,
         opt_password = my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
         while (*argument) *argument++ = 'x'; /* Destroy argument */
         if (*start) start[1] = 0;            /* Cut length of argument */
-        tty_password = 0;
+        tty_password = false;
       } else
-        tty_password = 1;
+        tty_password = true;
       break;
 #ifdef _WIN32
     case 'W':
@@ -269,7 +285,7 @@ static bool get_one_option(int optid, const struct my_option *opt,
       break;
     case '#':
       DBUG_PUSH(argument ? argument : "d:t:o");
-      debug_check_flag = 1;
+      debug_check_flag = true;
       break;
 #include "sslopt-case.h"
 
@@ -281,7 +297,7 @@ static bool get_one_option(int optid, const struct my_option *opt,
       usage();
       exit(0);
   }
-  return 0;
+  return false;
 }
 }  // extern "C"
 
@@ -319,7 +335,7 @@ static int write_to_table(char *filename, MYSQL *mysql) {
   char tablename[FN_REFLEN], hard_path[FN_REFLEN],
       escaped_name[FN_REFLEN * 2 + 1], sql_statement[FN_REFLEN * 16 + 256],
       *end, *pos;
-  DBUG_ENTER("write_to_table");
+  DBUG_TRACE;
   DBUG_PRINT("enter", ("filename: %s", filename));
 
   fn_format(tablename, filename, "", "", 1 | 2); /* removes path & ext. */
@@ -334,7 +350,7 @@ static int write_to_table(char *filename, MYSQL *mysql) {
     snprintf(sql_statement, FN_REFLEN * 16 + 256, "DELETE FROM %s", tablename);
     if (mysql_query(mysql, sql_statement)) {
       db_error_with_table(mysql, tablename);
-      DBUG_RETURN(1);
+      return 1;
     }
   }
   to_unix_path(hard_path);
@@ -379,7 +395,7 @@ static int write_to_table(char *filename, MYSQL *mysql) {
 
   if (mysql_query(mysql, sql_statement)) {
     db_error_with_table(mysql, tablename);
-    DBUG_RETURN(1);
+    return 1;
   }
   if (!silent) {
     if (mysql_info(mysql)) /* If NULL-pointer, print nothing */
@@ -387,7 +403,7 @@ static int write_to_table(char *filename, MYSQL *mysql) {
       fprintf(stdout, "%s.%s: %s\n", current_db, tablename, mysql_info(mysql));
     }
   }
-  DBUG_RETURN(0);
+  return 0;
 }
 
 static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename) {
@@ -419,6 +435,14 @@ static MYSQL *db_connect(char *host, char *database, char *user, char *passwd) {
   } else if (!(mysql = mysql_init(NULL)))
     return 0;
   if (opt_compress) mysql_options(mysql, MYSQL_OPT_COMPRESS, NullS);
+
+  if (opt_compress_algorithm)
+    mysql_options(mysql, MYSQL_OPT_COMPRESSION_ALGORITHMS,
+                  opt_compress_algorithm);
+
+  mysql_options(mysql, MYSQL_OPT_ZSTD_COMPRESSION_LEVEL,
+                &opt_zstd_compress_level);
+
   if (opt_local_file)
     mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, (char *)&opt_local_file);
   if (SSL_SET_OPTIONS(mysql)) {
@@ -452,13 +476,13 @@ static MYSQL *db_connect(char *host, char *database, char *user, char *passwd) {
   set_get_server_public_key_option(mysql);
   if (!(mysql_real_connect(mysql, host, user, passwd, database, opt_mysql_port,
                            opt_mysql_unix_port, 0))) {
-    ignore_errors = 0; /* NO RETURN FROM db_error */
+    ignore_errors = false; /* NO RETURN FROM db_error */
     db_error(mysql);
   }
-  mysql->reconnect = 0;
+  mysql->reconnect = false;
   if (verbose) fprintf(stdout, "Selecting database %s\n", database);
   if (mysql_select_db(mysql, database)) {
-    ignore_errors = 0;
+    ignore_errors = false;
     db_error(mysql);
   }
   return mysql;

@@ -115,6 +115,7 @@ static void init_mdl_psi_keys(void) {
 
 PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END] = {
     {0, "Waiting for global read lock", 0, PSI_DOCUMENT_ME},
+    {0, "Waiting for backup lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for tablespace metadata lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for schema metadata lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for table metadata lock", 0, PSI_DOCUMENT_ME},
@@ -128,7 +129,6 @@ PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END] = {
     {0, "Waiting for spatial reference system lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for acl cache lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for column statistics lock", 0, PSI_DOCUMENT_ME},
-    {0, "Waiting for backup lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for resource groups metadata lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for foreign key metadata lock", 0, PSI_DOCUMENT_ME},
     {0, "Waiting for check constraint metadata lock", 0, PSI_DOCUMENT_ME},
@@ -150,7 +150,7 @@ void MDL_key::init_psi_keys() {
 }
 #endif
 
-static bool mdl_initialized = 0;
+static bool mdl_initialized = false;
 
 /**
   A collection of all MDL locks. A singleton,
@@ -3384,7 +3384,7 @@ bool MDL_context::acquire_lock(MDL_request *mdl_request,
   /* Normal, non-zero timeout case. */
 
   MDL_lock *lock;
-  MDL_ticket *ticket;
+  MDL_ticket *ticket = nullptr;
   struct timespec abs_timeout;
   MDL_wait::enum_wait_status wait_status;
   /* Do some work outside the critical section. */
@@ -3541,8 +3541,7 @@ bool MDL_context::acquire_lock(MDL_request *mdl_request,
   return false;
 }
 
-class MDL_request_cmp : public std::binary_function<const MDL_request *,
-                                                    const MDL_request *, bool> {
+class MDL_request_cmp {
  public:
   bool operator()(const MDL_request *req1, const MDL_request *req2) {
     int rc = req1->key.cmp(&req2->key);
@@ -3701,19 +3700,19 @@ bool MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
   bool is_new_ticket;
   MDL_lock *lock;
 
-  DBUG_ENTER("MDL_context::upgrade_shared_lock");
+  DBUG_TRACE;
   DEBUG_SYNC(get_thd(), "mdl_upgrade_lock");
 
   /*
     Do nothing if already upgraded. Used when we FLUSH TABLE under
     LOCK TABLES and a table is listed twice in LOCK TABLES list.
   */
-  if (mdl_ticket->has_stronger_or_equal_type(new_type)) DBUG_RETURN(false);
+  if (mdl_ticket->has_stronger_or_equal_type(new_type)) return false;
 
   MDL_REQUEST_INIT_BY_KEY(&mdl_new_lock_request, &mdl_ticket->m_lock->key,
                           new_type, MDL_TRANSACTION);
 
-  if (acquire_lock(&mdl_new_lock_request, lock_wait_timeout)) DBUG_RETURN(true);
+  if (acquire_lock(&mdl_new_lock_request, lock_wait_timeout)) return true;
 
   is_new_ticket = !has_lock(mdl_svp, mdl_new_lock_request.ticket);
 
@@ -3796,7 +3795,7 @@ bool MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
     MDL_ticket::destroy(mdl_new_lock_request.ticket);
   }
 
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -3992,7 +3991,7 @@ bool MDL_context::visit_subgraph(MDL_wait_for_graph_visitor *gvisitor) {
 */
 
 void MDL_context::find_deadlock() {
-  while (1) {
+  while (true) {
     /*
       The fact that we use fresh instance of gvisitor for each
       search performed by find_deadlock() below is important,
@@ -4045,7 +4044,7 @@ void MDL_context::find_deadlock() {
 void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket) {
   MDL_lock *lock = ticket->m_lock;
   MDL_key key_for_hton;
-  DBUG_ENTER("MDL_context::release_lock");
+  DBUG_TRACE;
   DBUG_PRINT("enter", ("db=%s name=%s", lock->key.db_name(), lock->key.name()));
 
   DBUG_ASSERT(this == ticket->get_ctx());
@@ -4147,8 +4146,6 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket) {
   }
 
   MDL_ticket::destroy(ticket);
-
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -4179,20 +4176,18 @@ void MDL_context::release_lock(MDL_ticket *ticket) {
 
 void MDL_context::release_locks_stored_before(enum_mdl_duration duration,
                                               MDL_ticket *sentinel) {
-  DBUG_ENTER("MDL_context::release_locks_stored_before");
+  DBUG_TRACE;
 
   MDL_ticket *ticket;
   MDL_ticket_store::List_iterator it = m_ticket_store.list_iterator(duration);
   if (m_ticket_store.is_empty(duration)) {
-    DBUG_VOID_RETURN;
+    return;
   }
 
   while ((ticket = it++) && ticket != sentinel) {
     DBUG_PRINT("info", ("found lock to release ticket=%p", ticket));
     release_lock(duration, ticket);
   }
-
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -4435,13 +4430,11 @@ const MDL_key *MDL_ticket::get_key() const { return &m_lock->key; }
 */
 
 void MDL_context::rollback_to_savepoint(const MDL_savepoint &mdl_savepoint) {
-  DBUG_ENTER("MDL_context::rollback_to_savepoint");
+  DBUG_TRACE;
 
   /* If savepoint is NULL, it is from the start of the transaction. */
   release_locks_stored_before(MDL_STATEMENT, mdl_savepoint.m_stmt_ticket);
   release_locks_stored_before(MDL_TRANSACTION, mdl_savepoint.m_trans_ticket);
-
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -4454,16 +4447,14 @@ void MDL_context::rollback_to_savepoint(const MDL_savepoint &mdl_savepoint) {
 */
 
 void MDL_context::release_transactional_locks() {
-  DBUG_ENTER("MDL_context::release_transactional_locks");
+  DBUG_TRACE;
   release_locks_stored_before(MDL_STATEMENT, NULL);
   release_locks_stored_before(MDL_TRANSACTION, NULL);
-  DBUG_VOID_RETURN;
 }
 
 void MDL_context::release_statement_locks() {
-  DBUG_ENTER("MDL_context::release_statement_locks");
+  DBUG_TRACE;
   release_locks_stored_before(MDL_STATEMENT, NULL);
-  DBUG_VOID_RETURN;
 }
 
 /**

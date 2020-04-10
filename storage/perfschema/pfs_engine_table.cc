@@ -772,7 +772,7 @@ int compare_table_names(const char *name1, const char *name2) {
 */
 PFS_engine_table_share *PFS_engine_table::find_engine_table_share(
     const char *name) {
-  DBUG_ENTER("PFS_engine_table::find_table_share");
+  DBUG_TRACE;
   PFS_engine_table_share *result;
 
   /* First try to find in native performance schema table shares */
@@ -780,7 +780,7 @@ PFS_engine_table_share *PFS_engine_table::find_engine_table_share(
 
   for (current = &all_shares[0]; (*current) != NULL; current++) {
     if (compare_table_names(name, (*current)->m_table_def->get_name()) == 0) {
-      DBUG_RETURN(*current);
+      return *current;
     }
   }
 
@@ -788,7 +788,7 @@ PFS_engine_table_share *PFS_engine_table::find_engine_table_share(
   result = pfs_external_table_shares.find_share(name, false);
 
   // FIXME : here we return an object that could be destroyed, unsafe.
-  DBUG_RETURN(result);
+  return result;
 }
 
 /**
@@ -1406,7 +1406,7 @@ enum ha_rkey_function PFS_key_reader::read_text_utf8(
       size_t char_length;
       char_length =
           my_charpos(cs, pos, pos + string_len, string_len / cs->mbmaxlen);
-      set_if_smaller(string_len, char_length);
+      string_len = std::min(string_len, char_length);
     }
     const uchar *end = skip_trailing_space(pos, string_len);
     *buffer_length = (uint)(end - pos);

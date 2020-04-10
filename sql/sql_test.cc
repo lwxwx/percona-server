@@ -121,7 +121,7 @@ static void print_cached_tables(void) {
 
 void TEST_join(JOIN *join) {
   uint i, ref;
-  DBUG_ENTER("TEST_join");
+  DBUG_TRACE;
   DBUG_ASSERT(!join->join_tab);
   /*
     Assemble results of all the calls to full_name() first,
@@ -166,7 +166,6 @@ void TEST_join(JOIN *join) {
     }
   }
   DBUG_UNLOCK_FILE;
-  DBUG_VOID_RETURN;
 }
 
 #endif /* !DBUG_OFF */
@@ -180,7 +179,7 @@ void print_keyuse_array(Opt_trace_context *trace,
   for (uint i = 0; i < keyuse_array->size(); i++) {
     const Key_use &keyuse = keyuse_array->at(i);
     // those are too obscure for opt trace
-    DBUG_PRINT("opt", ("Key_use: optimize= %d used_tables=0x%llx "
+    DBUG_PRINT("opt", ("Key_use: optimize= %d used_tables=0x%" PRIx64 " "
                        "ref_table_rows= %lu keypart_map= %0lx",
                        keyuse.optimize, keyuse.used_tables,
                        (ulong)keyuse.ref_table_rows, keyuse.keypart_map));
@@ -312,8 +311,7 @@ static inline int dl_compare(const TABLE_LOCK_INFO *a,
   return 1;
 }
 
-class DL_commpare : public std::binary_function<const TABLE_LOCK_INFO &,
-                                                const TABLE_LOCK_INFO &, bool> {
+class DL_commpare {
  public:
   bool operator()(const TABLE_LOCK_INFO &a, const TABLE_LOCK_INFO &b) {
     return dl_compare(&a, &b) < 0;
@@ -590,7 +588,7 @@ void Dbug_table_list_dumper::dump_one_struct(TABLE_LIST *tbl) {
 
 int Dbug_table_list_dumper::dump_graph(SELECT_LEX *select_lex,
                                        TABLE_LIST *first_leaf) {
-  DBUG_ENTER("Dbug_table_list_dumper::dump_graph");
+  DBUG_TRACE;
   char filename[500];
   int no = 0;
   do {
@@ -605,7 +603,7 @@ int Dbug_table_list_dumper::dump_graph(SELECT_LEX *select_lex,
   /* Ok, found an unoccupied name, create the file */
   if (!(out = fopen(filename, "wt"))) {
     DBUG_PRINT("tree_dump", ("Failed to create output file"));
-    DBUG_RETURN(1);
+    return 1;
   }
 
   DBUG_PRINT("tree_dump", ("dumping tree to %s", filename));
@@ -647,7 +645,7 @@ int Dbug_table_list_dumper::dump_graph(SELECT_LEX *select_lex,
     //    fprintf(out, "%s", current_thd->query);
     fclose(out);
   }
-  DBUG_RETURN(0);
+  return 0;
 }
 
 #endif

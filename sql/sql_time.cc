@@ -64,27 +64,27 @@
 
   @see interval_type, interval_names
 */
-const LEX_STRING interval_type_to_name[INTERVAL_LAST] = {
-    {C_STRING_WITH_LEN("YEAR")},
-    {C_STRING_WITH_LEN("QUARTER")},
-    {C_STRING_WITH_LEN("MONTH")},
-    {C_STRING_WITH_LEN("WEEK")},
-    {C_STRING_WITH_LEN("DAY")},
-    {C_STRING_WITH_LEN("HOUR")},
-    {C_STRING_WITH_LEN("MINUTE")},
-    {C_STRING_WITH_LEN("SECOND")},
-    {C_STRING_WITH_LEN("MICROSECOND")},
-    {C_STRING_WITH_LEN("YEAR_MONTH")},
-    {C_STRING_WITH_LEN("DAY_HOUR")},
-    {C_STRING_WITH_LEN("DAY_MINUTE")},
-    {C_STRING_WITH_LEN("DAY_SECOND")},
-    {C_STRING_WITH_LEN("HOUR_MINUTE")},
-    {C_STRING_WITH_LEN("HOUR_SECOND")},
-    {C_STRING_WITH_LEN("MINUTE_SECOND")},
-    {C_STRING_WITH_LEN("DAY_MICROSECOND")},
-    {C_STRING_WITH_LEN("HOUR_MICROSECOND")},
-    {C_STRING_WITH_LEN("MINUTE_MICROSECOND")},
-    {C_STRING_WITH_LEN("SECOND_MICROSECOND")}};
+const LEX_CSTRING interval_type_to_name[INTERVAL_LAST] = {
+    {STRING_WITH_LEN("YEAR")},
+    {STRING_WITH_LEN("QUARTER")},
+    {STRING_WITH_LEN("MONTH")},
+    {STRING_WITH_LEN("WEEK")},
+    {STRING_WITH_LEN("DAY")},
+    {STRING_WITH_LEN("HOUR")},
+    {STRING_WITH_LEN("MINUTE")},
+    {STRING_WITH_LEN("SECOND")},
+    {STRING_WITH_LEN("MICROSECOND")},
+    {STRING_WITH_LEN("YEAR_MONTH")},
+    {STRING_WITH_LEN("DAY_HOUR")},
+    {STRING_WITH_LEN("DAY_MINUTE")},
+    {STRING_WITH_LEN("DAY_SECOND")},
+    {STRING_WITH_LEN("HOUR_MINUTE")},
+    {STRING_WITH_LEN("HOUR_SECOND")},
+    {STRING_WITH_LEN("MINUTE_SECOND")},
+    {STRING_WITH_LEN("DAY_MICROSECOND")},
+    {STRING_WITH_LEN("HOUR_MICROSECOND")},
+    {STRING_WITH_LEN("MINUTE_MICROSECOND")},
+    {STRING_WITH_LEN("SECOND_MICROSECOND")}};
 
 /**
   Convert a string to 8-bit representation,
@@ -183,6 +183,9 @@ bool str_to_datetime_with_warn(String *str, MYSQL_TIME *l_time,
                                      NullS))
       return true;
   }
+
+  adjust_time_zone_displacement(thd->time_zone(), l_time);
+
   return ret_val;
 }
 
@@ -423,7 +426,7 @@ my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t,
                             bool *in_dst_time_gap) {
   my_time_t timestamp;
 
-  *in_dst_time_gap = 0;
+  *in_dst_time_gap = false;
 
   timestamp = thd->time_zone()->TIME_to_gmt_sec(t, in_dst_time_gap);
   if (timestamp) {
@@ -544,17 +547,21 @@ bool datetime_to_timeval(THD *thd, const MYSQL_TIME *ltime, struct timeval *tm,
 bool str_to_time_with_warn(String *str, MYSQL_TIME *l_time) {
   MYSQL_TIME_STATUS status;
   my_time_flags_t flags = 0;
+  THD *thd = current_thd;
 
   if (current_thd->is_fsp_truncate_mode()) flags = TIME_FRAC_TRUNCATE;
 
   bool ret_val = propagate_datetime_overflow(
       current_thd, &status.warnings, str_to_time(str, l_time, flags, &status));
   if (ret_val || status.warnings) {
-    if (make_truncated_value_warning(current_thd, Sql_condition::SL_WARNING,
+    if (make_truncated_value_warning(thd, Sql_condition::SL_WARNING,
                                      ErrConvString(str), MYSQL_TIMESTAMP_TIME,
                                      NullS))
       return true;
   }
+
+  if (!ret_val) adjust_time_zone_displacement(thd->time_zone(), l_time);
+
   return ret_val;
 }
 
@@ -808,7 +815,7 @@ ulonglong gmt_time_to_local_time(ulonglong gmt_time) {
 MYSQL_TIME my_time_set(uint y, uint m, uint d, uint h, uint mi, uint s,
                        unsigned long ms, bool negative,
                        enum_mysql_timestamp_type type) {
-  return {y, m, d, h, mi, s, ms, negative, type};
+  return {y, m, d, h, mi, s, ms, negative, type, 0};
 }
 
 uint actual_decimals(const MYSQL_TIME *ts) {

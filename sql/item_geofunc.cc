@@ -4115,7 +4115,7 @@ String *Item_func_spatial_decomp::val_str(String *str) {
   return str;
 
 err:
-  null_value = 1;
+  null_value = true;
   return 0;
 }
 
@@ -4161,7 +4161,7 @@ String *Item_func_spatial_decomp_n::val_str(String *str) {
   return str;
 
 err:
-  null_value = 1;
+  null_value = true;
   return 0;
 }
 
@@ -4409,7 +4409,6 @@ String *Item_func_spatial_collection::val_str(String *str) {
           break;
         case Geometry::wkb_polygon: {
           uint32 n_points;
-          double x1, y1, x2, y2;
           const char *org_data = data;
 
           if (len < 4) goto err;
@@ -4423,15 +4422,15 @@ String *Item_func_spatial_collection::val_str(String *str) {
             return error_str();
           }
 
-          float8get(&x1, data);
+          double x1 = float8get(data);
           data += SIZEOF_STORED_DOUBLE;
-          float8get(&y1, data);
+          double y1 = float8get(data);
           data += SIZEOF_STORED_DOUBLE;
 
           data += (n_points - 2) * POINT_DATA_SIZE;
 
-          float8get(&x2, data);
-          float8get(&y2, data + SIZEOF_STORED_DOUBLE);
+          double x2 = float8get(data);
+          double y2 = float8get(data + SIZEOF_STORED_DOUBLE);
 
           // A ring must be closed.
           if ((x1 != x2) || (y1 != y2)) {
@@ -4477,11 +4476,11 @@ String *Item_func_spatial_collection::val_str(String *str) {
     }
   }
 
-  null_value = 0;
+  null_value = false;
   return str;
 
 err:
-  null_value = 1;
+  null_value = true;
   return 0;
 }
 
@@ -4626,7 +4625,7 @@ longlong Item_func_isempty::val_int() {
 }
 
 longlong Item_func_st_issimple::val_int() {
-  DBUG_ENTER("Item_func_st_issimple::val_int");
+  DBUG_TRACE;
   DBUG_ASSERT(fixed);
 
   String backing_arg_wkb;
@@ -4637,7 +4636,7 @@ longlong Item_func_st_issimple::val_int() {
   if (args[0]->null_value) {
     null_value = true;
     DBUG_ASSERT(maybe_null);
-    DBUG_RETURN(0);
+    return 0;
   }
 
   if (!arg_wkb) {
@@ -4645,7 +4644,7 @@ longlong Item_func_st_issimple::val_int() {
     // false.
     DBUG_ASSERT(false);
     my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
-    DBUG_RETURN(error_int());
+    return error_int();
   }
 
   std::unique_ptr<dd::cache::Dictionary_client::Auto_releaser> releaser(
@@ -4656,20 +4655,20 @@ longlong Item_func_st_issimple::val_int() {
   std::unique_ptr<gis::Geometry> g;
   if (gis::parse_geometry(current_thd, func_name(), arg_wkb, &srs, &g)) {
     DBUG_ASSERT(current_thd->is_error());
-    DBUG_RETURN(error_int());
+    return error_int();
   }
   DBUG_ASSERT(g);
 
   bool result;
   if (gis::is_simple(srs, g.get(), func_name(), &result, &null_value)) {
     DBUG_ASSERT(current_thd->is_error());
-    DBUG_RETURN(error_int());
+    return error_int();
   }
   DBUG_ASSERT(!g->is_empty() || result == true);
   // gis::is_simple never returns null
   DBUG_ASSERT(!null_value);
 
-  DBUG_RETURN(result);
+  return result;
 }
 
 longlong Item_func_isclosed::val_int() {
@@ -5083,7 +5082,7 @@ static ConvertUnitResult ConvertUnit(Item *to_unit,
                               &convert_errors) ||
         convert_errors) {
       /* purecov:begin inspected */
-      my_error(ER_OOM, MYF(0));
+      my_error(ER_DA_OOM, MYF(0));
       return ConvertUnitResult::kError;
       /* purecov: end */
     }
@@ -5319,7 +5318,7 @@ double Item_func_distance::val_real() {
 }
 
 double Item_func_st_distance_sphere::val_real() {
-  DBUG_ENTER("Item_func_st_distance_sphere::val_real");
+  DBUG_TRACE;
   DBUG_ASSERT(fixed);
 
   String backing_arg_wkb1;
@@ -5333,7 +5332,7 @@ double Item_func_st_distance_sphere::val_real() {
   if (args[0]->null_value || args[1]->null_value) {
     null_value = true;
     DBUG_ASSERT(maybe_null);
-    DBUG_RETURN(0.0);
+    return 0.0;
   }
 
   if (!arg_wkb1 || !arg_wkb2) {
@@ -5341,7 +5340,7 @@ double Item_func_st_distance_sphere::val_real() {
     // false.
     DBUG_ASSERT(false);
     my_error(ER_INTERNAL_ERROR, MYF(0), func_name());
-    DBUG_RETURN(error_real());
+    return error_real();
   }
 
   std::unique_ptr<dd::cache::Dictionary_client::Auto_releaser> releaser(
@@ -5352,7 +5351,7 @@ double Item_func_st_distance_sphere::val_real() {
   std::unique_ptr<gis::Geometry> g1;
   if (gis::parse_geometry(current_thd, func_name(), arg_wkb1, &srs1, &g1)) {
     DBUG_ASSERT(current_thd->is_error());
-    DBUG_RETURN(error_real());
+    return error_real();
   }
   DBUG_ASSERT(g1);
 
@@ -5360,7 +5359,7 @@ double Item_func_st_distance_sphere::val_real() {
   std::unique_ptr<gis::Geometry> g2;
   if (gis::parse_geometry(current_thd, func_name(), arg_wkb2, &srs2, &g2)) {
     DBUG_ASSERT(current_thd->is_error());
-    DBUG_RETURN(error_real());
+    return error_real();
   }
   DBUG_ASSERT(g2);
 
@@ -5369,7 +5368,7 @@ double Item_func_st_distance_sphere::val_real() {
 
   if (srid1 != srid2) {
     my_error(ER_GIS_DIFFERENT_SRIDS, MYF(0), func_name(), srid1, srid2);
-    DBUG_RETURN(error_real());
+    return error_real();
   }
 
   // Sphere raduis initialized to default radius for SRID 0. Approximates Earth
@@ -5394,12 +5393,12 @@ double Item_func_st_distance_sphere::val_real() {
 
     if (args[2]->null_value) {
       null_value = true;
-      DBUG_RETURN(0.0);
+      return 0.0;
     }
 
     if (sphere_radius <= 0.0) {
       my_error(ER_NONPOSITIVE_RADIUS, MYF(0), func_name());
-      DBUG_RETURN(error_real());
+      return error_real();
     }
   }
 
@@ -5407,12 +5406,12 @@ double Item_func_st_distance_sphere::val_real() {
   if (gis::distance_sphere(srs1, g1.get(), g2.get(), func_name(), sphere_radius,
                            &result, &null_value)) {
     DBUG_ASSERT(current_thd->is_error());
-    DBUG_RETURN(error_real());
+    return error_real();
   }
   // gis::gistance_sphere will always return a valid result or error.
   DBUG_ASSERT(!null_value);
 
-  DBUG_RETURN(result);
+  return result;
 }
 
 String *Item_func_st_transform::val_str(String *str) {

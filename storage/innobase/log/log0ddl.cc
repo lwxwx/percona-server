@@ -1574,8 +1574,6 @@ void Log_DDL::replay_free_tree_log(space_id_t space_id, page_no_t page_no,
   DBUG_INJECT_CRASH("ddl_log_crash_after_replay", crash_after_replay_counter++);
 }
 
-extern ib_mutex_t master_key_id_mutex;
-
 void Log_DDL::replay_delete_space_log(space_id_t space_id,
                                       const char *file_path) {
   THD *thd = current_thd;
@@ -1609,13 +1607,17 @@ void Log_DDL::replay_delete_space_log(space_id_t space_id,
     mutex_exit(&dict_sys->mutex);
   }
 
-  /* Require the mutex to block key rotation. Please note that
-  here we don't know if this tablespace is encrypted or not,
-  so just acquire the mutex unconditionally. */
-  mutex_enter(&master_key_id_mutex);
+  /* A master key rotation blocks all DDLs using backup_lock, so it is assured
+  that during CREATE/DROP TABLE, master key will not change. */
 
   DBUG_EXECUTE_IF("ddl_log_replay_delete_space_crash_before_drop",
                   DBUG_SUICIDE(););
+
+  /* Update filename with correct partition case, of needed. */
+  std::string path_str(file_path);
+  std::string space_name;
+  fil_update_partition_name(space_id, 0, false, space_name, path_str);
+  file_path = path_str.c_str();
 
   row_drop_tablespace(space_id, file_path);
 
@@ -1627,8 +1629,6 @@ void Log_DDL::replay_delete_space_log(space_id_t space_id,
     undo::spaces->x_unlock();
   }
 
-  mutex_exit(&master_key_id_mutex);
-
   DBUG_INJECT_CRASH("ddl_log_crash_after_replay", crash_after_replay_counter++);
 }
 
@@ -1637,6 +1637,18 @@ void Log_DDL::replay_rename_space_log(space_id_t space_id,
                                       const char *new_file_path) {
   bool ret;
   page_id_t page_id(space_id, 0);
+
+  std::string space_name;
+
+  /* Update old filename with correct partition case, of needed. */
+  std::string old_path(old_file_path);
+  fil_update_partition_name(space_id, 0, false, space_name, old_path);
+  old_file_path = old_path.c_str();
+
+  /* Update new filename with correct partition case, of needed. */
+  std::string new_path(new_file_path);
+  fil_update_partition_name(space_id, 0, false, space_name, new_path);
+  new_file_path = new_path.c_str();
 
   ret = fil_op_replay_rename_for_ddl(page_id, old_file_path, new_file_path);
 
@@ -1680,6 +1692,16 @@ void Log_DDL::replay_rename_table_log(table_id_t table_id, const char *old_name,
 
   row_mysql_lock_data_dictionary(trx);
   trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+
+  /* Convert partition table name DDL log, if needed. Required if
+  upgrading a crashed database. */
+  std::string old_table(old_name);
+  dict_name::rebuild(old_table);
+  old_name = old_table.c_str();
+
+  std::string new_table(new_name);
+  dict_name::rebuild(new_table);
+  new_name = new_table.c_str();
 
   dberr_t err;
   err = row_rename_table_for_mysql(old_name, new_name, NULL, trx, true);
@@ -1726,6 +1748,12 @@ void Log_DDL::replay_remove_cache_log(table_id_t table_id,
   dict_table_t *table;
 
   table = dd_table_open_on_id_in_mem(table_id, false);
+
+  /* Convert partition table name DDL log, if needed. Required if
+  upgrading a crashed database. */
+  std::string table_str(table_name);
+  dict_name::rebuild(table_str);
+  table_name = table_str.c_str();
 
   if (table != nullptr) {
     ut_ad(strcmp(table->name.m_name, table_name) == 0);

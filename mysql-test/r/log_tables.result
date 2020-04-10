@@ -30,11 +30,11 @@ select verbose_comment, user_host, argument
 from  mysql.general_log join join_test
 on (mysql.general_log.command_type = join_test.command_type);
 verbose_comment	user_host	argument
-User performed a usual SQL query	USER_HOST	select * from general_log where argument like '%general_log%'
 User performed a usual SQL query	USER_HOST	create table join_test (verbose_comment varchar (80), command_type varchar(64))
-User performed a usual SQL query	USER_HOST	insert into join_test values ("User performed a usual SQL query", "Query")
-User performed a usual SQL query	USER_HOST	insert into join_test values ("New DB connection was registered", "Connect")
 User performed a usual SQL query	USER_HOST	insert into join_test values ("Get the table info", "Field List")
+User performed a usual SQL query	USER_HOST	insert into join_test values ("New DB connection was registered", "Connect")
+User performed a usual SQL query	USER_HOST	insert into join_test values ("User performed a usual SQL query", "Query")
+User performed a usual SQL query	USER_HOST	select * from general_log where argument like '%general_log%'
 User performed a usual SQL query	USER_HOST	select verbose_comment, user_host, argument
 from  mysql.general_log join join_test
 on (mysql.general_log.command_type = join_test.command_type)
@@ -55,8 +55,8 @@ Table	Create Table
 general_log	CREATE TABLE `general_log` (
   `event_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   `user_host` mediumtext NOT NULL,
-  `thread_id` bigint(21) unsigned NOT NULL,
-  `server_id` int(10) unsigned NOT NULL,
+  `thread_id` bigint unsigned NOT NULL,
+  `server_id` int unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumblob NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log'
@@ -64,8 +64,8 @@ show fields from mysql.general_log;
 Field	Type	Null	Key	Default	Extra
 event_time	timestamp(6)	NO		CURRENT_TIMESTAMP(6)	DEFAULT_GENERATED on update CURRENT_TIMESTAMP(6)
 user_host	mediumtext	NO		NULL	
-thread_id	bigint(21) unsigned	NO		NULL	
-server_id	int(10) unsigned	NO		NULL	
+thread_id	bigint unsigned	NO		NULL	
+server_id	int unsigned	NO		NULL	
 command_type	varchar(64)	NO		NULL	
 argument	mediumblob	NO		NULL	
 show create table mysql.slow_log;
@@ -75,14 +75,14 @@ slow_log	CREATE TABLE `slow_log` (
   `user_host` mediumtext NOT NULL,
   `query_time` time(6) NOT NULL,
   `lock_time` time(6) NOT NULL,
-  `rows_sent` int(11) NOT NULL,
-  `rows_examined` int(11) NOT NULL,
+  `rows_sent` int NOT NULL,
+  `rows_examined` int NOT NULL,
   `db` varchar(512) NOT NULL,
-  `last_insert_id` int(11) NOT NULL,
-  `insert_id` int(11) NOT NULL,
-  `server_id` int(10) unsigned NOT NULL,
+  `last_insert_id` int NOT NULL,
+  `insert_id` int NOT NULL,
+  `server_id` int unsigned NOT NULL,
   `sql_text` mediumblob NOT NULL,
-  `thread_id` bigint(21) unsigned NOT NULL
+  `thread_id` bigint unsigned NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
 show fields from mysql.slow_log;
 Field	Type	Null	Key	Default	Extra
@@ -90,14 +90,14 @@ start_time	timestamp(6)	NO		CURRENT_TIMESTAMP(6)	DEFAULT_GENERATED on update CUR
 user_host	mediumtext	NO		NULL	
 query_time	time(6)	NO		NULL	
 lock_time	time(6)	NO		NULL	
-rows_sent	int(11)	NO		NULL	
-rows_examined	int(11)	NO		NULL	
+rows_sent	int	NO		NULL	
+rows_examined	int	NO		NULL	
 db	varchar(512)	NO		NULL	
-last_insert_id	int(11)	NO		NULL	
-insert_id	int(11)	NO		NULL	
-server_id	int(10) unsigned	NO		NULL	
+last_insert_id	int	NO		NULL	
+insert_id	int	NO		NULL	
+server_id	int unsigned	NO		NULL	
 sql_text	mediumblob	NO		NULL	
-thread_id	bigint(21) unsigned	NO		NULL	
+thread_id	bigint unsigned	NO		NULL	
 flush logs;
 flush tables;
 SET GLOBAL GENERAL_LOG=ON;
@@ -157,7 +157,7 @@ sleep(2)
 0
 select * from mysql.slow_log where sql_text="select sleep(2)";
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id
-TIMESTAMP	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	mysql	0	0	1	QUERY	THREAD_ID
+TIMESTAMP	USER_HOST	QUERY_TIME	00:00:00.000000	1	1	mysql	0	0	1	QUERY	THREAD_ID
 set @@session.long_query_time = @saved_long_query_time;
 flush tables with read lock;
 unlock tables;

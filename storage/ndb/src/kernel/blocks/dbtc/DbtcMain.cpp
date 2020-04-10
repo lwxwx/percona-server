@@ -81,6 +81,7 @@
 #include <signaldata/PackedSignal.hpp>
 #include <signaldata/SignalDroppedRep.hpp>
 #include <signaldata/LqhTransReq.hpp>
+#include <signaldata/TakeOverTcConf.hpp>
 #include <AttributeHeader.hpp>
 #include <signaldata/DictTabInfo.hpp>
 #include <AttributeDescriptor.hpp>
@@ -108,8 +109,9 @@
 
 #define JAM_FILE_ID 353
 
-#define DO_TRANSIENT_POOL_STAT
+//#define DO_TRANSIENT_POOL_STAT
 
+//#define ABORT_TRACE 1
 #define TC_TIME_SIGNAL_DELAY 50
 
 extern EventLogger * g_eventLogger;
@@ -122,7 +124,16 @@ extern EventLogger * g_eventLogger;
 #else
 #define DEBUG(x)
 #endif
-  
+
+#if (defined(VM_TRACE) || defined(ERROR_INSERT))
+//#define DEBUG_NODE_FAILURE 1
+#endif
+
+#ifdef DEBUG_NODE_FAILURE
+#define DEB_NODE_FAILURE(arglist) do { g_eventLogger->info arglist ; } while (0)
+#else
+#define DEB_NODE_FAILURE(arglist) do { } while (0)
+#endif
 
 #ifdef VM_TRACE
 NdbOut &
@@ -205,6 +216,7 @@ Dbtc::updateBuddyTimer(ApiConnectRecordPtr apiPtr)
   {
     jam();
     apiPtr.p->buddyPtr = RNIL;
+    return;
   }
   if (unlikely(getApiConTimer(buddyApiPtr) == 0))
   {
@@ -237,6 +249,18 @@ void
 tc_clearbit(Uint32 & flags, Uint32 flag)
 {
   flags &= ~(Uint32)flag;
+}
+
+inline static void
+prefetch_api_record_7(Uint32* api_ptr)
+{
+  NDB_PREFETCH_WRITE(api_ptr);
+  NDB_PREFETCH_WRITE(api_ptr + 16);
+  NDB_PREFETCH_WRITE(api_ptr + 32);
+  NDB_PREFETCH_WRITE(api_ptr + 48);
+  NDB_PREFETCH_WRITE(api_ptr + 64);
+  NDB_PREFETCH_WRITE(api_ptr + 80);
+  NDB_PREFETCH_WRITE(api_ptr + 96);
 }
 
 void Dbtc::execCONTINUEB(Signal* signal) 
@@ -439,11 +463,12 @@ void Dbtc::execCONTINUEB(Signal* signal)
     jam();
     ScanRecordPtr scanptr;
     scanptr.i = signal->theData[1];
-    if (likely(scanRecordPool.getValidPtr(scanptr) && !scanptr.isNull()))
+    if (likely(scanRecordPool.getUncheckedPtrRW(scanptr)))
     {
       ApiConnectRecordPtr apiConnectptr;
       apiConnectptr.i = scanptr.p->scanApiRec;
-      c_apiConnectRecordPool.getPtr(apiConnectptr);
+      ndbrequire(Magic::check_ptr(scanptr.p));
+      c_apiConnectRecordPool.getValidPtr(apiConnectptr);
       sendDihGetNodesLab(signal, scanptr, apiConnectptr);
     }
     return;
@@ -453,11 +478,12 @@ void Dbtc::execCONTINUEB(Signal* signal)
     jam();
     ScanRecordPtr scanptr;
     scanptr.i = signal->theData[1];
-    if (likely(scanRecordPool.getValidPtr(scanptr) && !scanptr.isNull()))
+    if (likely(scanRecordPool.getUncheckedPtrRW(scanptr)))
     {
       ApiConnectRecordPtr apiConnectptr;
       apiConnectptr.i = scanptr.p->scanApiRec;
-      c_apiConnectRecordPool.getPtr(apiConnectptr);
+      ndbrequire(Magic::check_ptr(scanptr.p));
+      c_apiConnectRecordPool.getValidPtr(apiConnectptr);
       sendFragScansLab(signal, scanptr, apiConnectptr);
     }
     return;
@@ -508,7 +534,8 @@ void Dbtc::execCONTINUEB(Signal* signal)
     break;
   }
 #endif
-#if defined(VM_TRACE) || defined(ERROR_INSERT) || defined(DO_TRANSIENT_POOL_STAT)
+#ifdef DO_TRANSIENT_POOL_STAT
+#if defined(VM_TRACE) || defined(ERROR_INSERT)
   case TcContinueB::ZTRANSIENT_POOL_STAT:
   {
     for (Uint32 pool_index = 0; pool_index < c_transient_pool_count; pool_index++)
@@ -529,6 +556,7 @@ void Dbtc::execCONTINUEB(Signal* signal)
     break;
   }
 #endif
+#endif
   case TcContinueB::ZSHRINK_TRANSIENT_POOLS:
   {
     if (signal->getLength() != 2)
@@ -548,7 +576,7 @@ void Dbtc::execCONTINUEB(Signal* signal)
     if (!c_transient_pools_shrinking.get(pool_index))
     {
 #if defined(VM_TRACE) || defined(ERROR_INSERT)
-      ndbrequire(false);
+      ndbabort();
 #endif
       break;
     }
@@ -598,20 +626,7 @@ void Dbtc::execINCL_NODEREQ(Signal* signal)
     sendSignalWithDelay(tblockref, GSN_INCL_NODECONF, signal, 5000, 2);
     return;
   }
-
-  Uint32 Tnode = hostptr.i;
-
   sendSignal(tblockref, GSN_INCL_NODECONF, signal, 2, JBB);
-
-  if (m_deferred_enabled)
-  {
-    jam();
-    if (!ndbd_deferred_unique_constraints(getNodeInfo(Tnode).m_version))
-    {
-      jam();
-      m_deferred_enabled = 0;
-    }
-  }
 }
 
 void Dbtc::execREAD_NODESREF(Signal* signal) 
@@ -1147,10 +1162,12 @@ void Dbtc::execNDB_STTOR(Signal* signal)
     signal->theData[0] = TcContinueB::ZTRANS_EVENT_REP;
     sendSignalWithDelay(cownref, GSN_CONTINUEB, signal, 10, len);
 
-#if defined(VM_TRACE) || defined(ERROR_INSERT) || defined(DO_TRANSIENT_POOL_STAT)
+#ifdef DO_TRANSIENT_POOL_STAT
+#if defined(VM_TRACE) || defined(ERROR_INSERT)
     /* Start reporting statistics for transient pools */
     signal->theData[0] = TcContinueB::ZTRANSIENT_POOL_STAT;
     sendSignal(reference(), GSN_CONTINUEB, signal, 1, JBB);
+#endif
 #endif
 
     return;
@@ -1265,6 +1282,16 @@ void Dbtc::execREAD_NODESCONF(Signal* signal)
 
   ReadNodesConf * const readNodes = (ReadNodesConf *)&signal->theData[0];
 
+  {
+    ndbrequire(signal->getNoOfSections() == 1);
+    SegmentedSectionPtr ptr;
+    SectionHandle handle(this, signal);
+    handle.getSection(ptr, 0);
+    ndbrequire(ptr.sz == 5 * NdbNodeBitmask::Size);
+    copy((Uint32*)&readNodes->definedNodes.rep.data, ptr);
+    releaseSections(handle);
+  }
+
   csystemnodes  = readNodes->noOfNodes;
   cmasterNodeId = readNodes->masterNodeId;
 
@@ -1275,12 +1302,14 @@ void Dbtc::execREAD_NODESCONF(Signal* signal)
 
   for (unsigned i = 1; i < MAX_NDB_NODES; i++) {
     jam();
-    if (NdbNodeBitmask::get(readNodes->allNodes, i)) {
+    if (readNodes->definedNodes.get(i))
+    {
       hostptr.i = i;
       ptrCheckGuard(hostptr, chostFilesize, hostRecord);
       hostptr.p->m_location_domain_id = 0;
 
-      if (NdbNodeBitmask::get(readNodes->inactiveNodes, i)) {
+      if (readNodes->inactiveNodes.get(i))
+      {
         jam();
         hostptr.p->hostStatus = HS_DEAD;
       } else {
@@ -1288,11 +1317,6 @@ void Dbtc::execREAD_NODESCONF(Signal* signal)
         con_lineNodes++;
         hostptr.p->hostStatus = HS_ALIVE;
         c_alive_nodes.set(i);
-        if (!ndbd_deferred_unique_constraints(getNodeInfo(i).m_version))
-        {
-          jam();
-          m_deferred_enabled = 0;
-        }
       }//if
     }//if
   }//for
@@ -1862,8 +1886,7 @@ void Dbtc::execTCRELEASEREQ(Signal* signal)
   tuserpointer = signal->theData[2];
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = tapiPointer;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-               apiConnectptr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     jam();
     ndbassert(false);
@@ -2083,11 +2106,6 @@ Dbtc::TCKEY_abort(Signal* signal, int place, ApiConnectRecordPtr const apiConnec
     terrorCode = ZNO_AI_WITH_UPDATE;
     releaseAtErrorLab(signal, apiConnectptr);
     return;
-  case 6:
-    jam();
-    warningHandlerLab(signal, __LINE__);
-    return;
-
   case 7:
     jam();
     tabStateErrorLab(signal, apiConnectptr);
@@ -2157,15 +2175,6 @@ Dbtc::TCKEY_abort(Signal* signal, int place, ApiConnectRecordPtr const apiConnec
   case 17:
     jam();
     systemErrorLab(signal, __LINE__);
-    return;
-
-  case 18:
-    jam();
-    warningHandlerLab(signal, __LINE__);
-    return;
-
-  case 19:
-    jam();
     return;
 
   case 20:
@@ -2273,11 +2282,6 @@ Dbtc::TCKEY_abort(Signal* signal, int place, ApiConnectRecordPtr const apiConnec
     return;
 
   case 42:
-    jam();
-    systemErrorLab(signal, __LINE__);
-    return;
-
-  case 43:
     jam();
     systemErrorLab(signal, __LINE__);
     return;
@@ -2486,16 +2490,18 @@ void Dbtc::execKEYINFO(Signal* signal)
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = signal->theData[0];
   tmaxData = 20;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-               apiConnectptr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
-    TCKEY_abort(signal, 18, apiConnectptr);
+    jam();
+    warningHandlerLab(signal, __LINE__);
     return;
   }//if
   ttransid_ptr = 1;
-  if (compare_transid(apiConnectptr.p->transid, signal->theData+1) == false)
+  if (unlikely(compare_transid(apiConnectptr.p->transid,
+                               signal->theData+1) == false))
   {
-    TCKEY_abort(signal, 19, apiConnectptr);
+    jam();
+    warningHandlerLab(signal, __LINE__);
     return;
   }//if
   switch (apiConnectptr.p->apiConnectstate)
@@ -2531,7 +2537,7 @@ void Dbtc::execKEYINFO(Signal* signal)
     return;
   default:
     jam();
-    warningHandlerLab(signal, __LINE__);
+    ndbabort();
     return;
   }//switch
 
@@ -2539,11 +2545,7 @@ void Dbtc::execKEYINFO(Signal* signal)
   CacheRecordPtr cachePtr;
   cachePtr.i = apiConnectptr.p->cachePtr;
   ndbassert(cachePtr.i != Uint32(~0));
-  if (unlikely(!c_cacheRecordPool.getValidPtr(cachePtr) || cachePtr.isNull()))
-  {
-    TCKEY_abort(signal, 42, apiConnectptr);
-    return;
-  }//if
+  ndbrequire(c_cacheRecordPool.getValidPtr(cachePtr));
   CacheRecord * const regCachePtr = cachePtr.p;
   setApiConTimer(apiConnectptr, TtcTimer, __LINE__);
 
@@ -2669,27 +2671,29 @@ void Dbtc::execATTRINFO(Signal* signal)
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = Tdata1;
   ttransid_ptr = 1;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-               apiConnectptr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
+    jam();
     DEBUG("Drop ATTRINFO, wrong apiConnectptr");
-    TCKEY_abort(signal, 18, apiConnectptr);
+    warningHandlerLab(signal, __LINE__);
     return;
   }//if
 
   ApiConnectRecord * const regApiPtr = apiConnectptr.p;
 
-  if (compare_transid(regApiPtr->transid, signal->theData+1) == false)
+  if (unlikely(compare_transid(regApiPtr->transid,
+                               signal->theData+1) == false))
   {
+    jam();
     DEBUG("Drop ATTRINFO, wrong transid, lenght="<<Tlength
           << " transid("<<hex<<signal->theData[1]<<", "<<signal->theData[2]);
-    TCKEY_abort(signal, 19, apiConnectptr);
     return;
   }//if
   if (Tlength < 4)
   {
+    ndbassert(false);
     DEBUG("Drop ATTRINFO, wrong length = " << Tlength);
-    TCKEY_abort(signal, 20, apiConnectptr);
+    warningHandlerLab(signal, __LINE__);
     return;
   }
   Tlength -= AttrInfo::HeaderLength;
@@ -2713,13 +2717,7 @@ void Dbtc::execATTRINFO(Signal* signal)
     UintR TtcTimer = ctcTimer;
     CacheRecordPtr cachePtr;
     cachePtr.i = regApiPtr->cachePtr;
-    ndbassert(cachePtr.i != Uint32(~0));
-    if (unlikely(!c_cacheRecordPool.getValidPtr(cachePtr) ||
-                 cachePtr.isNull()))
-    {
-      TCKEY_abort(signal, 43, apiConnectptr);
-      return;
-    }//if
+    ndbrequire(c_cacheRecordPool.getValidPtr(cachePtr));
     CacheRecord * const regCachePtr = cachePtr.p;
 
     regCachePtr->currReclenAi+= Tlength;
@@ -3180,6 +3178,11 @@ Dbtc::hasOp(ApiConnectRecordPtr transPtr, Uint32 opPtrI)
 /*****************************************************************************/
 void Dbtc::execTCKEYREQ(Signal* signal) 
 {
+  if (!assembleFragments(signal))
+  {
+    jam();
+    return;
+  }
   Uint32 sendersBlockRef = signal->getSendersBlockRef();
   UintR compare_transid1, compare_transid2;
   const TcKeyReq * const tcKeyReq = (TcKeyReq *)signal->getDataPtr();
@@ -3195,14 +3198,14 @@ void Dbtc::execTCKEYREQ(Signal* signal)
   const UintR TtabIndex = tcKeyReq->tableId;
   const UintR TtabMaxIndex = ctabrecFilesize;
 
-  ttransid_ptr = 6; 
+  ttransid_ptr = 6;
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = TapiIndex;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-               apiConnectptr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
+    jam();
     releaseSections(handle);
-    TCKEY_abort(signal, 6, ApiConnectRecordPtr::get(NULL, RNIL));
+    warningHandlerLab(signal, __LINE__);
     return;
   }//if
   if (unlikely(TtabIndex >= TtabMaxIndex))
@@ -3230,6 +3233,7 @@ void Dbtc::execTCKEYREQ(Signal* signal)
   // Optimised version of ptrAss(apiConnectptr, apiConnectRecord)
   //--------------------------------------------------------------------------
   ApiConnectRecord * const regApiPtr = apiConnectptr.p;
+  prefetch_api_record_7((Uint32*)regApiPtr);
 
   Uint32 TstartFlag = TcKeyReq::getStartFlag(Treqinfo);
   Uint32 TexecFlag =
@@ -3544,6 +3548,8 @@ void Dbtc::execTCKEYREQ(Signal* signal)
     }
     regCachePtr->m_read_committed_base =
                               TcKeyReq::getReadCommittedBaseFlag(Treqinfo);
+
+    regCachePtr->m_noWait = TcKeyReq::getNoWaitFlag(Treqinfo);
   }
   else
   {
@@ -3551,6 +3557,7 @@ void Dbtc::execTCKEYREQ(Signal* signal)
     TattrLen= TcKeyReq::getAttrinfoLen(tcKeyReq->attrLen);
     titcLenAiInTckeyreq = TcKeyReq::getAIInTcKeyReq(Treqinfo);
     regCachePtr->m_read_committed_base = 0;
+    regCachePtr->m_noWait = 0;
   }
   if (unlikely(refToMain(sendersBlockRef) == DBUTIL))
   {
@@ -3682,17 +3689,6 @@ void Dbtc::execTCKEYREQ(Signal* signal)
     return;
   }
   
-  if (unlikely(TViaSPJFlag &&
-               /* Check that all nodes can handle SPJ requests. */
-               !ndbd_join_pushdown(getNodeVersionInfo().m_type[NodeInfo::DB]
-                                   .m_min_version)))
-  {
-    jam();
-    releaseSections(handle);
-    TCKEY_abort(signal, 66, apiConnectptr);
-    return;
-  }
-
   /* KeyInfo and AttrInfo are buffered in segmented sections
    * If they arrived in segmented sections then there's nothing to do
    * If they arrived in short signals then they are appended into
@@ -3775,6 +3771,19 @@ void Dbtc::execTCKEYREQ(Signal* signal)
   else if (TOperationType == ZREAD || TOperationType == ZREAD_EX) {
     jam();
     c_counters.creadCount++;
+    if (regTcPtr->opSimple == ZFALSE)
+    {
+      jam();
+      if (unlikely(m_concurrent_overtakeable_operations >=
+                   m_take_over_operations))
+      {
+        jam();
+        TCKEY_abort(signal, 65, apiConnectptr);
+        return;
+      }
+      regTcPtr->m_overtakeable_operation = 1;
+      m_concurrent_overtakeable_operations++;
+    }
   }
   else
   {
@@ -3854,15 +3863,26 @@ void Dbtc::execTCKEYREQ(Signal* signal)
          */
         if (unlikely(regApiPtr->m_write_count > m_take_over_operations))
         {
+          jam();
           TCKEY_abort(signal, 65, apiConnectptr);
           return;
         }
       }
       else if (unlikely(regApiPtr->m_write_count > m_max_writes_per_trans))
       {
+        jam();
         TCKEY_abort(signal, 65, apiConnectptr);
         return;
       }
+      if (unlikely(m_concurrent_overtakeable_operations >=
+                   m_take_over_operations))
+      {
+        jam();
+        TCKEY_abort(signal, 65, apiConnectptr);
+        return;
+      }
+      regTcPtr->m_overtakeable_operation = 1;
+      m_concurrent_overtakeable_operations++;
       break;
     default:
       TCKEY_abort(signal, 9, apiConnectptr);
@@ -3942,34 +3962,6 @@ handle_reorg_trigger(DiGetNodesConf * conf)
   {
     conf->nodes[0] = 0; // Should not execute...
   }
-}
-
-bool
-Dbtc::isRefreshSupported() const
-{
-  const NodeVersionInfo& nvi = getNodeVersionInfo();
-  const Uint32 minVer = nvi.m_type[NodeInfo::DB].m_min_version;
-  const Uint32 maxVer = nvi.m_type[NodeInfo::DB].m_max_version;
-
-  if (likely (minVer == maxVer))
-  {
-    /* Normal case, use function */
-    return ndb_refresh_tuple(minVer);
-  }
-
-  /* As refresh feature was introduced across three minor versions
-   * we check that all data nodes support it.  This slow path
-   * should only be hit during upgrades between versions
-   */
-  for (Uint32 i=1; i < MAX_NODES; i++)
-  {
-    const NodeInfo& nodeInfo = getNodeInfo(i);
-    if ((nodeInfo.m_type == NODE_TYPE_DB) &&
-        (nodeInfo.m_connected) &&
-        (! ndb_refresh_tuple(nodeInfo.m_version)))
-      return false;
-  }
-  return true;
 }
 
 /**
@@ -4314,15 +4306,6 @@ void Dbtc::tckeyreq050Lab(Signal* signal, CacheRecordPtr const cachePtr, ApiConn
       return;
     }
 
-    /* Check that the relevant LQH node can handle an unlock request */
-    Uint32 lqhVersion = getNodeInfo(regCachePtr->unlockNodeId).m_version;
-    
-    if (unlikely( lqhVersion < NDBD_UNLOCK_OP_SUPPORTED ))
-    {
-      TCKEY_abort(signal, 63, apiConnectptr);
-      return;
-    }
-
     /* Select the specified node for the unlock op */ 
     regTcPtr->tcNodedata[0] = regCachePtr->unlockNodeId;
     regTcPtr->lastReplicaNo = 0;
@@ -4350,14 +4333,6 @@ void Dbtc::tckeyreq050Lab(Signal* signal, CacheRecordPtr const cachePtr, ApiConn
        * started)
        */
       regApiPtr->m_flags |= ApiConnectRecord::TF_LATE_COMMIT;
-    }
-
-    if (unlikely((Toperation == ZREFRESH) &&
-                 (! isRefreshSupported())))
-    {
-      /* Function not implemented yet */
-      TCKEY_abort(signal, 63, apiConnectptr);
-      return;
     }
   }//if
 
@@ -4633,8 +4608,7 @@ void Dbtc::sendlqhkeyreq(Signal* signal,
    * destination cannot handle it or we are 
    * testing
    */
-  if (unlikely((version < NDBD_LONG_LQHKEYREQ) ||
-               ERROR_INSERTED(8069)))
+  if (unlikely(ERROR_INSERTED(8069)))
   {
     /* Short LQHKEYREQ, with some key/attr data inline */
     regCachePtr->useLongLqhKeyReq= 0;
@@ -4660,14 +4634,6 @@ void Dbtc::sendlqhkeyreq(Signal* signal,
   sig2 = regTcPtr->dirtyOp;
   bool dirtyRead = (sig1 == ZREAD && sig2 == ZTRUE);
   LqhKeyReq::setLastReplicaNo(Tdata10, regTcPtr->lastReplicaNo);
-  if (unlikely(version < NDBD_ROWID_VERSION))
-  {
-    Uint32 op = regTcPtr->operation;
-    Uint32 lock = (Operation_t) op == ZREAD_EX ?  ZUPDATE :
-                                      (Operation_t) op == ZWRITE ?
-                                      ZINSERT : (Operation_t) op;
-    LqhKeyReq::setLockType(Tdata10, lock);
-  }
   /* ---------------------------------------------------------------------- */
   // Indicate Application Reference is present in bit 15
   /* ---------------------------------------------------------------------- */
@@ -4680,6 +4646,7 @@ void Dbtc::sendlqhkeyreq(Signal* signal,
   LqhKeyReq::setQueueOnRedoProblemFlag(Tdata10, regCachePtr->m_op_queue);
   LqhKeyReq::setDeferredConstraints(Tdata10, (Tdeferred & m_deferred_enabled));
   LqhKeyReq::setDisableFkConstraints(Tdata10, Tdisable_fk);
+  LqhKeyReq::setNoWaitFlag(Tdata10, regCachePtr->m_noWait);
 
   /* ----------------------------------------------------------------------- 
    * If we are sending a short LQHKEYREQ, then there will be some AttrInfo
@@ -4802,9 +4769,24 @@ void Dbtc::sendlqhkeyreq(Signal* signal,
       handle.m_ptr[ LqhKeyReq::AttrInfoSectionNum ]= attrInfoSection;
       handle.m_cnt= 2;
     }
-    sendSignal(TBRef, GSN_LQHKEYREQ, signal, 
-               nextPos + LqhKeyReq::FixedSignalLength, JBB, 
-               &handle);
+    if (ndbd_frag_lqhkeyreq(version))
+    {
+      jamDebug();
+      sendBatchedFragmentedSignal(TBRef,
+                                  GSN_LQHKEYREQ,
+                                  signal,
+                                  LqhKeyReq::FixedSignalLength + nextPos,
+                                  JBB,
+                                  &handle,
+                                  false);
+     }
+    else
+    {
+      jamDebug();
+      sendSignal(TBRef, GSN_LQHKEYREQ, signal,
+                 nextPos + LqhKeyReq::FixedSignalLength, JBB,
+                 &handle);
+    }
 
     /* Long sections were freed as part of sendSignal */
     ndbassert( handle.m_cnt == 0 );
@@ -5009,6 +4991,11 @@ void Dbtc::releaseTcCon()
   regTcPtr->m_special_op_flags = 0;
   regTcPtr->indexOp = RNIL;
 
+  if (regTcPtr->m_overtakeable_operation == 1)
+  {
+    jam();
+    m_concurrent_overtakeable_operations--;
+  }
   if (regTcPtr->triggeringOperation != RNIL &&
       regTcPtr->currentTriggerId != RNIL)
   {
@@ -5169,8 +5156,7 @@ void Dbtc::execSIGNAL_DROPPED_REP(Signal* signal)
     
     ApiConnectRecordPtr apiConnectptr;
     apiConnectptr.i = apiIndex;
-    if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-                 apiConnectptr.isNull()))
+    if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
     {
       jam();
       warningHandlerLab(signal, __LINE__);
@@ -5220,8 +5206,7 @@ void Dbtc::execSIGNAL_DROPPED_REP(Signal* signal)
     
     ApiConnectRecordPtr apiConnectptr;
     apiConnectptr.i = apiConnectPtr;
-    if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-                 apiConnectptr.isNull()))
+    if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
     {
       jam();
       warningHandlerLab(signal, __LINE__);
@@ -5376,13 +5361,27 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
    * This is more reason to ignore the signal if not all states are correct.
    *------------------------------------------------------------------------*/
   tcConnectptr.i = TtcConnectptrIndex;
-  if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr) ||
-               tcConnectptr.isNull()))
+  if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr)))
   {
+    jam();
     warningReport(signal, 23);
     return;
   }//if
+  /**
+   * getUncheckedPtrRW returning true means that tcConnectptr.p points to
+   * a valid TcConnect record. It could still be a released record. In
+   * this case the magic is wrong AND the tcConnectState is OS_CONNECTED.
+   * Thus if state is OS_OPERATING we have verified that it is a
+   * correct record and thus apiConnect should point to a valid
+   * API connect record.
+   */
   TcConnectRecord* const regTcPtr = tcConnectptr.p;
+  ApiConnectRecordPtr apiConnectptr;
+  CommitAckMarkerPtr commitAckMarker;
+
+  apiConnectptr.i = regTcPtr->apiConnect;
+  commitAckMarker.i = regTcPtr->commitAckMarker;
+
   OperationState TtcConnectstate = regTcPtr->tcConnectstate;
   if (unlikely(TtcConnectstate != OS_OPERATING))
   {
@@ -5390,13 +5389,7 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
     return;
   }//if
 
-  ApiConnectRecordPtr apiConnectptr;
-  CommitAckMarkerPtr commitAckMarker;
-
-  apiConnectptr.i = regTcPtr->apiConnect;
-  commitAckMarker.i = regTcPtr->commitAckMarker;
-
-(void) c_apiConnectRecordPool.getUncheckedPtrRW(apiConnectptr);
+  ndbrequire(c_apiConnectRecordPool.getUncheckedPtrRW(apiConnectptr));
 
   UintR Ttrans1 = lqhKeyConf->transId1;
   UintR Ttrans2 = lqhKeyConf->transId2;
@@ -5404,22 +5397,22 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
   Uint32 deferreduk = LqhKeyConf::getDeferredUKBit(lqhKeyConf->numFiredTriggers);
   Uint32 deferredfk = LqhKeyConf::getDeferredFKBit(lqhKeyConf->numFiredTriggers);
 
-  if (unlikely(!Magic::check_ptr(apiConnectptr.p)))
-  {
-    TCKEY_abort(signal, 29, ApiConnectRecordPtr::get(NULL, RNIL));
-    return;
-  }//if
   ApiConnectRecordPtr const regApiPtr = apiConnectptr;
   compare_transid1 = regApiPtr.p->transid[0] ^ Ttrans1;
   compare_transid2 = regApiPtr.p->transid[1] ^ Ttrans2;
   compare_transid1 = compare_transid1 | compare_transid2;
   if (unlikely(compare_transid1 != 0))
   {
+    /**
+     * Even with a valid record it is possible for the transaction id to
+     * be wrong. In this case the record has been used in a new transaction
+     * and we need to throw away this signal.
+     */
     warningReport(signal, 24);
     return;
   }//if
+  ndbrequire(Magic::check_ptr(apiConnectptr.p));
   PrefetchApiConTimer apiConTimer(c_apiConTimersPool, apiConnectptr, true);
-  (void) m_commitAckMarkerPool.getUncheckedPtrRW(commitAckMarker);
 
 #ifdef ERROR_INSERT
   if (ERROR_INSERTED(8029)) {
@@ -5482,19 +5475,18 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
 
   if (unlikely(TapiConnectstate == CS_ABORTING))
   {
+    jam();
     warningReport(signal, 27);
     return;
   }//if
 
-  TcConnectRecordPtr lockingOp;
-  lockingOp.i = RNIL;
+  Uint32 lockingOpI = RNIL;
   if (unlikely(Toperation == ZUNLOCK))
   {
     /* For unlock operations readlen in TCKEYCONF carries
      * the locking operation TC reference
      */
-    lockingOp.i = treadlenAi;
-    (void) tcConnectRecord.getUncheckedPtrRW(lockingOp);
+    lockingOpI = treadlenAi;
     treadlenAi = 0;
   }
 
@@ -5502,6 +5494,7 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
   apiConTimer.set_timer(TtcTimer, __LINE__);
   if (commitAckMarker.i != RNIL)
   {
+    ndbrequire(m_commitAckMarkerPool.getUncheckedPtrRW(commitAckMarker));
     jam();
     /* Update TC CommitAckMarker record to track LQH CommitAckMarkers */
     const Uint32 noOfLqhs = regTcPtr->noOfNodes;
@@ -5561,10 +5554,6 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
     regApiPtr.p->tcSendArray[Ttckeyrec + 1] = treadlenAi;
     regApiPtr.p->tckeyrec = Ttckeyrec + 2;
   }
-  else if (triggeringOp.i != RNIL)
-  {
-    (void) tcConnectRecord.getUncheckedPtrRW(triggeringOp);
-  }
   bool do_releaseTcCon = false;
   TcConnectRecordPtr save_tcConnectptr;
   if (TdirtyOp == ZTRUE) 
@@ -5601,21 +5590,15 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
     ndbrequire( triggeringOp.i == RNIL );
 
     /* Switch to the original locking operation */
-    if (unlikely(lockingOp.i == RNIL))
+    if (unlikely(lockingOpI == RNIL))
     {
       jam();
       TCKEY_abort(signal, 61, apiConnectptr);
       return;
     }
+    tcConnectptr.i = lockingOpI;
+    ndbrequire(tcConnectRecord.getValidPtr(tcConnectptr));
     
-    if (unlikely(!Magic::check_ptr(lockingOp.p)))
-    {
-      jam();
-      TCKEY_abort(signal, 63, apiConnectptr);
-      return;
-    }
-    tcConnectptr = lockingOp;
-
     const TcConnectRecord * regLockTcPtr = tcConnectptr.p;
     
     /* Validate the locking operation's state */
@@ -5750,7 +5733,7 @@ void Dbtc::execLQHKEYCONF(Signal* signal)
     time_track_complete_index_key_operation(regTcPtr,
                                   refToNode(regApiPtr.p->ndbapiBlockref),
                                   regTcPtr->tcNodedata[0]);
-    ndbrequire(Magic::check_ptr(triggeringOp.p));
+    ndbrequire(tcConnectRecord.getValidPtr(triggeringOp));
     trigger_op_finished(signal, regApiPtr, regTcPtr->currentTriggerId,
                         triggeringOp.p, 0);
     executeTriggers(signal, &regApiPtr);
@@ -6030,13 +6013,6 @@ void Dbtc::sendtckeyconf(Signal* signal, UintR TcommitFlag, ApiConnectRecordPtr 
   for (Uint32 Ti = 6; Ti < TpacketLen; Ti++) {
     container->packedWords[TcurrLen + Ti] = regApiPtr->tcSendArray[Ti - 6];
   }//for
-
-  if (unlikely(!ndb_check_micro_gcp(getNodeInfo(localHostptr.i).m_version)))
-  {
-    jam();
-    ndbassert(Tpack6 == 0 || 
-              getNodeInfo(localHostptr.i).m_version == 0); // Disconnected
-  }
 }//Dbtc::sendtckeyconf()
 
 void Dbtc::copyFromToLen(UintR* sourceBuffer, UintR* destBuffer, UintR Tlen)
@@ -6287,23 +6263,23 @@ Dbtc::ApiConnectRecord::ApiConnectRecord()
   num_commit_ack_markers(0),
   m_write_count(0),
   m_flags(0),
-  m_special_op_flags(0),
   takeOverRec((Uint8)Z8NIL),
   tckeyrec(0),
   tcindxrec(0),
   apiFailState(ApiConnectRecord::AFS_API_OK),
   singleUserMode(0),
+  m_pre_commit_pass(0),
+  cascading_scans_count(0),
+  m_special_op_flags(0),
   returncode(0),
   noIndexOp(0),
   immediateTriggerId(RNIL),
   firedFragId(RNIL),
-  accumulatingIndexOp(RNIL),
-  executingIndexOp(RNIL),
 #ifdef ERROR_INSERT
   continueBCount(0),
 #endif
-  m_pre_commit_pass(0),
-  cascading_scans_count(0)
+  accumulatingIndexOp(RNIL),
+  executingIndexOp(RNIL)
 {
   NdbTick_Invalidate(&m_start_ticks);
   tcConnect.init();
@@ -6374,8 +6350,7 @@ void Dbtc::execDIVERIFYCONF(Signal* signal)
      * There should be no transactions queue for verification.
      */
     apiConnectptr.i = TapiConnectptrIndex;
-    if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-                 apiConnectptr.isNull()))
+    if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
     {
       TCKEY_abort(signal, 31, ApiConnectRecordPtr::get(NULL, RNIL));
       return;
@@ -6386,7 +6361,8 @@ void Dbtc::execDIVERIFYCONF(Signal* signal)
   ConnectionState TapiConnectstate = regApiPtr->apiConnectstate;
   UintR TApifailureNr = regApiPtr->failureNr;
   UintR Tfailure_nr = cfailure_nr;
-  if (TapiConnectstate != CS_PREPARE_TO_COMMIT) {
+  if (unlikely(TapiConnectstate != CS_PREPARE_TO_COMMIT))
+  {
     TCKEY_abort(signal, 32, apiConnectptr);
     return;
   }//if
@@ -6397,8 +6373,9 @@ void Dbtc::execDIVERIFYCONF(Signal* signal)
    * WE WILL INSERT THE TRANSACTION INTO ITS PROPER QUEUE OF 
    * TRANSACTIONS FOR ITS GLOBAL CHECKPOINT.              
    *-------------------------------------------------------------------------*/
-  if (TApifailureNr != Tfailure_nr ||
-      ERROR_INSERTED(8094)) {
+  if (unlikely(TApifailureNr != Tfailure_nr ||
+      ERROR_INSERTED(8094)))
+  {
     jam();
     DIVER_node_fail_handling(signal, Tgci, apiConnectptr);
     return;
@@ -6642,12 +6619,6 @@ Dbtc::sendCommitLqh(Signal* signal,
   Tdata[4] = Uint32(regApiPtr->globalcheckpointid);
   Uint32 len = 5;
 
-  if (unlikely(!ndb_check_micro_gcp(getNodeInfo(Thostptr.i).m_version)))
-  {
-    jam();
-    ndbassert(Tdata[4] == 0 || getNodeInfo(Thostptr.i).m_version == 0);
-    len = 4;
-  }
   if (instanceKey > MAX_NDBMT_LQH_THREADS) {
     memcpy(&signal->theData[0], &Tdata[0], len << 2);
     BlockReference lqhRef = numberToRef(DBLQH, instanceKey, Tnode);
@@ -6732,15 +6703,16 @@ void Dbtc::execCOMMITTED(Signal* signal)
 #endif
   localTcConnectptr.i = signal->theData[0];
   jamEntry();
-  if (unlikely(!tcConnectRecord.getValidPtr(localTcConnectptr) ||
-               localTcConnectptr.isNull()))
+  if (unlikely(!tcConnectRecord.getValidPtr(localTcConnectptr)))
   {
+    jam();
     warningReport(signal, 4);
     return;
   }
   localApiConnectptr.i = localTcConnectptr.p->apiConnect;
   if (unlikely(localTcConnectptr.p->tcConnectstate != OS_COMMITTING))
   {
+    jam();
     warningReport(signal, 4);
     return;
   }//if
@@ -6760,6 +6732,7 @@ void Dbtc::execCOMMITTED(Signal* signal)
   localTcConnectptr.p->tcConnectstate = OS_COMMITTED;
   if (unlikely(Tdata1 != 0))
   {
+    jam();
     warningReport(signal, 5);
     return;
   }//if
@@ -7394,23 +7367,21 @@ Dbtc::execFIRE_TRIG_CONF(Signal* signal)
   const FireTrigConf * conf = CAST_CONSTPTR(FireTrigConf, signal->theData);
   localTcConnectptr.i = conf->tcOpRec;
   jamEntry();
-  if (!tcConnectRecord.getValidPtr(localTcConnectptr))
+  if (unlikely(!tcConnectRecord.getValidPtr(localTcConnectptr)))
   {
+    jam();
     warningReport(signal, 28);
     return;
   }
   regApiPtr.i = localTcConnectptr.p->apiConnect;
-  if (localTcConnectptr.p->tcConnectstate != OS_FIRE_TRIG_REQ)
+  OperationState tcConState = localTcConnectptr.p->tcConnectstate;
+  if (unlikely(tcConState != OS_FIRE_TRIG_REQ))
   {
     warningReport(signal, 28);
     return;
   }//if
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(regApiPtr)))
-  {
-    warningReport(signal, 28);
-    return;
-  }
 
+  ndbrequire(c_apiConnectRecordPool.getUncheckedPtrRW(regApiPtr));
   Uint32 Tlqhkeyreqrec = regApiPtr.p->lqhkeyreqrec;
   Uint32 TapiConnectstate = regApiPtr.p->apiConnectstate;
   UintR Tdata1 = regApiPtr.p->transid[0] - conf->transId[0];
@@ -7418,7 +7389,10 @@ Dbtc::execFIRE_TRIG_CONF(Signal* signal)
 
   Tdata1 = Tdata1 | Tdata2 | !regApiPtr.p->isExecutingDeferredTriggers();
 
-  if (Tdata1 != 0) {
+  ndbrequire(Magic::check_ptr(regApiPtr.p));
+  if (unlikely(Tdata1 != 0))
+  {
+    jam();
     warningReport(signal, 28);
     return;
   }//if
@@ -7481,18 +7455,18 @@ Dbtc::execFIRE_TRIG_REF(Signal* signal)
   const FireTrigRef * ref = CAST_CONSTPTR(FireTrigRef, signal->theData);
   localTcConnectptr.i = ref->tcOpRec;
   jamEntry();
-  if (!tcConnectRecord.getValidPtr(localTcConnectptr))
+  if (unlikely(!tcConnectRecord.getValidPtr(localTcConnectptr)))
   {
     warningReport(signal, 28);
     return;
   }
   apiConnectptr.i = localTcConnectptr.p->apiConnect;
-  if (localTcConnectptr.p->tcConnectstate != OS_FIRE_TRIG_REQ)
+  if (unlikely(localTcConnectptr.p->tcConnectstate != OS_FIRE_TRIG_REQ))
   {
     warningReport(signal, 28);
     return;
   }//if
-  if (!c_apiConnectRecordPool.getValidPtr(apiConnectptr))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     warningReport(signal, 28);
     return;
@@ -7501,7 +7475,9 @@ Dbtc::execFIRE_TRIG_REF(Signal* signal)
   UintR Tdata1 = apiConnectptr.p->transid[0] - ref->transId[0];
   UintR Tdata2 = apiConnectptr.p->transid[1] - ref->transId[1];
   Tdata1 = Tdata1 | Tdata2;
-  if (Tdata1 != 0) {
+  if (Tdata1 != 0)
+  {
+    jam();
     warningReport(signal, 28);
     return;
   }//if
@@ -7523,7 +7499,8 @@ Dbtc::execFIRE_TRIG_REF(Signal* signal)
  * markers, both here in DBTC and in all the participating DBLQH's.
  */
 void
-Dbtc::execTC_COMMIT_ACK(Signal* signal){
+Dbtc::execTC_COMMIT_ACK(Signal* signal)
+{
   jamEntry();
 
   CommitAckMarker key;
@@ -7713,18 +7690,22 @@ void Dbtc::execCOMPLETED(Signal* signal)
 #endif
   localTcConnectptr.i = signal->theData[0];
   jamEntry();
-  tcConnectRecord.getPtr(localTcConnectptr);
-  bool Tcond1 = (localTcConnectptr.p->tcConnectstate != OS_COMPLETING);
-  localApiConnectptr.i = localTcConnectptr.p->apiConnect;
-  if (Tcond1) {
+  bool valid_tc_ptr = tcConnectRecord.getValidPtr(localTcConnectptr);
+  if (!valid_tc_ptr)
+  {
+    jam();
     warningReport(signal, 6);
     return;
   }//if
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(localApiConnectptr)))
+  bool Tcond1 = (localTcConnectptr.p->tcConnectstate != OS_COMPLETING);
+  localApiConnectptr.i = localTcConnectptr.p->apiConnect;
+  if (Tcond1)
   {
-    warningReport(signal, 7);
+    jam();
+    warningReport(signal, 6);
     return;
   }
+  ndbrequire(c_apiConnectRecordPool.getUncheckedPtrRW(localApiConnectptr));
   PrefetchApiConTimer apiConTimer(c_apiConTimersPool, localApiConnectptr, true);
   UintR Tdata1 = localApiConnectptr.p->transid[0] - signal->theData[1];
   UintR Tdata2 = localApiConnectptr.p->transid[1] - signal->theData[2];
@@ -7733,8 +7714,10 @@ void Dbtc::execCOMPLETED(Signal* signal)
   Tdata1 = Tdata1 | Tdata2;
   bool TcheckCondition = 
     (TapiConnectstate != CS_COMPLETE_SENT) || (Tcounter != 0);
+  ndbrequire(Magic::check_ptr(localApiConnectptr.p));
   if (unlikely(Tdata1 != 0))
   {
+    jam();
     warningReport(signal, 7);
     return;
   }//if
@@ -7765,7 +7748,6 @@ void Dbtc::execCOMPLETED(Signal* signal)
     sendApiLateCommitSignal(signal, localApiConnectptr);
   }
   releaseTransResources(signal, localApiConnectptr);
-jam();
   CRASH_INSERTION(8054);
 }//Dbtc::execCOMPLETED()
 
@@ -7891,10 +7873,10 @@ void Dbtc::execLQHKEYREF(Signal* signal)
   tcConnectptr.i = lqhKeyRef->connectPtr;
   if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr)))
   {
-    warningReport(signal, 26);
-    // errorReport(signal, 6);
+    jam();
+    warningReport(signal, 25);
+    return;
   }
-  else
   {
     /*-----------------------------------------------------------------------
      * WE HAVE TO CHECK THAT THE TRANSACTION IS STILL VALID. FIRST WE CHECK 
@@ -8165,9 +8147,10 @@ void Dbtc::execLQHKEYREF(Signal* signal)
 	}
       }//if
       return;
-      
-    } else {
-      warningReport(signal, 26);
+    }
+    else
+    {
+      warningReport(signal, 25);
     }//if
   }
   return;
@@ -8226,13 +8209,11 @@ void Dbtc::execTC_COMMITREQ(Signal* signal)
   jamEntry();
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = signal->theData[0];
-  if (likely(c_apiConnectRecordPool.getValidPtr(apiConnectptr) &&
-             !apiConnectptr.isNull()))
+  if (likely(c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     compare_transid1 = apiConnectptr.p->transid[0] ^ signal->theData[1];
     compare_transid2 = apiConnectptr.p->transid[1] ^ signal->theData[2];
-    compare_transid1 = compare_transid1 | compare_transid2;
-    if (unlikely(compare_transid1 != 0))
+    if (unlikely(compare_transid1 != 0 || compare_transid2 != 0))
     {
       jam();
       return;
@@ -8381,8 +8362,7 @@ void Dbtc::execTCROLLBACKREQ(Signal* signal)
 
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = signal->theData[0];
-  if (!unlikely(c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-                apiConnectptr.isNull()))
+  if (!unlikely(c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     goto TC_ROLL_warning;
   }//if
@@ -8463,7 +8443,10 @@ void Dbtc::execTCROLLBACKREQ(Signal* signal)
 TC_ROLL_warning:
   jam();
   if(likely(potentiallyBad==false))
+  {
+    jam();
     warningHandlerLab(signal, __LINE__);
+  }
   return;
 
 TC_ROLL_system_error:
@@ -8481,9 +8464,10 @@ void Dbtc::execTC_HBREP(Signal* signal)
   jamEntry();
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = tcHbRep->apiConnectPtr;
-  if (!c_apiConnectRecordPool.getValidPtr(apiConnectptr))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     jam();
+    warningHandlerLab(signal, __LINE__);
     return;
   }
 
@@ -8696,6 +8680,9 @@ void Dbtc::warningReport(Signal* signal, int place)
     break;
   default:
     jam();
+#ifdef ABORT_TRACE
+    ndbout << "Dbtc::warningReport(%u)" << place << endl;
+#endif
     break;
   }//switch
   return;
@@ -8759,8 +8746,7 @@ void Dbtc::execABORTED(Signal* signal)
    *     TRANSACTION ALREADY ABORTED. THIS CAN HAPPEN WHEN TIME-OUT OCCURS  
    *     IN TC WAITING FOR ABORTED.                                         
    *-------------------------------------------------------------------------*/
-  if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr) ||
-               tcConnectptr.p->tcConnectstate != OS_ABORT_SENT))
+  if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr)))
   {
     warningReport(signal, 2);
     return;
@@ -8770,20 +8756,18 @@ void Dbtc::execABORTED(Signal* signal)
   }//if
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = tcConnectptr.p->apiConnect;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-               apiConnectptr.isNull()))
-  {
-    warningReport(signal, 0);
-    return;
-  }//if
+  ndbrequire(c_apiConnectRecordPool.getUncheckedPtrRW(apiConnectptr));
   compare_transid1 = apiConnectptr.p->transid[0] ^ signal->theData[1];
   compare_transid2 = apiConnectptr.p->transid[1] ^ signal->theData[2];
   compare_transid1 = compare_transid1 | compare_transid2;
-  if (compare_transid1 != 0) {
+  if (unlikely(compare_transid1 != 0))
+  {
+    jam();
     warningReport(signal, 1);
     return;
   }//if
-  if (ERROR_INSERTED(8024)) {
+  if (ERROR_INSERTED(8024))
+  {
     jam();
     systemErrorLab(signal, __LINE__);
   }//if
@@ -8810,7 +8794,8 @@ void Dbtc::execABORTED(Signal* signal)
       clearTcNodeData(signal, TlastLqhInd, i);
     }//if
   }//for
-  if (Tfound == 0) {
+  if (unlikely(Tfound == 0))
+  {
     warningReport(signal, 3);
     return;
   }
@@ -9923,6 +9908,8 @@ void Dbtc::execSCAN_HBREP(Signal* signal)
   scanFragptr.i = signal->theData[0];  
   if (unlikely(!c_scan_frag_pool.getValidPtr(scanFragptr)))
   {
+    jam();
+    warningHandlerLab(signal, __LINE__);
     return;
   }
 
@@ -9937,16 +9924,20 @@ void Dbtc::execSCAN_HBREP(Signal* signal)
 
   ScanRecordPtr scanptr;
   scanptr.i = scanFragptr.p->scanRec;
-  if (unlikely(!scanRecordPool.getValidPtr(scanptr) || scanptr.isNull()))
+  if (unlikely(!scanRecordPool.getUncheckedPtrRW(scanptr)))
   {
     return;
   }
 
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = scanptr.p->scanApiRec;
-  if (!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-      !(apiConnectptr.p->transid[0] == signal->theData[1] &&
-	apiConnectptr.p->transid[1] == signal->theData[2]))
+  ndbrequire(Magic::check_ptr(scanptr.p));
+  c_apiConnectRecordPool.getUncheckedPtrRW(apiConnectptr);
+  Uint32 compare_transid1 = apiConnectptr.p->transid[0] - signal->theData[1];
+  Uint32 compare_transid2 = apiConnectptr.p->transid[1] - signal->theData[2];
+  ndbrequire(Magic::check_ptr(apiConnectptr.p));
+  if (unlikely(compare_transid1 != 0 ||
+               compare_transid2 != 0))
   {
     jam();
     /**
@@ -9966,7 +9957,8 @@ void Dbtc::execSCAN_HBREP(Signal* signal)
   }//if
 
   // Update timer on ScanFragRec
-  if (scanFragptr.p->scanFragTimer != 0){
+  if (likely(scanFragptr.p->scanFragTimer != 0))
+  {
     updateBuddyTimer(apiConnectptr);
     scanFragptr.p->startFragTimer(ctcTimer);
   } else {
@@ -10056,7 +10048,7 @@ void Dbtc::timeOutFoundFragLab(Signal* signal, UintR TscanConPtr)
     Uint32 connectCount = getNodeInfo(nodeId).m_connectCount;
     ScanRecordPtr scanptr;
     scanptr.i = ptr.p->scanRec;
-    if (unlikely(!scanRecordPool.getValidPtr(scanptr) || scanptr.isNull()))
+    if (unlikely(!scanRecordPool.getValidPtr(scanptr)))
     {
       break;
     }
@@ -10075,7 +10067,6 @@ void Dbtc::timeOutFoundFragLab(Signal* signal, UintR TscanConPtr)
                             c_scan_frag_pool);
       }
     }
-    
     scanError(signal, scanptr, ZSCAN_FRAG_LQH_ERROR);
     break;
   }
@@ -10328,7 +10319,22 @@ void Dbtc::execNODE_FAILREP(Signal* signal)
   jamEntry();
 
   NodeFailRep * const nodeFail = (NodeFailRep *)&signal->theData[0];
-
+  if(signal->getLength() == NodeFailRep::SignalLength)
+  {
+    ndbrequire(signal->getNoOfSections() == 1);
+    ndbrequire(getNodeInfo(refToNode(signal->getSendersBlockRef())).m_version);
+    SegmentedSectionPtr ptr;
+    SectionHandle handle(this, signal);
+    handle.getSection(ptr, 0);
+    memset(nodeFail->theNodes, 0, sizeof(nodeFail->theNodes));
+    copy(nodeFail->theNodes, ptr);
+    releaseSections(handle);
+  }
+  else
+  {
+    memset(nodeFail->theNodes + NdbNodeBitmask48::Size, 0,
+           _NDB_NBM_DIFF_BYTES);
+  }
   cfailure_nr = nodeFail->failNo;
   const Uint32 tnoOfNodes  = nodeFail->noOfNodes;
   const Uint32 tnewMasterId = nodeFail->masterNodeId;
@@ -10412,23 +10418,7 @@ void Dbtc::execNODE_FAILREP(Signal* signal)
   if (m_deferred_enabled == 0)
   {
     jam();
-    Uint32 ok = 1;
-    for(Uint32 n = c_alive_nodes.find_first();
-        n != c_alive_nodes.NotFound;
-        n = c_alive_nodes.find_next(n+1))
-    {
-      if (!ndbd_deferred_unique_constraints(getNodeInfo(n).m_version))
-      {
-        jam();
-        ok = 0;
-        break;
-      }
-    }
-    if (ok)
-    {
-      jam();
-      m_deferred_enabled = ~Uint32(0);
-    }
+    m_deferred_enabled = ~Uint32(0);
   }
 }//Dbtc::execNODE_FAILREP()
 
@@ -10738,22 +10728,15 @@ void Dbtc::execTAKE_OVERTCCONF(Signal* signal)
 {
   jamEntry();
 
-  if (!checkNodeFailSequence(signal))
-  {
-    jam();
-    return;
-  }
+  const Uint32 sig_len = signal->getLength();
 
-  Uint32 failedNodeId = signal->theData[0];
+  const TakeOverTcConf* const conf = (const TakeOverTcConf*) &signal->theData;
+
+  const Uint32 failedNodeId = conf->failedNode;
   hostptr.i = failedNodeId;
   ptrCheckGuard(hostptr, chostFilesize, hostRecord);
 
-  Uint32 senderRef = signal->theData[1];
-  if (signal->getLength() < 2)
-  {
-    jam();
-    senderRef = 0; // currently only used to see if it's from self
-  }
+  const Uint32 senderRef = conf->senderRef;
 
   if (senderRef != reference())
   {
@@ -10782,7 +10765,40 @@ void Dbtc::execTAKE_OVERTCCONF(Signal* signal)
         break;
       }
     }
-    ndbrequire(i != end);
+
+    if (i == end)
+    {
+      if (sig_len <= TakeOverTcConf::SignalLength_v8_0_17)
+      {
+        jam();
+        if (!checkNodeFailSequence(signal))
+        {
+          jam();
+          return;
+        }
+        /*
+         * Fallthrough to resend signal for later retry.
+         */
+      }
+      else
+      {
+        jam();
+        const Uint32 senderTcFailNo = conf->tcFailNo;
+        const Uint32 tcFailNo = cfailure_nr;
+        /*
+         * If we have seen the failure number that sender have seen, we really
+         * should have queued the node failed for handling.
+         */
+        ndbrequire(tcFailNo < senderTcFailNo);
+      }
+      /*
+       * If we have not yet seen all failures that sender has, delay this
+       * signal for retry later.
+       */
+      sendSignalWithDelay(reference(), GSN_TAKE_OVERTCCONF, signal,
+                          10, signal->getLength());
+      return;
+    }
     tcNodeFailptr.p->queueList[i] = tcNodeFailptr.p->queueList[end-1];
     tcNodeFailptr.p->queueIndex = end - 1;
   }
@@ -10961,15 +10977,7 @@ void Dbtc::startTakeOverLab(Signal* signal,
       lqhTransReq->senderRef = cownref;
       lqhTransReq->failedNodeId = failedNodeId;
       lqhTransReq->instanceId = instanceId;
-      if (ndbd_multi_tc_instance_takeover(getNodeInfo(hostptr.i).m_version))
-      {
-        /* The node does support the new LQH_TRANSREQ protocol */
-        sig_len = LqhTransReq::SignalLength;
-      }
-      else
-      {
-        sig_len = LqhTransReq::OldSignalLength;
-      }
+      sig_len = LqhTransReq::SignalLength;
       if (ERROR_INSERTED(8064) && hostptr.i == getOwnNodeId())
       {
         ndbout_c("sending delayed GSN_LQH_TRANSREQ to self");
@@ -11239,13 +11247,8 @@ void Dbtc::execLQH_TRANSCONF(Signal* signal)
   Uint32 gci_lo = lqhTransConf->gci_lo;
   Uint32 fragId = lqhTransConf->fragId;
 
-  if (transStatus == LqhTransConf::Committed && 
-      unlikely(signal->getLength() < LqhTransConf::SignalLength_GCI_LO))
-  {
-    jam();
-    gci_lo = 0;
-    ndbassert(!ndb_check_micro_gcp(getNodeInfo(nodeId).m_version));
-  }
+  ndbrequire(transStatus != LqhTransConf::Committed ||
+             (signal->getLength() >= LqhTransConf::SignalLength_GCI_LO));
   gci |= gci_lo;
 
   if (transStatus == LqhTransConf::LastTransConf){
@@ -11257,6 +11260,9 @@ void Dbtc::execLQH_TRANSCONF(Signal* signal)
     }
     ndbassert(maxInstanceId < NDBMT_MAX_BLOCK_INSTANCES);
     /* A node has reported one phase of take over handling as completed. */
+    DEB_NODE_FAILURE(("Node %u report completion of a phase, maxInstance: %u",
+                      nodeId,
+                      maxInstanceId));
     nodeTakeOverCompletedLab(signal, nodeId, maxInstanceId);
     return;
   }//if
@@ -11467,6 +11473,7 @@ void Dbtc::nodeTakeOverCompletedLab(Signal* signal,
         /*       NOT ALL NODES ARE COMPLETED WITH REPORTING IN THE    */
         /*       TAKE OVER.                                           */
         /*------------------------------------------------------------*/
+        DEB_NODE_FAILURE(("Not all nodes completed take over"));
         return;
       }//if
     }//if
@@ -11528,6 +11535,9 @@ void Dbtc::completeTransAtTakeOverLab(Signal* signal, UintR TtakeOverInd)
       ctransidFailHash[tcNodeFailptr.p->currentHashIndexTakeOver] = 
         apiConnectptr.p->nextApiConnect;
       tcNodeFailptr.p->handledOneTransaction = true;
+      DEB_NODE_FAILURE(("Handle apiConnect: %u in hash index: %u",
+                        apiConnectptr.i,
+                        tcNodeFailptr.p->currentHashIndexTakeOver));
       completeTransAtTakeOverDoOne(signal, TtakeOverInd, apiConnectptr);
       // One transaction taken care of, return from this function
       // and wait for the next CONTINUEB to continue processing
@@ -11540,6 +11550,7 @@ void Dbtc::completeTransAtTakeOverLab(Signal* signal, UintR TtakeOverInd)
         tcNodeFailptr.p->currentHashIndexTakeOver++;
       } else {
         jam();
+        DEB_NODE_FAILURE(("completeTransAtTakeOverDoLast"));
         completeTransAtTakeOverDoLast(signal, TtakeOverInd); 
         tcNodeFailptr.p->currentHashIndexTakeOver++;
       }//if
@@ -11632,9 +11643,14 @@ void Dbtc::completeTransAtTakeOverDoLast(Signal* signal, UintR TtakeOverInd)
     /*       NODES THAT ARE ALIVE.                                */
     /*------------------------------------------------------------*/
     NodeReceiverGroup rg(DBTC, c_alive_nodes);
-    signal->theData[0] = tcNodeFailptr.p->takeOverNode;
-    signal->theData[1] = reference();
-    sendSignal(rg, GSN_TAKE_OVERTCCONF, signal, 2, JBB);
+    TakeOverTcConf* const conf = (TakeOverTcConf*) &signal->theData;
+    conf->failedNode = tcNodeFailptr.p->takeOverNode;
+    conf->senderRef = reference();
+    conf->tcFailNo = cfailure_nr;
+    // It is ok to send too long signal to old nodes (<8.0.18).
+    sendSignal(rg, GSN_TAKE_OVERTCCONF, signal,
+               TakeOverTcConf::SignalLength,
+               JBB);
     
     if (tcNodeFailptr.p->queueIndex > 0) {
       jam();
@@ -11687,6 +11703,7 @@ void Dbtc::completeTransAtTakeOverDoOne(Signal* signal, UintR TtakeOverInd, ApiC
     apiConnectptr.p->currentReplicaNo = tcConnectptr.p->lastReplicaNo;
     tcurrentReplicaNo = tcConnectptr.p->lastReplicaNo;
     commitGciHandling(signal, apiConnectptr.p->globalcheckpointid, apiConnectptr);
+    DEB_NODE_FAILURE(("toCompleteHandling"));
     toCompleteHandlingLab(signal, apiConnectptr);
     return;
   case CS_FAIL_COMMITTING:
@@ -11702,6 +11719,7 @@ void Dbtc::completeTransAtTakeOverDoOne(Signal* signal, UintR TtakeOverInd, ApiC
     apiConnectptr.p->currentReplicaNo = tcConnectptr.p->lastReplicaNo;
     tcurrentReplicaNo = tcConnectptr.p->lastReplicaNo;
     commitGciHandling(signal, apiConnectptr.p->globalcheckpointid, apiConnectptr);
+    DEB_NODE_FAILURE(("toCommitHandling"));
     toCommitHandlingLab(signal, apiConnectptr);
     return;
   case CS_FAIL_ABORTING:
@@ -11723,12 +11741,14 @@ void Dbtc::completeTransAtTakeOverDoOne(Signal* signal, UintR TtakeOverInd, ApiC
     apiConnectptr.p->currentTcConnect = tcConnectptr.i;
     apiConnectptr.p->currentReplicaNo = tcConnectptr.p->lastReplicaNo;
     tcurrentReplicaNo = tcConnectptr.p->lastReplicaNo;
+    DEB_NODE_FAILURE(("toAbortHandling"));
     toAbortHandlingLab(signal, apiConnectptr);
     return;
   case CS_FAIL_ABORTED:
     jam();
     sendTCKEY_FAILREF(signal, apiConnectptr.p);
     
+    DEB_NODE_FAILURE(("sendTCKEY_FAILREF"));
     signal->theData[0] = TcContinueB::ZCOMPLETE_TRANS_AT_TAKE_OVER;
     signal->theData[1] = (UintR)apiConnectptr.p->takeOverRec;
     signal->theData[2] = apiConnectptr.p->takeOverInd;
@@ -11739,6 +11759,7 @@ void Dbtc::completeTransAtTakeOverDoOne(Signal* signal, UintR TtakeOverInd, ApiC
     jam();
     sendTCKEY_FAILCONF(signal, apiConnectptr.p);
     
+    DEB_NODE_FAILURE(("sendTCKEY_FAILCONF"));
     signal->theData[0] = TcContinueB::ZCOMPLETE_TRANS_AT_TAKE_OVER;
     signal->theData[1] = (UintR)apiConnectptr.p->takeOverRec;
     signal->theData[2] = apiConnectptr.p->takeOverInd;
@@ -11910,6 +11931,7 @@ void Dbtc::execABORTCONF(Signal* signal)
   if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr) ||
                tcConnectptr.p->tcConnectstate != OS_WAIT_ABORT_CONF))
   {
+    jam();
     warningReport(signal, 16);
     return;
   }
@@ -11918,19 +11940,24 @@ void Dbtc::execABORTCONF(Signal* signal)
   if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
                apiConnectptr.p->apiConnectstate != CS_WAIT_ABORT_CONF))
   {
+    jam();
     warningReport(signal, 17);
     return;
   }//if
   compare_transid1 = apiConnectptr.p->transid[0] ^ signal->theData[3];
   compare_transid2 = apiConnectptr.p->transid[1] ^ signal->theData[4];
-  compare_transid1 = compare_transid1 | compare_transid2;
-  if (compare_transid1 != 0) {
+  if (unlikely(compare_transid1 != 0 || compare_transid2 != 0))
+  {
+    jam();
     warningReport(signal, 18);
     return;
   }//if
   arrGuard(apiConnectptr.p->currentReplicaNo, MAX_REPLICAS);
-  if (tcConnectptr.p->tcNodedata[apiConnectptr.p->currentReplicaNo] !=
-      nodeId) {
+  if (unlikely(
+    tcConnectptr.p->tcNodedata[apiConnectptr.p->currentReplicaNo] !=
+    nodeId))
+  {
+    jam();
     warningReport(signal, 19);
     return;
   }//if
@@ -11939,7 +11966,8 @@ void Dbtc::execABORTCONF(Signal* signal)
   toAbortHandlingLab(signal, apiConnectptr);
 }//Dbtc::execABORTCONF()
 
-void Dbtc::toAbortHandlingLab(Signal* signal, ApiConnectRecordPtr const apiConnectptr)
+void Dbtc::toAbortHandlingLab(Signal* signal,
+                              ApiConnectRecordPtr const apiConnectptr)
 {
   do {
     if (tcurrentReplicaNo != (Uint8)Z8NIL) {
@@ -12049,27 +12077,33 @@ void Dbtc::execCOMMITCONF(Signal* signal)
   if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr) ||
                tcConnectptr.p->tcConnectstate != OS_WAIT_COMMIT_CONF))
   {
+    jam();
     warningReport(signal, 8);
     return;
   }//if
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = tcConnectptr.p->apiConnect;
-  if (!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-      apiConnectptr.p->apiConnectstate != CS_WAIT_COMMIT_CONF)
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
+               apiConnectptr.p->apiConnectstate != CS_WAIT_COMMIT_CONF))
   {
+    jam();
     warningReport(signal, 9);
     return;
   }//if
   compare_transid1 = apiConnectptr.p->transid[0] ^ signal->theData[2];
   compare_transid2 = apiConnectptr.p->transid[1] ^ signal->theData[3];
-  compare_transid1 = compare_transid1 | compare_transid2;
-  if (compare_transid1 != 0) {
+  if (unlikely(compare_transid1 != 0 || compare_transid2 != 0))
+  {
+    jam();
     warningReport(signal, 10);
     return;
   }//if
   arrGuard(apiConnectptr.p->currentReplicaNo, MAX_REPLICAS);
-  if (tcConnectptr.p->tcNodedata[apiConnectptr.p->currentReplicaNo] !=
-      nodeId) {
+  if (unlikely(
+    tcConnectptr.p->tcNodedata[apiConnectptr.p->currentReplicaNo] !=
+    nodeId))
+  {
+    jam();
     warningReport(signal, 11);
     return;
   }//if
@@ -12083,7 +12117,8 @@ void Dbtc::execCOMMITCONF(Signal* signal)
   toCommitHandlingLab(signal, apiConnectptr);
 }//Dbtc::execCOMMITCONF()
 
-void Dbtc::toCommitHandlingLab(Signal* signal, ApiConnectRecordPtr apiConnectptr)
+void Dbtc::toCommitHandlingLab(Signal* signal,
+                               ApiConnectRecordPtr apiConnectptr)
 {
   do {
     if (tcurrentReplicaNo != (Uint8)Z8NIL) {
@@ -12197,27 +12232,33 @@ void Dbtc::execCOMPLETECONF(Signal* signal)
   if (unlikely(!tcConnectRecord.getValidPtr(tcConnectptr) ||
                tcConnectptr.p->tcConnectstate != OS_WAIT_COMPLETE_CONF))
   {
+    jam();
     warningReport(signal, 12);
     return;
   }//if
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = tcConnectptr.p->apiConnect;
-  if (!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-      apiConnectptr.p->apiConnectstate != CS_WAIT_COMPLETE_CONF)
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
+               apiConnectptr.p->apiConnectstate != CS_WAIT_COMPLETE_CONF))
   {
+    jam();
     warningReport(signal, 13);
     return;
   }//if
   compare_transid1 = apiConnectptr.p->transid[0] ^ signal->theData[2];
   compare_transid2 = apiConnectptr.p->transid[1] ^ signal->theData[3];
-  compare_transid1 = compare_transid1 | compare_transid2;
-  if (compare_transid1 != 0) {
+  if (unlikely(compare_transid1 != 0 || compare_transid2 != 0))
+  {
+    jam();
     warningReport(signal, 14);
     return;
   }//if
   arrGuard(apiConnectptr.p->currentReplicaNo, MAX_REPLICAS);
-  if (tcConnectptr.p->tcNodedata[apiConnectptr.p->currentReplicaNo] !=
-      nodeId) {
+  if (unlikely(
+    tcConnectptr.p->tcNodedata[apiConnectptr.p->currentReplicaNo] !=
+    nodeId))
+  {
+    jam();
     warningReport(signal, 15);
     return;
   }//if
@@ -12230,7 +12271,8 @@ void Dbtc::execCOMPLETECONF(Signal* signal)
   toCompleteHandlingLab(signal, apiConnectptr);
 }//Dbtc::execCOMPLETECONF()
 
-void Dbtc::toCompleteHandlingLab(Signal* signal, ApiConnectRecordPtr const apiConnectptr)
+void Dbtc::toCompleteHandlingLab(Signal* signal,
+                                 ApiConnectRecordPtr const apiConnectptr)
 {
   do {
     if (tcurrentReplicaNo != (Uint8)Z8NIL) {
@@ -12850,7 +12892,9 @@ void Dbtc::releaseAtErrorLab(Signal* signal, ApiConnectRecordPtr const apiConnec
 
 void Dbtc::warningHandlerLab(Signal* signal, int line) 
 {
-  ndbassert(false);
+#if defined VM_TRACE || defined ERROR_INSERT
+  ndbout_c("warningHandler: line %d", line);
+#endif
 }//Dbtc::warningHandlerLab()
 
 void Dbtc::systemErrorLab(Signal* signal, int line) 
@@ -13077,8 +13121,7 @@ void Dbtc::execSCAN_TABREQ(Signal* signal)
   apiConnectptr.i = scanTabReq->apiConnectPtr;
   tabptr.i = scanTabReq->tableId;
 
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-               apiConnectptr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     jam();
     releaseSections(handle);
@@ -13087,6 +13130,11 @@ void Dbtc::execSCAN_TABREQ(Signal* signal)
   }//if
 
   ApiConnectRecord * transP = apiConnectptr.p;
+  if (unlikely(tabptr.i >= ctabrecFilesize))
+  {
+    errCode = ZUNKNOWN_TABLE_ERROR;
+    goto SCAN_TAB_error;
+  }
 
   if (transP->apiConnectstate != CS_CONNECTED)
   {
@@ -13112,16 +13160,6 @@ void Dbtc::execSCAN_TABREQ(Signal* signal)
   if (unlikely(tabptr.i >= ctabrecFilesize))
   {
     errCode = ZUNKNOWN_TABLE_ERROR;
-    goto SCAN_TAB_error;
-  }
-
-  if (unlikely (ScanTabReq::getViaSPJFlag(ri) &&
-                /* Check that all nodes can handle SPJ requests. */
-                !ndbd_join_pushdown(getNodeVersionInfo().m_type[NodeInfo::DB]
-                                    .m_min_version)))
-  {
-    jam();
-    errCode = 4003; // Function not implemented
     goto SCAN_TAB_error;
   }
 
@@ -13445,7 +13483,9 @@ void Dbtc::scanTabRefLab(Signal* signal, Uint32 errCode, ApiConnectRecord* const
  * scanKeyinfoLab
  * Handle reception of KeyInfo for a Scan
  */
-void Dbtc::scanKeyinfoLab(Signal* signal, CacheRecord * const regCachePtr, ApiConnectRecordPtr const apiConnectptr)
+void Dbtc::scanKeyinfoLab(Signal* signal,
+                          CacheRecord * const regCachePtr,
+                          ApiConnectRecordPtr const apiConnectptr)
 {
   /* Receive KEYINFO for a SCAN operation
    * Note that old NDBAPI nodes sometimes send header-only KEYINFO signals
@@ -13470,7 +13510,7 @@ void Dbtc::scanKeyinfoLab(Signal* signal, CacheRecord * const regCachePtr, ApiCo
     ndbrequire(apiConnectptr.p->apiScanRec != RNIL);
     ScanRecordPtr scanPtr;
     scanPtr.i = apiConnectptr.p->apiScanRec;
-    if (likely(scanRecordPool.getValidPtr(scanPtr) && !scanPtr.isNull()))
+    if (likely(scanRecordPool.getValidPtr(scanPtr)))
     {
       abortScanLab(signal,
                    scanPtr,
@@ -13749,7 +13789,7 @@ void Dbtc::sendDihGetNodesLab(Signal* signal, ScanRecordPtr scanptr, ApiConnectR
     if (unlikely(!m_fragLocationPool.seize(fragLocationPtr)))
     {
       jam();
-      scanError(signal, scanptr, ZGET_DATAREC_ERROR);
+      scanError(signal, scanptr, ZNO_FRAG_LOCATION_RECORD_ERROR);
       return;
     }
     list.addLast(fragLocationPtr);
@@ -13855,7 +13895,9 @@ void Dbtc::sendDihGetNodesLab(Signal* signal, ScanRecordPtr scanptr, ApiConnectR
 /******************************************************
  * execDIH_SCAN_TAB_REF
  ******************************************************/
-void Dbtc::execDIH_SCAN_TAB_REF(Signal* signal, ScanRecordPtr scanptr, ApiConnectRecordPtr const apiConnectptr)
+void Dbtc::execDIH_SCAN_TAB_REF(Signal* signal,
+                                ScanRecordPtr scanptr,
+                                ApiConnectRecordPtr const apiConnectptr)
 {
   jamEntry();
   DihScanTabRef * ref = (DihScanTabRef*)signal->getDataPtr();
@@ -14156,7 +14198,7 @@ bool Dbtc::sendDihGetNodeReq(Signal* signal,
       if (unlikely(!m_fragLocationPool.seize(fragLocationPtr)))
       {
         jam();
-        scanError(signal, scanptr, ZGET_DATAREC_ERROR);
+        scanError(signal, scanptr, ZNO_FRAG_LOCATION_RECORD_ERROR);
         return false;
       }
       list.addLast(fragLocationPtr);
@@ -14379,7 +14421,8 @@ void Dbtc::execSCAN_FRAGREF(Signal* signal)
   if (!c_scan_frag_pool.getValidPtr(scanFragptr))
   {
     jam();
-    systemErrorLab(signal, __LINE__);
+    warningHandlerLab(signal, __LINE__);
+    return;
   }
 
   ScanRecordPtr scanptr;
@@ -14491,7 +14534,8 @@ void Dbtc::execSCAN_FRAGCONF(Signal* signal)
   if (!c_scan_frag_pool.getValidPtr(scanFragptr))
   {
     jam();
-    systemErrorLab(signal, __LINE__);
+    warningHandlerLab(signal, __LINE__);
+    return;
   }
   
   ScanRecordPtr scanptr;
@@ -14500,14 +14544,16 @@ void Dbtc::execSCAN_FRAGCONF(Signal* signal)
   {
     jam();
     systemErrorLab(signal, __LINE__);
+    return;
   }
   
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = scanptr.p->scanApiRec;
-  if (!c_apiConnectRecordPool.getValidPtr(apiConnectptr))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     jam();
     systemErrorLab(signal, __LINE__);
+    return;
   }
 
   transid1 = apiConnectptr.p->transid[0] ^ conf->transId1;
@@ -14518,6 +14564,7 @@ void Dbtc::execSCAN_FRAGCONF(Signal* signal)
   {
     jam();
     systemErrorLab(signal, __LINE__);
+    return;
   }//if
 
   ndbrequire(scanFragptr.p->scanFragState == ScanFragRec::LQH_ACTIVE);
@@ -14649,8 +14696,7 @@ void Dbtc::execSCAN_NEXTREQ(Signal* signal)
   SectionHandle handle(this, signal);
   ApiConnectRecordPtr apiConnectptr;
   apiConnectptr.i = req->apiConnectPtr;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr) ||
-               apiConnectptr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(apiConnectptr)))
   {
     jam();
     releaseSections(handle);
@@ -14665,6 +14711,7 @@ void Dbtc::execSCAN_NEXTREQ(Signal* signal)
   const UintR ctransid2 = apiConnectptr.p->transid[1] ^ transid2;
   if (unlikely((ctransid1 | ctransid2) != 0))
   {
+    jam();
     releaseSections(handle);
     ScanTabRef * ref = (ScanTabRef*)&signal->theData[0];
     ref->apiConnectPtr = apiConnectptr.p->ndbapiConnect;
@@ -14850,7 +14897,10 @@ void Dbtc::execSCAN_NEXTREQ(Signal* signal)
 }//Dbtc::execSCAN_NEXTREQ()
 
 void
-Dbtc::close_scan_req(Signal* signal, ScanRecordPtr scanPtr, bool req_received, ApiConnectRecordPtr const apiConnectptr)
+Dbtc::close_scan_req(Signal* signal,
+                     ScanRecordPtr scanPtr,
+                     bool req_received,
+                     ApiConnectRecordPtr const apiConnectptr)
 {
   ScanRecord* scanP = scanPtr.p;
   ndbrequire(scanPtr.p->scanState != ScanRecord::IDLE);  
@@ -14885,7 +14935,8 @@ Dbtc::close_scan_req(Signal* signal, ScanRecordPtr scanPtr, bool req_received, A
   {
     ScanFragRecPtr ptr;
     Local_ScanFragRec_dllist running(c_scan_frag_pool, scanP->m_running_scan_frags);
-    Local_ScanFragRec_dllist delivered(c_scan_frag_pool, scanP->m_delivered_scan_frags);
+    Local_ScanFragRec_dllist delivered(c_scan_frag_pool,
+                                       scanP->m_delivered_scan_frags);
     Local_ScanFragRec_dllist queued(c_scan_frag_pool, scanP->m_queued_scan_frags);
     
     // Close running
@@ -15035,7 +15086,8 @@ Dbtc::close_scan_req_send_conf(Signal* signal, ScanRecordPtr scanPtr, ApiConnect
 }
 
 Dbtc::ScanRecordPtr
-Dbtc::seizeScanrec(Signal* signal) {
+Dbtc::seizeScanrec(Signal* signal)
+{
   ScanRecordPtr scanptr;
   ndbrequire(cConcScanCount < cscanrecFileSize); // TODO(wl9756)
   ndbrequire(scanRecordPool.seize(scanptr));
@@ -15194,14 +15246,12 @@ bool Dbtc::sendScanFragReq(Signal* signal,
   // Encode variable part
   ndbassert(ScanFragReq::getCorrFactorFlag(requestInfo) == 0);
 
-  const Uint32 version= getNodeInfo(nodeId).m_version;
-
   HostRecordPtr host_ptr;
   host_ptr.i = nodeId;
   ptrCheckGuard(host_ptr, chostFilesize, hostRecord);
   ndbrequire(host_ptr.p->hostStatus == HS_ALIVE);
 
-  const bool longFragReq= ((version >= NDBD_LONG_SCANFRAGREQ) &&
+  const bool longFragReq= (true &&
                            (! ERROR_INSERTED(8070) &&
                             ! ERROR_INSERTED(8088)));
   if (likely(longFragReq))
@@ -15222,29 +15272,19 @@ bool Dbtc::sendScanFragReq(Signal* signal,
      * signal receiver can still take realtime breaks when 
      * receiving.
      * 
-     * Indicate to sendFirstFragment that we want to keep the
-     * fragments, so it must not free them, unless this is the
-     * last request in which case they can be freed.  If the
-     * last request is a local send then a copy is avoided.
+     * Indicate to sendBatchedFragmentedSignal that we want to
+     * keep the fragments, so it must not free them, unless this
+     * is the last request in which case they can be freed.  If
+     * the last request is a local send then a copy is avoided.
      */
-    FragmentSendInfo fragSendInfo;
-
-    sendFirstFragment(fragSendInfo,
-                      NodeReceiverGroup(scanFragP.p->lqhBlockref),
-                      GSN_SCAN_FRAGREQ,
-                      signal,
-                      ScanFragReq::SignalLength,
-                      JBB,
-                      &sections,
-                      !isLastReq); // Keep sent sections unless
-                                   // last send
-
-    while (fragSendInfo.m_status != FragmentSendInfo::SendComplete)
-    {
-      jam();
-      /* Send remaining fragments */
-      sendNextSegmentedFragment(signal, fragSendInfo);
-    }
+    sendBatchedFragmentedSignal(NodeReceiverGroup(scanFragP.p->lqhBlockref),
+                                GSN_SCAN_FRAGREQ,
+                                signal,
+                                ScanFragReq::SignalLength,
+                                JBB,
+                                &sections,
+                                !isLastReq); // Keep sent sections unless
+                                             // last send
 
     if (!isLastReq && ScanFragReq::getMultiFragFlag(requestInfo))
     {
@@ -15722,6 +15762,7 @@ void Dbtc::initialiseTcConnect(Signal* signal)
     tcConList.addLast(tcConptr);
   }
   c_counters.cconcurrentOp = 0;
+  m_concurrent_overtakeable_operations = 0;
 
   TcConnectRecordPtr tcConptr;
   while (fast_record_list.removeFirst(tcConptr))
@@ -15762,6 +15803,7 @@ void Dbtc::releaseAbortResources(Signal* signal, ApiConnectRecordPtr const apiCo
 {
   TcConnectRecordPtr rarTcConnectptr;
 
+  jamDebug();
   c_counters.cabortCount++;
   ndbrequire((apiConnectptr.p->apiConnectkind == ApiConnectRecord::CK_USER));
   if (apiConnectptr.p->apiCopyRecord != RNIL)
@@ -15791,14 +15833,18 @@ void Dbtc::releaseAbortResources(Signal* signal, ApiConnectRecordPtr const apiCo
     cachePtr.i = apiConnectptr.p->cachePtr;
     if (likely(cachePtr.i == Uint32(~0)))
     {
+      jam();
       cachePtr.p = &m_local_cache_record;
     }
     else
     {
+      jam();
       c_cacheRecordPool.getPtr(cachePtr);
     }
     releaseKeys(cachePtr.p);
+    jamDebug();
     releaseAttrinfo(cachePtr, apiConnectptr.p);
+    jamDebug();
   }//if
   LocalTcConnectRecord_fifo tcConList(tcConnectRecord, apiConnectptr.p->tcConnect);
   while (tcConList.removeFirst(tcConnectptr))
@@ -15811,6 +15857,7 @@ void Dbtc::releaseAbortResources(Signal* signal, ApiConnectRecordPtr const apiCo
   checkPoolShrinkNeed(DBTC_CONNECT_RECORD_TRANSIENT_POOL_INDEX,
                       tcConnectRecord);
 
+  jamDebug();
   ndbrequire(apiConnectptr.p->num_commit_ack_markers == 0);
   releaseMarker(apiConnectptr.p);
 
@@ -15825,8 +15872,11 @@ void Dbtc::releaseAbortResources(Signal* signal, ApiConnectRecordPtr const apiCo
   // apiConnectptr.p->apiConnectstate = CS_CONNECTED;
   apiConnectptr.p->apiConnectstate = CS_ABORTING;
   apiConnectptr.p->abortState = AS_IDLE;
+  jamDebug();
   releaseAllSeizedIndexOperations(apiConnectptr.p);
+  jamDebug();
   releaseFiredTriggerData(&apiConnectptr.p->theFiredTriggers);
+  jamDebug();
 
   if (tc_testbit(apiConnectptr.p->m_flags, ApiConnectRecord::TF_EXEC_FLAG) ||
       apiConnectptr.p->apiFailState != ApiConnectRecord::AFS_API_OK)
@@ -16558,8 +16608,7 @@ Dbtc::execDUMP_STATE_ORD(Signal* signal)
 
     ApiConnectRecordPtr ap;
     ap.i = recordNo;
-    if (!c_apiConnectRecordPool.getValidPtr(ap) ||
-        ap.isNull())
+    if (!c_apiConnectRecordPool.getValidPtr(ap))
     {
       return;
     }
@@ -16617,8 +16666,7 @@ Dbtc::execDUMP_STATE_ORD(Signal* signal)
 
     ApiConnectRecordPtr ap;
     ap.i = recordNo;
-    if (!c_apiConnectRecordPool.getValidPtr(ap) ||
-        ap.isNull())
+    if (!c_apiConnectRecordPool.getValidPtr(ap))
     {
       return;
     }
@@ -17643,7 +17691,9 @@ void Dbtc::execABORT_ALL_REQ(Signal* signal)
   const Uint32 senderData = req->senderData;
   const BlockReference senderRef = req->senderRef;
   
-  if(getAllowStartTransaction(refToNode(senderRef), 0) == true && !getNodeState().getSingleUserMode()){
+  if (getAllowStartTransaction(refToNode(senderRef), 0) == true &&
+      !getNodeState().getSingleUserMode())
+  {
     jam();
 
     ref->senderData = senderData;
@@ -18162,19 +18212,21 @@ Dbtc::execDROP_FK_IMPL_REQ(Signal* signal)
 void Dbtc::execFIRE_TRIG_ORD(Signal* signal)
 {
   jamEntry();
+
+  if (!assembleFragments(signal))
+  {
+    jam();
+    return;
+  }
   FireTrigOrd * const fireOrd =  (FireTrigOrd *)signal->getDataPtr();
   SectionHandle handle(this, signal);
   const bool longsignal = handle.m_cnt > 0;
 
   ApiConnectRecordPtr transPtr;
   TcConnectRecordPtr opPtr;
+  ndbrequire(signal->getLength() >= FireTrigOrd::SignalLength);
   bool transIdOk = true;
-  /* Check the received transaction id
-   * Older nodes do not send transid info in FIRE_TRIG_ORD
-   */
-  const Uint32 sourceNode = refToNode(signal->getSendersBlockRef());
-  const Uint32 sourceNodeVersion = getNodeInfo(sourceNode).m_version;
-  bool sigContainsTransId = ndb_fire_trig_ord_transid(sourceNodeVersion);
+  /* Check the received transaction id */
   
   /* Get triggering operation record */
   opPtr.i = fireOrd->getConnectionPtr();
@@ -18194,17 +18246,19 @@ void Dbtc::execFIRE_TRIG_ORD(Signal* signal)
   if (unlikely(transPtr.i == RNIL) ||
       unlikely(!c_apiConnectRecordPool.getValidPtr(transPtr)))
   {
+    jam();
     /* Looks like the connect record was released
      * Treat as a bad transid
      */
+    jam();
     transIdOk = false;
   }
   else
   {
+    jam();
     /* Check if signal's trans id and operation's transid are aligned */
-    transIdOk = (! sigContainsTransId) |
-      (! ((fireOrd->m_transId1 ^ transPtr.p->transid[0]) |
-          (fireOrd->m_transId2 ^ transPtr.p->transid[1])));
+    transIdOk = !((fireOrd->m_transId1 ^ transPtr.p->transid[0]) |
+                  (fireOrd->m_transId2 ^ transPtr.p->transid[1]));
   } 
 
   TcFiredTriggerData key;
@@ -18244,15 +18298,6 @@ void Dbtc::execFIRE_TRIG_ORD(Signal* signal)
     trigPtr.p->triggerType = (TriggerType::Value)fireOrd->m_triggerType;
     trigPtr.p->triggerEvent = (TriggerEvent::Value)fireOrd->m_triggerEvent;
 
-    if (unlikely(signal->getLength() < FireTrigOrd::SignalLength))
-    {
-      jam();
-      ndbrequire(! sigContainsTransId );
-      Ptr<TcDefinedTriggerData> ptr;
-      c_theDefinedTriggers.getPtr(ptr, trigPtr.p->triggerId);
-      trigPtr.p->triggerType = ptr.p->triggerType;
-      trigPtr.p->triggerEvent = ptr.p->triggerEvent;
-    }
     trigPtr.p->fragId= fireOrd->fragId;
     if (longsignal)
     {
@@ -18484,6 +18529,11 @@ void Dbtc::execDROP_INDX_IMPL_REQ(Signal* signal)
 void Dbtc::execTCINDXREQ(Signal* signal)
 {
   jamEntry();
+  if (!assembleFragments(signal))
+  {
+    jam();
+    return;
+  }
 
   TcKeyReq * const tcIndxReq =  (TcKeyReq *)signal->getDataPtr();
   const UintR TapiIndex = tcIndxReq->apiConnectPtr;
@@ -18494,8 +18544,7 @@ void Dbtc::execTCINDXREQ(Signal* signal)
   SectionHandle handle(this, signal);
 
   transPtr.i = TapiIndex;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(transPtr) ||
-               transPtr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(transPtr)))
   {
     jam();
     warningHandlerLab(signal, __LINE__);
@@ -18564,11 +18613,12 @@ void Dbtc::execTCINDXREQ(Signal* signal)
   }
 #endif
 
+   ConnectionState conState = regApiPtr->apiConnectstate;
    if (startFlag == 1 &&
-       (regApiPtr->apiConnectstate == CS_CONNECTED ||
-        (regApiPtr->apiConnectstate == CS_STARTED && 
+       (conState == CS_CONNECTED ||
+        (conState == CS_STARTED && 
          regApiPtr->tcConnect.isEmpty()) ||
-        (regApiPtr->apiConnectstate == CS_ABORTING && 
+        (conState == CS_ABORTING && 
          regApiPtr->abortState == AS_IDLE)))
   {
     jam();
@@ -18745,8 +18795,7 @@ void Dbtc::execINDXKEYINFO(Signal* signal)
   const UintR TconnectIndex = indxKeyInfo->connectPtr;
   ApiConnectRecordPtr transPtr;
   transPtr.i = TconnectIndex;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(transPtr) ||
-               transPtr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(transPtr)))
   {
     jam();
     warningHandlerLab(signal, __LINE__);
@@ -18757,7 +18806,7 @@ void Dbtc::execINDXKEYINFO(Signal* signal)
 
   if (compare_transid(regApiPtr->transid, indxKeyInfo->transId) == false)
   {
-    TCKEY_abort(signal, 19, ApiConnectRecordPtr::get(NULL, RNIL));
+    jam();
     return;
   }
 
@@ -18794,8 +18843,7 @@ void Dbtc::execINDXATTRINFO(Signal* signal)
   const UintR TconnectIndex = indxAttrInfo->connectPtr;
   ApiConnectRecordPtr transPtr;
   transPtr.i = TconnectIndex;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(transPtr) ||
-               transPtr.isNull()))
+  if (unlikely(!c_apiConnectRecordPool.getValidPtr(transPtr)))
   {
     jam();
     warningHandlerLab(signal, __LINE__);
@@ -18806,7 +18854,7 @@ void Dbtc::execINDXATTRINFO(Signal* signal)
 
   if (compare_transid(regApiPtr->transid, indxAttrInfo->transId) == false)
   {
-    TCKEY_abort(signal, 19, ApiConnectRecordPtr::get(NULL, RNIL));
+    jam();
     return;
   }
 
@@ -20463,10 +20511,6 @@ Dbtc::fk_readFromChildTable(Signal* signal,
     return;
   }
 
-  /**
-   * Access child does never need lock...
-   *   as parent is read with lock
-   */
   Uint16 flags = TcConnectRecord::SOF_TRIGGER;
   const Uint32 currSavePointId = regApiPtr->currSavePointId;
   Uint32 gsn = GSN_TCKEYREQ;
@@ -20484,8 +20528,21 @@ Dbtc::fk_readFromChildTable(Signal* signal,
     if (!transPtr->p->isExecutingDeferredTriggers())
       regApiPtr->currSavePointId = opRecord->savePointId+1;
 
-    flags |= TcConnectRecord::SOF_FK_READ_COMMITTED;
+   /*
+    * Foreign key triggers =
+    *     on DELETE/UPDATE(parent) -> READ/SCAN(child) with lock
+    *     on INSERT/UPDATE(child)  -> READ(parent) with lock
+    *
+    * FK checks require a consistent read of 2 or more rows, which
+    * require row locks in Ndb.  The most lightweight row locks available
+    * are SimpleRead which takes a shared row lock for the duration of the
+    * read at LDM.
+    *
+    * Minimal lock mode for correctness = SimpleRead(parent)+SimpleRead(child)
+    */
     TcKeyReq::setSimpleFlag(tcKeyRequestInfo, 1);
+    /* Read child row using SimpleRead lock */
+    TcKeyReq::setDirtyFlag(tcKeyRequestInfo, 0);
   }
   else
   {
@@ -20781,10 +20838,10 @@ Dbtc::fk_scanFromChildTable(Signal* signal,
   ScanTabReq::setNoDiskFlag(ri, 1);
   if (op == ZREAD)
   {
+    /* Scan child table using SimpleRead lock */
     ScanTabReq::setScanBatch(ri, 1);
     ScanTabReq::setLockMode(ri, 0);
     ScanTabReq::setHoldLockFlag(ri, 0);
-    ScanTabReq::setReadCommittedFlag(ri, 1);
     ScanTabReq::setKeyinfoFlag(ri, 0);
   }
   else
@@ -20792,9 +20849,9 @@ Dbtc::fk_scanFromChildTable(Signal* signal,
     ScanTabReq::setScanBatch(ri, 16);
     ScanTabReq::setLockMode(ri, 1);
     ScanTabReq::setHoldLockFlag(ri, 1);
-    ScanTabReq::setReadCommittedFlag(ri, 0);
     ScanTabReq::setKeyinfoFlag(ri, 1);
   }
+  ScanTabReq::setReadCommittedFlag(ri, 0);
   ScanTabReq::setDistributionKeyFlag(ri, 0);
   ScanTabReq::setViaSPJFlag(ri, 0);
   ScanTabReq::setPassAllConfsFlag(ri, 0);
@@ -20919,6 +20976,7 @@ Dbtc::execKEYINFO20(Signal* signal)
   if (unlikely(!tcConnectRecord.getValidPtr(tcPtr)))
   {
     jam();
+    warningHandlerLab(signal, __LINE__);
     // Assert to catch code coverage, remove when reached and analysed
     ndbassert(false);
     return;
@@ -20942,6 +21000,7 @@ Dbtc::execKEYINFO20(Signal* signal)
     /**
      * incorrect transid...no known scenario where this can happen
      */
+    warningHandlerLab(signal, __LINE__);
     ndbassert(false);
     return;
   }
@@ -20963,7 +21022,9 @@ Dbtc::execKEYINFO20(Signal* signal)
      * The "base" transaction has been aborted...
      *   terminate scan directly
      */
-    fk_scanFromChildTable_abort(signal, tcPtr);
+    fk_scanFromChildTable_abort(signal,
+                                tcPtr,
+                                scanApiConnectPtr);
     return;
   }
 
@@ -21105,6 +21166,7 @@ Dbtc::execSCAN_TABCONF(Signal* signal)
   if (unlikely(!tcConnectRecord.getValidPtr(tcPtr)))
   {
     jam();
+    warningHandlerLab(signal, __LINE__);
     // Assert to catch code coverage, remove when reached and analysed
     ndbassert(false);
     return;
@@ -21128,6 +21190,7 @@ Dbtc::execSCAN_TABCONF(Signal* signal)
     /**
      * incorrect transid...no known scenario where this can happen
      */
+    warningHandlerLab(signal, __LINE__);
     ndbassert(false);
     return;
   }
@@ -21138,7 +21201,7 @@ Dbtc::execSCAN_TABCONF(Signal* signal)
   Uint32 orgTransPtrI = tcPtr.p->nextTcFailHash;
   ApiConnectRecordPtr orgApiConnectPtr;
   orgApiConnectPtr.i = orgTransPtrI;
-  if (unlikely(!c_apiConnectRecordPool.getValidPtr(orgApiConnectPtr)) ||
+  if (unlikely(!c_apiConnectRecordPool.getUncheckedPtrRW(orgApiConnectPtr)) ||
       unlikely(! (transId[0] == orgApiConnectPtr.p->transid[0] &&
                   transId[1] == orgApiConnectPtr.p->transid[1] &&
                   orgApiConnectPtr.p->apiConnectstate != CS_ABORTING)))
@@ -21152,15 +21215,20 @@ Dbtc::execSCAN_TABCONF(Signal* signal)
     if (conf->requestInfo & ScanTabConf::EndOfData)
     {
       jam();
-      fk_scanFromChildTable_done(signal, tcPtr);
+      fk_scanFromChildTable_done(signal,
+                                 tcPtr,
+                                 scanApiConnectPtr);
     }
     else
     {
       jam();
-      fk_scanFromChildTable_abort(signal, tcPtr);
+      fk_scanFromChildTable_abort(signal,
+                                  tcPtr,
+                                  scanApiConnectPtr);
     }
     return;
   }
+  ndbrequire(Magic::check_ptr(orgApiConnectPtr.p));
 
   Ptr<TcDefinedTriggerData> trigPtr;
   c_theDefinedTriggers.getPtr(trigPtr, tcPtr.p->currentTriggerId);
@@ -21217,7 +21285,9 @@ Dbtc::execSCAN_TABCONF(Signal* signal)
   if (conf->requestInfo & ScanTabConf::EndOfData)
   {
     jam();
-    fk_scanFromChildTable_done(signal, tcPtr);
+    fk_scanFromChildTable_done(signal,
+                               tcPtr,
+                               scanApiConnectPtr);
   }
   else if (rows)
   {
@@ -21225,7 +21295,9 @@ Dbtc::execSCAN_TABCONF(Signal* signal)
     /**
      * Abort scan...we already know that ZFK_CHILD_ROW_EXISTS
      */
-    fk_scanFromChildTable_abort(signal, tcPtr);
+    fk_scanFromChildTable_abort(signal,
+                                tcPtr,
+                                scanApiConnectPtr);
   }
   else
   {
@@ -21264,12 +21336,11 @@ Dbtc::execSCAN_TABCONF(Signal* signal)
 }
 
 void
-Dbtc::fk_scanFromChildTable_abort(Signal* signal, TcConnectRecordPtr tcPtr)
+Dbtc::fk_scanFromChildTable_abort(Signal* signal,
+                                  TcConnectRecordPtr tcPtr,
+                                  ApiConnectRecordPtr scanApiConnectPtr)
 {
-  ApiConnectRecordPtr scanApiConnectPtr;
-  scanApiConnectPtr.i = tcPtr.p->apiConnect;
-  c_apiConnectRecordPool.getPtr(scanApiConnectPtr);
-
+  ndbrequire(scanApiConnectPtr.p->ndbapiConnect == tcPtr.i);
   /**
    * Check that the scan has not already completed
    * - so we can abort aggresively
@@ -21302,14 +21373,11 @@ Dbtc::fk_scanFromChildTable_abort(Signal* signal, TcConnectRecordPtr tcPtr)
 }
 
 void
-Dbtc::fk_scanFromChildTable_done(Signal* signal, TcConnectRecordPtr tcPtr)
+Dbtc::fk_scanFromChildTable_done(Signal* signal,
+                                 TcConnectRecordPtr tcPtr,
+                                 ApiConnectRecordPtr scanApiConnectPtr)
 {
-  ApiConnectRecordPtr scanApiConnectPtr;
-  scanApiConnectPtr.i = tcPtr.p->apiConnect;
-  c_apiConnectRecordPool.getPtr(scanApiConnectPtr);
-
   ndbrequire(scanApiConnectPtr.p->ndbapiConnect == tcPtr.i);
-
   /**
    * save things needed to finish this trigger op
    */
@@ -21408,11 +21476,12 @@ Dbtc::execSCAN_TABREF(Signal* signal)
 
   TcConnectRecordPtr tcPtr;
   tcPtr.i = ref->apiConnectPtr;
-  if (!tcConnectRecord.getValidPtr(tcPtr))
+  if (unlikely(!tcConnectRecord.getValidPtr(tcPtr)))
   {
     jam();
+    warningHandlerLab(signal, __LINE__);
     // Assert to catch code coverage, remove when reached and analysed
-    // TODO(wl9756) ndbassert(false);
+    //ndbassert(false);
     return;
   }
 
@@ -21427,6 +21496,7 @@ Dbtc::execSCAN_TABREF(Signal* signal)
     /**
      * incorrect transid...no known scenario where this can happen
      */
+    warningHandlerLab(signal, __LINE__);
     ndbassert(false);
     return;
   }
@@ -21435,12 +21505,16 @@ Dbtc::execSCAN_TABREF(Signal* signal)
   if (ref->closeNeeded)
   {
     jam();
-    fk_scanFromChildTable_abort(signal, tcPtr);
+    fk_scanFromChildTable_abort(signal,
+                               tcPtr,
+                               scanApiConnectPtr);
   }
   else
   {
     jam();
-    fk_scanFromChildTable_done(signal, tcPtr);
+    fk_scanFromChildTable_done(signal,
+                               tcPtr,
+                               scanApiConnectPtr);
   }
 }
 
@@ -21614,11 +21688,9 @@ Dbtc::fk_readFromParentTable(Signal* signal,
       transPtr->p->isExecutingDeferredTriggers())
   {
     jam();
-    /**
-     * We don't need any locks here
-     */
-    flags |= TcConnectRecord::SOF_FK_READ_COMMITTED;
+    /* Read parent row using SimpleRead locking */
     TcKeyReq::setSimpleFlag(tcKeyRequestInfo, 1);
+    TcKeyReq::setDirtyFlag(tcKeyRequestInfo, 0);
   }
 
   TcKeyReq::setKeyLength(tcKeyRequestInfo, 0);

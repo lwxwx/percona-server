@@ -85,7 +85,17 @@ class Mock_dd_HANDLER : public Base_mock_HANDLER {
   Mock_dd_HANDLER(handlerton *hton, TABLE_SHARE *share)
       : Base_mock_HANDLER(hton, share) {}
 
-  virtual ~Mock_dd_HANDLER() {}
+  ~Mock_dd_HANDLER() override {}
+
+  /* Real DD handlers use InnoDB which supports gap locks.
+   * We need to override this method for mock as well
+   * because of Percona commit
+   * dd290a688dcbe114a8cb342e58410510e8378734 (PS-4257)
+   * when anti-deatdlock checks have been added to
+   * src/handler.cc.
+   * Whithout this, above fix interferes with unit tests.
+   */
+  bool has_gap_locks() const noexcept override { return true; }
 };
 
 /**
@@ -222,8 +232,7 @@ inline Fake_TABLE *get_schema_table(THD *thd, handlerton *hton) {
   table->s->default_values = new uchar[table->s->reclength];
   table->s->tmp_table = NON_TRANSACTIONAL_TMP_TABLE;
 
-  // Allocate dummy records to avoid failures in the handler functions.
-  table->record[0] = new uchar[table->s->reclength];
+  // Allocate dummy record[1] to avoid failures in the handler functions.
   table->record[1] = new uchar[table->s->reclength];
 
   return table;

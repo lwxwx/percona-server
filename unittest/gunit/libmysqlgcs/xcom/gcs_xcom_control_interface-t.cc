@@ -316,8 +316,7 @@ class mock_gcs_xcom_proxy : public Gcs_xcom_proxy_base {
 
  public:
   mock_gcs_xcom_proxy() {
-    ON_CALL(*this, xcom_exit(_)).WillByDefault(Return(0));
-    ON_CALL(*this, xcom_input_connect()).WillByDefault(Return(true));
+    ON_CALL(*this, xcom_input_connect(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, test_xcom_tcp_connection(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, xcom_client_boot(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, xcom_client_add_node(_, _, _)).WillByDefault(Return(false));
@@ -362,7 +361,7 @@ class mock_gcs_xcom_proxy : public Gcs_xcom_proxy_base {
   MOCK_METHOD2(xcom_client_send_data,
                bool(unsigned long long size, char *data));
   MOCK_METHOD1(xcom_init, void(xcom_port listen_port));
-  MOCK_METHOD1(xcom_exit, bool(bool xcom_input_open));
+  MOCK_METHOD0(xcom_exit, void());
   MOCK_METHOD0(xcom_set_cleanup, void());
   MOCK_METHOD1(xcom_get_ssl_mode, int(const char *mode));
   MOCK_METHOD1(xcom_set_ssl_mode, int(int mode));
@@ -371,12 +370,8 @@ class mock_gcs_xcom_proxy : public Gcs_xcom_proxy_base {
   MOCK_METHOD0(xcom_init_ssl, bool());
   MOCK_METHOD0(xcom_destroy_ssl, void());
   MOCK_METHOD0(xcom_use_ssl, bool());
-  MOCK_METHOD10(xcom_set_ssl_parameters,
-                void(const char *server_key_file, const char *server_cert_file,
-                     const char *client_key_file, const char *client_cert_file,
-                     const char *ca_file, const char *ca_path,
-                     const char *crl_file, const char *crl_path,
-                     const char *cipher, const char *tls_version));
+  MOCK_METHOD2(xcom_set_ssl_parameters,
+               void(ssl_parameters ssl, tls_parameters tls));
   MOCK_METHOD1(find_site_def, site_def const *(synode_no synode));
   MOCK_METHOD0(xcom_wait_ready, enum_gcs_error());
   MOCK_METHOD0(xcom_is_ready, bool());
@@ -398,7 +393,9 @@ class mock_gcs_xcom_proxy : public Gcs_xcom_proxy_base {
   MOCK_METHOD0(get_should_exit, bool());
   MOCK_METHOD1(set_should_exit, void(bool should_exit));
 
-  MOCK_METHOD0(xcom_input_connect, bool());
+  MOCK_METHOD2(xcom_input_connect,
+               bool(std::string const &address, xcom_port port));
+  MOCK_METHOD0(xcom_input_disconnect, void());
   MOCK_METHOD1(xcom_input_try_push, bool(app_data_ptr data));
   /* Mocking fails compilation on Windows. It attempts to copy the std::future
    * which is non-copyable. */
@@ -602,7 +599,7 @@ class XComControlTest : public GcsBaseTest {
 };
 
 TEST_F(XComControlTest, JoinLeaveTest) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
@@ -612,7 +609,7 @@ TEST_F(XComControlTest, JoinLeaveTest) {
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_wait_exit()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
 
   enum_gcs_error result = xcom_control_if->join(create_fake_view());
   ASSERT_EQ(GCS_OK, result);
@@ -624,7 +621,7 @@ TEST_F(XComControlTest, JoinLeaveTest) {
 }
 
 TEST_F(XComControlTest, JoinTestFailedMultipleJoins) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
@@ -634,7 +631,7 @@ TEST_F(XComControlTest, JoinTestFailedMultipleJoins) {
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_wait_exit()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
 
   enum_gcs_error result = xcom_control_if->join(create_fake_view());
   ASSERT_EQ(GCS_OK, result);
@@ -653,7 +650,7 @@ TEST_F(XComControlTest, JoinTestFailedToStartComms) {
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(0);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(1);
+  EXPECT_CALL(proxy, xcom_exit()).Times(1);
 
   /*
     The join is forced to wait until the XCOM's tread is running.
@@ -676,11 +673,11 @@ TEST_F(XComControlTest, JoinTestFailedToStartComms) {
  * mechanism by failing to join the group. */
 TEST_F(XComControlTest, JoinTestFailedToConnectToXComQueueSignallingMechanism) {
   /* We fail to connect to XCom's local server. */
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1).WillOnce(Return(false));
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1).WillOnce(Return(false));
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(0);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(1);
+  EXPECT_CALL(proxy, xcom_exit()).Times(1);
 
   enum_gcs_error result = xcom_control_if->join();
   ASSERT_EQ(GCS_NOK, result);
@@ -690,12 +687,12 @@ TEST_F(XComControlTest, JoinTestFailedToConnectToXComQueueSignallingMechanism) {
 /* This tests ensures that GCS handles a failure to send the boot command to
  * XCom by failing to join the group. */
 TEST_F(XComControlTest, JoinTestFailedToSendBootToXCom) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   /* We fail to send the boot command. */
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1).WillOnce(Return(false));
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(0);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(1);
+  EXPECT_CALL(proxy, xcom_exit()).Times(1);
 
   enum_gcs_error result = xcom_control_if->join();
   ASSERT_EQ(GCS_NOK, result);
@@ -706,7 +703,7 @@ TEST_F(XComControlTest, JoinTestTimeoutStartingComms) {
   Gcs_xcom_proxy *my_proxy = new Gcs_xcom_proxy_impl();
 
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(1);
+  EXPECT_CALL(proxy, xcom_exit()).Times(1);
 
   /*
     The join is forced to wait until the XCOM's tread is running.
@@ -725,12 +722,12 @@ TEST_F(XComControlTest, JoinTestTimeoutStartingComms) {
 }
 
 TEST_F(XComControlTest, JoinTestFailedToStartXCom) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1).WillOnce(Return(GCS_NOK));
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(1);
+  EXPECT_CALL(proxy, xcom_exit()).Times(1);
   EXPECT_CALL(proxy, xcom_wait_for_xcom_comms_status_change(_)).Times(1);
 
   enum_gcs_error result = xcom_control_if->join();
@@ -741,14 +738,14 @@ TEST_F(XComControlTest, JoinTestFailedToStartXCom) {
 TEST_F(XComControlTest, JoinTestTimeoutStartingXCom) {
   Gcs_xcom_proxy *my_proxy = new Gcs_xcom_proxy_impl();
 
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready())
       .Times(1)
       .WillOnce(Invoke(my_proxy, &Gcs_xcom_proxy::xcom_wait_ready));
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(1);
+  EXPECT_CALL(proxy, xcom_exit()).Times(1);
   EXPECT_CALL(proxy, xcom_wait_for_xcom_comms_status_change(_)).Times(1);
 
   enum_gcs_error result = xcom_control_if->join();
@@ -760,11 +757,11 @@ TEST_F(XComControlTest, JoinTestTimeoutStartingXCom) {
 
 TEST_F(XComControlTest, JoinTestWithoutBootNorPeers) {
   EXPECT_CALL(proxy, new_node_address_uuid(_, _, _)).Times(0);
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(0);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(0);
   EXPECT_CALL(proxy, xcom_init(_)).Times(0);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   EXPECT_CALL(proxy, delete_node_address(_, _)).Times(0);
 
   xcom_control_if->set_boot_node(false);
@@ -781,12 +778,12 @@ TEST_F(XComControlTest, JoinTestSkipOwnNodeAndCycleThroughPeerNodes) {
       (connection_descriptor *)malloc(sizeof(connection_descriptor *));
   con->fd = 0;
 
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   // Fail to connect to the peer every time.
   EXPECT_CALL(proxy, xcom_client_open_connection(Eq("127.0.0.1"), Eq(12346)))
       .Times(3)
@@ -827,12 +824,12 @@ TEST_F(XComControlTest, JoinTestSkipOwnNodeAndCycleThroughPeerNodes) {
 }
 
 TEST_F(XComControlTest, JoinTestAllPeersUnavailable) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(0);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(1);
+  EXPECT_CALL(proxy, xcom_exit()).Times(1);
   /*
    Fail to connect to all peers every time.
    peers.size() - 1 because we skip our own address.
@@ -852,11 +849,11 @@ TEST_F(XComControlTest, JoinTestAllPeersUnavailable) {
 
 TEST_F(XComControlTest, LeaveTestWithoutJoin) {
   EXPECT_CALL(proxy, new_node_address_uuid(_, _, _)).Times(0);
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(0);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(0);
   EXPECT_CALL(proxy, xcom_init(_)).Times(0);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(0);
 
   enum_gcs_error result = xcom_control_if->leave();
@@ -865,13 +862,13 @@ TEST_F(XComControlTest, LeaveTestWithoutJoin) {
 }
 
 TEST_F(XComControlTest, LeaveTestMultiMember) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
 
   string member_id_1 = xcom_node_address->get_member_address();
   Gcs_member_identifier local_member_information_1(member_id_1);
@@ -1166,12 +1163,12 @@ TEST_F(XComControlTest, ViewChangedJoiningTest) {
 TEST_F(XComControlTest, FailedNodeRemovalTest) {
   // Setting Expectations and Return Values
   // First the node joins the group.
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   EXPECT_CALL(proxy, delete_node_address(_, _)).Times(4);
   EXPECT_CALL(mock_ev_listener, on_view_changed(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(3);
@@ -1297,12 +1294,12 @@ void check_view_expelled(const Gcs_view &view) {
 TEST_F(XComControlTest, FailedNodeGlobalViewTest) {
   // Setting Expectations and Return Values
   // First the node joins the group.
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   EXPECT_CALL(mock_ev_listener, on_suspicions(_, _)).Times(0);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
 
@@ -1385,7 +1382,7 @@ TEST_F(XComControlTest, FailedNodeGlobalViewTest) {
 }
 
 TEST_F(XComControlTest, SuspectMembersRemoval) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(2);
@@ -1440,7 +1437,7 @@ TEST_F(XComControlTest, SuspectMembersRemoval) {
 }
 
 TEST_F(XComControlTest, SuspectMemberFailedRemovalDueToMajorityLoss) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(2);
@@ -1515,7 +1512,7 @@ TEST_F(XComControlTest, SuspectMemberFailedRemovalDueToMajorityLoss) {
 }
 
 TEST_F(XComControlTest, ThreeSuspectNodesRemoval) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(3);
@@ -1701,7 +1698,7 @@ TEST_F(XComControlTest, FalseThreeSuspectNodesWithdrawn) {
 }
 
 TEST_F(XComControlTest, ThreeSuspectNodesRemovalAndWithdrawn) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(2);
@@ -1824,7 +1821,7 @@ TEST_F(XComControlTest, ThreeSuspectNodesRemovalAndWithdrawn) {
 }
 
 TEST_F(XComControlTest, ThreeSuspectNodesRemovalAfterTimeoutReset) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(2);
@@ -1917,14 +1914,14 @@ void *parallel_invocation(void *ptr) {
 }
 
 TEST_F(XComControlTest, ParallellJoinsTest) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_for_xcom_comms_status_change(_)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
 
   InvocationHelper *helper = new InvocationHelper(xcom_control_if, JJ);
 
@@ -1944,12 +1941,12 @@ TEST_F(XComControlTest, ParallellJoinsTest) {
 }
 
 TEST_F(XComControlTest, ParallelLeavesTest) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
   EXPECT_CALL(proxy, delete_node_address(_, _)).Times(2);
 
@@ -1974,13 +1971,13 @@ TEST_F(XComControlTest, ParallelLeavesTest) {
 }
 
 TEST_F(XComControlTest, ParallelLeaveAndDelayedJoinTest) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(2);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(2);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(2);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(2);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(2);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(2);
   EXPECT_CALL(proxy, xcom_init(_)).Times(2);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
 
   enum_gcs_error result = xcom_control_if->join(create_fake_view());
   ASSERT_EQ(GCS_OK, result);
@@ -2002,13 +1999,13 @@ TEST_F(XComControlTest, ParallelLeaveAndDelayedJoinTest) {
 }
 
 TEST_F(XComControlTest, ParallelJoinAndDelayedLeaveTest) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   EXPECT_CALL(proxy, delete_node_address(_, _)).Times(2);
 
   InvocationHelper *helper = new InvocationHelper(xcom_control_if, JL);
@@ -2028,12 +2025,12 @@ TEST_F(XComControlTest, ParallelJoinAndDelayedLeaveTest) {
 }
 
 TEST_F(XComControlTest, NodeTooFarMessage) {
-  EXPECT_CALL(proxy, xcom_input_connect()).Times(1);
+  EXPECT_CALL(proxy, xcom_input_connect(_, _)).Times(1);
   EXPECT_CALL(proxy, test_xcom_tcp_connection(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_client_boot(_, _)).Times(1);
   EXPECT_CALL(proxy, xcom_wait_ready()).Times(1);
   EXPECT_CALL(proxy, xcom_init(_)).Times(1);
-  EXPECT_CALL(proxy, xcom_exit(_)).Times(0);
+  EXPECT_CALL(proxy, xcom_exit()).Times(0);
   EXPECT_CALL(proxy, delete_node_address(_, _)).Times(2);
   EXPECT_CALL(proxy, xcom_client_remove_node(_, _)).Times(1);
 

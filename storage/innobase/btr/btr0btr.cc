@@ -681,9 +681,7 @@ void btr_node_ptr_set_child_page_no(
   }
 }
 
-/** Returns the child page of a node pointer and sx-latches it.
- @return child page, sx-latched */
-static buf_block_t *btr_node_ptr_get_child(
+buf_block_t *btr_node_ptr_get_child(
     const rec_t *node_ptr, /*!< in: node pointer */
     dict_index_t *index,   /*!< in: index */
     const ulint *offsets,  /*!< in: array returned by rec_get_offsets() */
@@ -1642,7 +1640,7 @@ rec_t *btr_root_raise_and_insert(
 
   /* Copy the records from root to the new page one by one. */
 
-  if (0
+  if (false
 #ifdef UNIV_ZIP_COPY
       || new_page_zip
 #endif /* UNIV_ZIP_COPY */
@@ -2588,7 +2586,7 @@ func_start:
   if (direction == FSP_DOWN) {
     /*		fputs("Split left\n", stderr); */
 
-    if (0
+    if (false
 #ifdef UNIV_ZIP_COPY
         || page_zip
 #endif /* UNIV_ZIP_COPY */
@@ -2630,7 +2628,7 @@ func_start:
   } else {
     /*		fputs("Split right\n", stderr); */
 
-    if (0
+    if (false
 #ifdef UNIV_ZIP_COPY
         || page_zip
 #endif /* UNIV_ZIP_COPY */
@@ -3012,7 +3010,7 @@ static buf_block_t *btr_lift_page_up(
   page_level++;
 
   /* Copy the records to the father page one by one. */
-  if (0
+  if (false
 #ifdef UNIV_ZIP_COPY
       || father_page_zip
 #endif /* UNIV_ZIP_COPY */
@@ -3116,7 +3114,7 @@ ibool btr_compress(
 #ifdef UNIV_DEBUG
   bool leftmost_child;
 #endif
-  DBUG_ENTER("btr_compress");
+  DBUG_TRACE;
 
   block = btr_cur_get_block(cursor);
   page = btr_cur_get_page(cursor);
@@ -3541,7 +3539,7 @@ func_exit:
 
   MONITOR_INC(MONITOR_INDEX_MERGE_SUCCESSFUL);
 
-  DBUG_RETURN(TRUE);
+  return TRUE;
 
 err_exit:
   /* We play it safe and reset the free bits. */
@@ -3551,7 +3549,7 @@ err_exit:
   }
 
   mem_heap_free(heap);
-  DBUG_RETURN(FALSE);
+  return FALSE;
 }
 
 /** Discards a page that is the only page on its level.  This will empty
@@ -4379,7 +4377,7 @@ loop:
     across pages, so skip the record compare verification for
     now. Will enhanced in special R-Tree index validation scheme */
     if (!dict_index_is_spatial(index) &&
-        cmp_rec_rec(rec, right_rec, offsets, offsets2, index) >= 0) {
+        cmp_rec_rec(rec, right_rec, offsets, offsets2, index, false) >= 0) {
       btr_validate_report2(index, level, block, right_block);
 
       fputs(
@@ -4700,11 +4698,11 @@ static bool btr_can_merge_with_page(
   ulint max_ins_size;
   buf_block_t *mblock;
   page_t *mpage;
-  DBUG_ENTER("btr_can_merge_with_page");
+  DBUG_TRACE;
 
   if (page_no == FIL_NULL) {
     *merge_block = NULL;
-    DBUG_RETURN(false);
+    return false;
   }
 
   index = btr_cur_get_index(cursor);
@@ -4757,11 +4755,11 @@ static bool btr_can_merge_with_page(
   }
 
   *merge_block = mblock;
-  DBUG_RETURN(true);
+  return true;
 
 error:
   *merge_block = NULL;
-  DBUG_RETURN(false);
+  return false;
 }
 
 /** Create an SDI Index

@@ -28,6 +28,7 @@
 
 #include "channel_info.h"                // Channel_info
 #include "connection_handler_manager.h"  // Connection_handler_manager
+#include "init_net_server_extension.h"   // init_net_server_extension
 #include "my_byteorder.h"
 #include "my_shm_defaults.h"
 #include "mysql/components/services/log_builtins.h"
@@ -89,8 +90,10 @@ class Channel_info_shared_mem : public Channel_info {
   virtual THD *create_thd() {
     THD *thd = Channel_info::create_thd();
 
-    if (thd != NULL)
+    if (thd != NULL) {
+      init_net_server_extension(thd);
       thd->security_context()->set_host_ptr(my_localhost, strlen(my_localhost));
+    }
     return thd;
   }
 
@@ -214,7 +217,7 @@ Channel_info *Shared_mem_listener::listen_for_connection_event() {
   if (connection_events_loop_aborted()) return NULL;
 
   char connect_number_char[22];
-  char *p = int10_to_str(m_connect_number, connect_number_char, 10);
+  char *p = longlong10_to_str(m_connect_number, connect_number_char, -10);
 
   /*
     The name of event and file-mapping events create agree next rule:

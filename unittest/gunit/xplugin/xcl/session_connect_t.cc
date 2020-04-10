@@ -22,11 +22,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
  */
 
-#include "errmsg.h"
-#include "my_config.h"
-#include "my_inttypes.h"
-#include "my_macros.h"
-#include "mysql_version.h"
+#include <cstdint>
+
+#include "errmsg.h"         // NOLINT(build/include_subdir)
+#include "my_config.h"      // NOLINT(build/include_subdir)
+#include "my_macros.h"      // NOLINT(build/include_subdir)
+#include "mysql_version.h"  // NOLINT(build/include_subdir)
 
 #include "plugin/x/generated/mysqlx_error.h"
 #include "plugin/x/generated/mysqlx_version.h"
@@ -42,7 +43,7 @@ const char *expected_pass = "user_pass";
 const char *expected_host = "host";
 const char *expected_socket_file = "socket_file";
 const char *expected_schema = "schema";
-const uint16 expected_port = 1290;
+const uint16_t expected_port = 1290;
 const int expected_error_code = 10;
 const int expected_error_code_success = 0;
 
@@ -261,6 +262,15 @@ struct Open_close_methods {
   "fld { key:\"" k "\""                  \
   "      value { type: SCALAR scalar { " \
   "        type: V_STRING v_string { value: \"" v "\" } } } }"
+#ifdef _WIN32
+#define FLD_WIN32_STRING(k, v)                 \
+  "fld { key:\"" k "\""                  \
+  "      value { type: SCALAR scalar { " \
+  "        type: V_STRING v_string { value: \"" v "\" } } } }"
+#else
+#define FLD_WIN32_STRING(k, v)
+#endif  // _WIN32
+
 // clang-format on
 
 class Xcl_session_impl_tests_connect_param
@@ -293,7 +303,6 @@ class Xcl_session_impl_tests_connect_param
 
   // clang-format off
   const Message_from_str<CapabilitiesSet> m_cap_connect_attrs{
-#ifdef _WIN32
     CAPABILITIES(CAP_OBJECT("session_connect_attrs",
       FLD_STRING("_client_name", HAVE_MYSQLX_FULL_PROTO("libmysqlxclient",
                                                         "libmysqlxclient_lite"))
@@ -302,22 +311,10 @@ class Xcl_session_impl_tests_connect_param
       FLD_STRING("_platform", MACHINE_TYPE)
       FLD_STRING("_client_license", STRINGIFY_ARG(LICENSE))
       FLD_STRING("_pid",
-                 +std::to_string(static_cast<uint64_t>(GetCurrentProcessId()))+)
-      FLD_STRING("_thread",
-                 +std::to_string(static_cast<uint64_t>(GetCurrentThreadId()))+)
-    ))
-#else
-    CAPABILITIES(CAP_OBJECT("session_connect_attrs",
-      FLD_STRING("_client_name", HAVE_MYSQLX_FULL_PROTO("libmysqlxclient",
-                                                        "libmysqlxclient_lite"))
-      FLD_STRING("_client_version", PACKAGE_VERSION)
-      FLD_STRING("_os", SYSTEM_TYPE)
-      FLD_STRING("_platform", MACHINE_TYPE)
-      FLD_STRING("_client_license", STRINGIFY_ARG(LICENSE))
-      FLD_STRING("_pid",
-                 +std::to_string(static_cast<uint64_t>(getpid()))+)
-    ))
-#endif
+               +std::to_string(static_cast<uint64_t>(
+                   IF_WIN(GetCurrentProcessId(), getpid())))+)
+      FLD_WIN32_STRING("_thread",
+               +std::to_string(static_cast<uint64_t>(GetCurrentThreadId()))+)))
   };
   // clang-format on
 };

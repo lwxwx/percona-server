@@ -20,10 +20,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-INCLUDE_DIRECTORIES(${NDB_SOURCE_DIR}/src/common/mgmcommon)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/ndb/src/common/mgmcommon)
 
-ADD_LIBRARY(ndbmgmclient STATIC
-            CommandInterpreter.cpp)
+ADD_LIBRARY(ndbmgmclient STATIC CommandInterpreter.cpp)
 
 IF(WITHOUT_SERVER)
   RETURN()
@@ -31,18 +30,15 @@ ENDIF()
 
 MYSQL_ADD_EXECUTABLE(ndb_mgm
   main.cpp
-  COMPONENT ClusterManagementClient)
-
-TARGET_LINK_LIBRARIES(ndb_mgm
-               ndbmgmclient
-               ndbmgmapi
-               ndblogger
-               ndbtrace
-               ndbportlib
-               ndbgeneral
-               dbug
-               mysys
-               strings)
-IF(UNIX)
-  TARGET_LINK_LIBRARIES(ndb_mgm ${EDITLINE_LIBRARY})
-ENDIF(UNIX)
+  COMPONENT ClusterManagementClient
+  ENABLE_EXPORTS
+  LINK_LIBRARIES
+  ${EDITLINE_LIBRARY}
+  mysys
+  ndbgeneral
+  ndblogger
+  ndbmgmapi
+  ndbmgmclient
+  ndbportlib
+  ndbtrace
+  )

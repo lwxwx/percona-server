@@ -97,7 +97,9 @@ Ndb_index_stat_cache_query	#
 Ndb_index_stat_status	#
 Ndb_last_commit_epoch_server	#
 Ndb_last_commit_epoch_session	#
+Ndb_metadata_blacklist_size	#
 Ndb_metadata_detected_count	#
+Ndb_metadata_synced_count	#
 Ndb_number_of_data_nodes	#
 Ndb_number_of_ready_data_nodes	#
 Ndb_pruned_scan_count	#
@@ -148,6 +150,7 @@ ndb_log_update_minimal	#
 ndb_log_updated_only	#
 ndb_metadata_check	#
 ndb_metadata_check_interval	#
+ndb_metadata_sync	#
 ndb_mgmd_host	#
 ndb_nodeid	#
 ndb_optimization_delay	#
@@ -158,6 +161,7 @@ ndb_recv_thread_cpu_mask	#
 ndb_report_thresh_binlog_epoch_slip	#
 ndb_report_thresh_binlog_mem_usage	#
 ndb_row_checksum	#
+ndb_schema_dist_lock_wait_timeout	#
 ndb_schema_dist_timeout	#
 ndb_schema_dist_upgrade_allowed	#
 ndb_show_foreign_key_mock_tables	#
@@ -912,10 +916,10 @@ drop table t1,t2;
 create table t1 (a int not null primary key, b int not null) engine=ndb;
 insert into t1 values (1,10), (2,20), (3,30);
 insert into t1 set a=1, b=100;
-ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+ERROR 23000: Duplicate entry '1' for key 't1.PRIMARY'
 insert ignore into t1 set a=1, b=100;
 Warnings:
-Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+Warning	1062	Duplicate entry '1' for key 't1.PRIMARY'
 select * from t1 order by a;
 a	b
 1	10
@@ -933,7 +937,7 @@ create table t2 (c int not null primary key, d int not null) engine=ndb;
 insert into t1 values (1,10), (2,10), (3,30), (4, 30);
 insert into t2 values (1,10), (2,10), (3,30), (4, 30);
 update t1 set a = 1 where a = 3;
-ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+ERROR 23000: Duplicate entry '1' for key 't1.PRIMARY'
 select * from t1 order by a;
 a	b
 1	10
@@ -948,7 +952,7 @@ a	b
 3	30
 4	1
 update t1,t2 set a = 1, c = 1 where a = 3 and c = 3;
-ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+ERROR 23000: Duplicate entry '1' for key 't1.PRIMARY'
 select * from t1 order by a;
 a	b
 1	10
@@ -957,8 +961,8 @@ a	b
 4	1
 update ignore t1,t2 set a = 1, c = 1 where a = 3 and c = 3;
 Warnings:
-Warning	1062	Duplicate entry '1' for key 'PRIMARY'
-Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+Warning	1062	Duplicate entry '1' for key 't1.PRIMARY'
+Warning	1062	Duplicate entry '1' for key 't2.PRIMARY'
 select * from t1 order by a;
 a	b
 1	10

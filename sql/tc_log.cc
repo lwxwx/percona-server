@@ -30,6 +30,8 @@
 #include <fcntl.h>
 #include <string.h>
 
+#include <algorithm>
+
 #include "map_helpers.h"
 #include "my_alloc.h"
 #include "my_loglevel.h"
@@ -249,7 +251,8 @@ TC_LOG_MMAP::PAGE *TC_LOG_MMAP::get_active_from_pool() {
   if (new_active->free == new_active->size)  // we've chosen an empty page
   {
     tc_log_cur_pages_used++;
-    set_if_bigger(tc_log_max_pages_used, tc_log_cur_pages_used);
+    tc_log_max_pages_used =
+        std::max(tc_log_max_pages_used, tc_log_cur_pages_used);
   }
 
   *best_p = (*best_p)->next;
@@ -289,13 +292,13 @@ void TC_LOG_MMAP::overflow() {
   implement the logic.
  */
 TC_LOG::enum_result TC_LOG_MMAP::commit(THD *thd, bool all) {
-  DBUG_ENTER("TC_LOG_MMAP::commit");
+  DBUG_TRACE;
   ulong cookie = 0;
   my_xid xid = thd->get_transaction()->xid_state()->get_xid()->get_my_xid();
 
   if (all && xid)
     if (!(cookie = log_xid(xid)))
-      DBUG_RETURN(RESULT_ABORTED);  // Failed to log the transaction
+      return RESULT_ABORTED;  // Failed to log the transaction
 
   /*
     Acquire a shared lock to block commits until START TRANSACTION WITH
@@ -306,12 +309,12 @@ TC_LOG::enum_result TC_LOG_MMAP::commit(THD *thd, bool all) {
   sunlock();
 
   if (rc)
-    DBUG_RETURN(RESULT_INCONSISTENT);  // Transaction logged, but not committed
+    return RESULT_INCONSISTENT;  // Transaction logged, but not committed
 
   /* If cookie is non-zero, something was logged */
   if (cookie) unlog(cookie, xid);
 
-  DBUG_RETURN(RESULT_SUCCESS);
+  return RESULT_SUCCESS;
 }
 
 int TC_LOG_MMAP::rollback(THD *thd, bool all) {
@@ -448,7 +451,7 @@ void TC_LOG_MMAP::unlog(ulong cookie, my_xid xid MY_ATTRIBUTE((unused))) {
   *x = 0;
   p->free++;
   DBUG_ASSERT(p->free <= p->size);
-  set_if_smaller(p->ptr, x);
+  p->ptr = std::min(p->ptr, x);
   if (p->free == p->size)  // the page is completely empty
     tc_log_cur_pages_used--;
   if (p->waiters == 0)                 // the page is in pool and ready to rock

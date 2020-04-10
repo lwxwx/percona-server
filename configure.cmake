@@ -32,16 +32,6 @@ INCLUDE (CheckCXXSourceRuns)
 INCLUDE (CheckSymbolExists)
 
 
-IF(SOLARIS AND CMAKE_COMPILER_IS_GNUCXX)
-  ## We will be using gcc to generate .so files
-  ## Add C flags (e.g. -m64) to CMAKE_SHARED_LIBRARY_C_FLAGS
-  ## The client library contains C++ code, so add dependency on libstdc++
-  ## See cmake --help-policy CMP0018
-  SET(CMAKE_SHARED_LIBRARY_C_FLAGS
-    "${CMAKE_SHARED_LIBRARY_C_FLAGS} ${CMAKE_C_FLAGS} -lstdc++")
-ENDIF()
-
-
 # System type affects version_compile_os variable 
 IF(NOT SYSTEM_TYPE)
   IF(PLATFORM)
@@ -140,7 +130,7 @@ IF(UNIX)
   ENDIF()
 
   # https://bugs.llvm.org/show_bug.cgi?id=16404
-  IF(LINUX AND HAVE_UBSAN AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+  IF(LINUX AND HAVE_UBSAN AND MY_COMPILER_IS_CLANG)
     SET(CMAKE_EXE_LINKER_FLAGS_DEBUG
       "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -rtlib=compiler-rt -lgcc_s")
     SET(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO
@@ -209,6 +199,11 @@ ENDIF()
 #
 INCLUDE (CheckIncludeFiles)
 
+IF(FREEBSD)
+  # On FreeBSD some includes, e.g. sasl/sasl.h, is in /usr/local/include
+  LIST(APPEND CMAKE_REQUIRED_INCLUDES "/usr/local/include")
+ENDIF()
+
 CHECK_INCLUDE_FILES (alloca.h HAVE_ALLOCA_H)
 CHECK_INCLUDE_FILES (arpa/inet.h HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES (dlfcn.h HAVE_DLFCN_H)
@@ -242,7 +237,9 @@ CHECK_INCLUDE_FILES (sys/param.h HAVE_SYS_PARAM_H) # Used by NDB/libevent
 CHECK_INCLUDE_FILES (fnmatch.h HAVE_FNMATCH_H)
 CHECK_INCLUDE_FILES (sys/un.h HAVE_SYS_UN_H)
 CHECK_INCLUDE_FILES (vis.h HAVE_VIS_H) # Used by libedit
-CHECK_INCLUDE_FILES (sasl/sasl.h HAVE_SASL_SASL_H) # Used by memcached
+# Cyrus SASL 2.1.26 on Solaris 11.4 has a bug that requires sys/types.h
+# to be included before checking if sasl/sasl.h exists
+CHECK_INCLUDE_FILES ("sys/types.h;sasl/sasl.h" HAVE_SASL_SASL_H)
 
 # For libevent
 CHECK_INCLUDE_FILES(sys/devpoll.h HAVE_DEVPOLL)
@@ -272,7 +269,6 @@ CHECK_FUNCTION_EXISTS (fcntl HAVE_FCNTL)
 CHECK_FUNCTION_EXISTS (fdatasync HAVE_FDATASYNC)
 CHECK_SYMBOL_EXISTS(fdatasync "unistd.h" HAVE_DECL_FDATASYNC)
 CHECK_FUNCTION_EXISTS (fedisableexcept HAVE_FEDISABLEEXCEPT)
-CHECK_FUNCTION_EXISTS (fseeko HAVE_FSEEKO)
 CHECK_FUNCTION_EXISTS (fsync HAVE_FSYNC)
 CHECK_FUNCTION_EXISTS (gethrtime HAVE_GETHRTIME)
 CHECK_FUNCTION_EXISTS (getnameinfo HAVE_GETNAMEINFO)
@@ -280,7 +276,6 @@ CHECK_FUNCTION_EXISTS (getpass HAVE_GETPASS)
 CHECK_FUNCTION_EXISTS (getpassphrase HAVE_GETPASSPHRASE)
 CHECK_FUNCTION_EXISTS (getpwnam HAVE_GETPWNAM)
 CHECK_FUNCTION_EXISTS (getpwuid HAVE_GETPWUID)
-CHECK_FUNCTION_EXISTS (getrlimit HAVE_GETRLIMIT)
 CHECK_FUNCTION_EXISTS (getrusage HAVE_GETRUSAGE)
 CHECK_FUNCTION_EXISTS (initgroups HAVE_INITGROUPS)
 CHECK_FUNCTION_EXISTS (issetugid HAVE_ISSETUGID)
@@ -427,7 +422,6 @@ CHECK_TYPE_SIZE("long"      SIZEOF_LONG)
 CHECK_TYPE_SIZE("short"     SIZEOF_SHORT)
 CHECK_TYPE_SIZE("int"       SIZEOF_INT)
 CHECK_TYPE_SIZE("long long" SIZEOF_LONG_LONG)
-CHECK_TYPE_SIZE("off_t"     SIZEOF_OFF_T)
 CHECK_TYPE_SIZE("time_t"    SIZEOF_TIME_T)
 
 CHECK_STRUCT_HAS_MEMBER("struct tm"
@@ -585,15 +579,15 @@ int main()
 }" HAVE_BUILTIN_EXPECT)
 
 # GCC has __builtin_stpcpy but still calls stpcpy
-IF(NOT SOLARIS OR NOT CMAKE_COMPILER_IS_GNUCC)
-CHECK_C_SOURCE_COMPILES("
-int main()
-{
-  char foo1[1];
-  char foo2[1];
-  __builtin_stpcpy(foo1, foo2);
-  return 0;
-}" HAVE_BUILTIN_STPCPY)
+IF(NOT SOLARIS OR NOT MY_COMPILER_IS_GNU)
+  CHECK_C_SOURCE_COMPILES("
+  int main()
+  {
+    char foo1[1];
+    char foo2[1];
+    __builtin_stpcpy(foo1, foo2);
+    return 0;
+  }" HAVE_BUILTIN_STPCPY)
 ENDIF()
 
 CHECK_CXX_SOURCE_COMPILES("

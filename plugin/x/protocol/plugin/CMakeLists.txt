@@ -20,9 +20,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-FILE(GLOB protoc_plugin_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/xprotocol_plugin.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/message_field_chain.cc"
+SET(protoc_plugin_SRC
+  message_field_chain.cc
+  messages_used_by_server.cc
+  xprotocol_plugin.cc
 )
 
 INCLUDE_DIRECTORIES(
@@ -30,8 +31,10 @@ INCLUDE_DIRECTORIES(
 )
 
 ADD_COMPILE_FLAGS(${protoc_plugin_SRC}
-  COMPILE_FLAGS "${PUBLIC_XPROTOCOL_FLAGS}"
+  COMPILE_FLAGS "${MYSQLX_PROTOCOL_FLAGS}"
 )
+
+MY_INCLUDE_SYSTEM_DIRECTORIES(PROTOBUF)
 
 MYSQL_ADD_EXECUTABLE(
   xprotocol_plugin
@@ -41,10 +44,29 @@ MYSQL_ADD_EXECUTABLE(
 
 TARGET_LINK_LIBRARIES(
   xprotocol_plugin
-  ${PROTOCOL_FULL_LIB_NAME}
+  ${MYSQLX_PROTOCOL_FULL_LIB}
   ${PROTOBUF_PROTOC_LIBRARY}
   ${PROTOBUF_LIBRARY}
 )
+
+# Workaround for an issue present on Debian 5.3.7-1
+# and gcc9.
+#
+# The problem is that the linker eliminates the dependency
+# to libpthread.so, even presents of -pthread and -lpthread
+# flags.
+# This leaves some unresolved symbols which trigger
+# exception while starting the ELF file.
+#
+# The issue is not visible while using gcc standard linker.
+# It can be observed with gcc+gold and gcc+lld.
+#
+IF(MY_COMPILER_IS_GNU)
+  SET_TARGET_PROPERTIES(
+    xprotocol_plugin
+    PROPERTIES LINK_FLAGS
+    "-Wl,--no-as-needed -lpthread")
+ENDIF()
 
 SET(PROTOC_PLUGIN_GENERATED_HDR
   "xprotocol_tags.h"
@@ -56,8 +78,8 @@ ADD_CUSTOM_COMMAND(
   ARGS --plugin=protoc-gen-yplg=$<TARGET_FILE:xprotocol_plugin>
        --yplg_out "${MYSQLX_GENERATE_DIR}"
        -I "${PROTOBUF_INCLUDE_DIR}"
-       -I "${MYSQLX_PROTOBUF_INCLUDE_DIR}"
-       ${MYSQLX_PROTOBUF_FILES}
+       -I "${MYSQLX_PROTOBUF_PROTO_DIR}"
+       ${MYSQLX_PROTOBUF_PROTO_FILES}
   DEPENDS
   xprotocol_plugin
   COMMENT "Running protocol buffer plugin on all 'proto' files"

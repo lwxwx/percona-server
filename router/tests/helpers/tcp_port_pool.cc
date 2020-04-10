@@ -48,11 +48,16 @@
 using mysql_harness::Path;
 using mysqlrouter::get_socket_errno;
 
+const unsigned TcpPortPool::kPortsRange;
+
 #ifndef _WIN32
 bool UniqueId::lock_file(const std::string &file_name) {
   lock_file_fd_ = open(file_name.c_str(), O_RDWR | O_CREAT, 0666);
 
   if (lock_file_fd_ >= 0) {
+    // open() honours umask and we want to make sure this directory is
+    // accessible for every user regardless of umask settings
+    ::chmod(file_name.c_str(), 0666);
 #ifdef __sun
     struct flock fl;
 
@@ -120,6 +125,11 @@ std::string UniqueId::get_lock_file_dir() const {
 UniqueId::UniqueId(unsigned start_from, unsigned range) {
   const std::string lock_file_dir = get_lock_file_dir();
   mysql_harness::mkdir(lock_file_dir, 0777);
+#ifndef _WIN32
+  // mkdir honours umask and we want to make sure this directory is accessible
+  // for every user regardless of umask settings
+  ::chmod(lock_file_dir.c_str(), 0777);
+#endif
 
   for (unsigned i = 0; i < range; i++) {
     id_ = start_from + i;
@@ -264,15 +274,22 @@ static bool try_to_connect(uint16_t port,
 uint16_t TcpPortPool::get_next_available(
     const std::chrono::milliseconds socket_probe_timeout) {
   while (true) {
-    if (number_of_ids_used_ >= kMaxPort) {
-      throw std::runtime_error("No more available ports from UniquePortsGroup");
+    if (number_of_ids_used_ % kPortsPerFile == 0) {
+      number_of_ids_used_ = 0;
+      // need another lock file
+      auto start_from =
+          unique_ids_.empty() ? kPortsStartFrom : unique_ids_.back().get();
+      unique_ids_.emplace_back(start_from + 1, kPortsRange);
     }
 
-    // this is the formula that mysql-test also uses to map lock filename to
-    // actual port number
-    unsigned result =
-        10000 + unique_id_.get() * kMaxPort + number_of_ids_used_++;
+    assert(unique_ids_.size() > 0);
 
+    // this is the formula that mysql-test also uses to map lock filename to
+    // actual port number, they currently start from 13000 though
+    unsigned result = 10000 + unique_ids_.back().get() * kPortsPerFile +
+                      number_of_ids_used_++;
+
+#ifndef _WIN32
     // there is no lock file for a given port but let's also check if there
     // really is nothing that will accept our connection attempt on that port
     if (!try_to_connect(result, socket_probe_timeout, "127.0.0.1"))
@@ -280,5 +297,12 @@ uint16_t TcpPortPool::get_next_available(
 
     std::cerr << "get_next_available(): port " << result
               << " seems busy, not using\n";
+#else
+    // On Windows we skip that as this introduces a big time overhead (500ms)
+    // for each try. Windows' connect() will not fail right away but will block
+    // for that long if the port is available (which is most of the cases we
+    // expect here).
+    return result;
+#endif
   }
 }

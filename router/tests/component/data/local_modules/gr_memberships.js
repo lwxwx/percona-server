@@ -17,7 +17,21 @@ var uuid_v4 = function() {
  */
 exports.single_host = function(host, port_and_state, gr_id) {
   return port_and_state.map(function (current_value) {
+    var xport = current_value[2] === undefined ? 0 : current_value[2];
     return [ gr_id === undefined ? uuid_v4() : gr_id,
-                                   host, current_value[0], current_value[1], current_value[2]];
+                                   host, current_value[0], current_value[1], xport];
+  });
+};
+
+exports.nodes = function(host, port_and_state) {
+  return port_and_state.map(function (current_value) {
+    var xport = current_value[2] === undefined ? 0 : current_value[2];
+    return [ current_value[0], host, current_value[0], current_value[1], xport];
+  });
+};
+
+exports.members = function(host_and_port) {
+  return host_and_port.map(function (current_value) {
+    return [ current_value[0], current_value[1] ];
   });
 };

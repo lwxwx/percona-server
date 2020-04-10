@@ -588,7 +588,7 @@ int Partition_base::create(const char *name, TABLE *table_arg,
   handler **file, **abort_file;
   DBUG_ENTER("Partition_base::create");
 
-  DBUG_ASSERT(*fn_rext((char *)name) == '\0');
+  DBUG_ASSERT(*fn_rext((const char *)name) == '\0');
 
   /* Not allowed to create temporary partitioned tables */
   if (create_info && create_info->options & HA_LEX_CREATE_TMP_TABLE) {
@@ -1172,10 +1172,11 @@ void Partition_base::update_create_info(HA_CREATE_INFO *create_info) {
           m_file[part]->update_create_info(&dummy_info);
 
           if (dummy_info.data_file_name || sub_elem->data_file_name) {
-            sub_elem->data_file_name = (char *)dummy_info.data_file_name;
+            sub_elem->data_file_name = (const char *)dummy_info.data_file_name;
           }
           if (dummy_info.index_file_name || sub_elem->index_file_name) {
-            sub_elem->index_file_name = (char *)dummy_info.index_file_name;
+            sub_elem->index_file_name =
+                (const char *)dummy_info.index_file_name;
           }
         }
       }
@@ -1185,10 +1186,10 @@ void Partition_base::update_create_info(HA_CREATE_INFO *create_info) {
         dummy_info.data_file_name = dummy_info.index_file_name = nullptr;
         m_file[i]->update_create_info(&dummy_info);
         if (dummy_info.data_file_name || part_elem->data_file_name) {
-          part_elem->data_file_name = (char *)dummy_info.data_file_name;
+          part_elem->data_file_name = (const char *)dummy_info.data_file_name;
         }
         if (dummy_info.index_file_name || part_elem->index_file_name) {
-          part_elem->index_file_name = (char *)dummy_info.index_file_name;
+          part_elem->index_file_name = (const char *)dummy_info.index_file_name;
         }
       }
     }
@@ -1484,12 +1485,12 @@ void Partition_base::free_partition_bitmaps() {
 bool Partition_base::init_partition_bitmaps() {
   DBUG_ENTER("Partition_base::init_partition_bitmaps");
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  if (bitmap_init(&m_bulk_insert_started, nullptr, m_tot_parts + 1, false))
+  if (bitmap_init(&m_bulk_insert_started, nullptr, m_tot_parts + 1))
     DBUG_RETURN(true);
   bitmap_clear_all(&m_bulk_insert_started);
 
   /* Initialize the bitmap we use to keep track of locked partitions */
-  if (bitmap_init(&m_locked_partitions, nullptr, m_tot_parts, false)) {
+  if (bitmap_init(&m_locked_partitions, nullptr, m_tot_parts)) {
     bitmap_free(&m_bulk_insert_started);
     DBUG_RETURN(true);
   }
@@ -1499,7 +1500,7 @@ bool Partition_base::init_partition_bitmaps() {
     Initialize the bitmap we use to keep track of partitions which may have
     something to reset in ha_reset().
   */
-  if (bitmap_init(&m_partitions_to_reset, nullptr, m_tot_parts, false)) {
+  if (bitmap_init(&m_partitions_to_reset, nullptr, m_tot_parts)) {
     bitmap_free(&m_bulk_insert_started);
     bitmap_free(&m_locked_partitions);
     DBUG_RETURN(true);
@@ -1636,7 +1637,7 @@ int Partition_base::open(const char *name, int mode, uint test_if_locked,
        (PARTITION_ENABLED_TABLE_FLAGS));
   while (*(++file)) {
     /* MyISAM can have smaller ref_length for partitions with MAX_ROWS set */
-    set_if_bigger(ref_length, ((*file)->ref_length));
+    ref_length = std::max(ref_length, ((*file)->ref_length));
     /*
       Verify that all partitions have the same set of table flags.
       Mask all flags that partitioning enables/disables.
@@ -4324,7 +4325,8 @@ inline int Partition_base::initialize_auto_increment(bool no_lock) {
   do {
     file = *file_array;
     ret_error = file->info(HA_STATUS_AUTO | no_lock_flag);
-    set_if_bigger(auto_increment_value, file->stats.auto_increment_value);
+    auto_increment_value =
+        std::max(auto_increment_value, file->stats.auto_increment_value);
     if (ret_error && !error) {
       error = ret_error;
     }
@@ -4392,7 +4394,7 @@ void Partition_base::get_auto_increment(ulonglong offset, ulonglong increment,
         DBUG_VOID_RETURN;
       }
       DBUG_PRINT("info", ("first_value_part: %lu", (ulong)first_value_part));
-      set_if_bigger(max_first_value, first_value_part);
+      max_first_value = std::max(max_first_value, first_value_part);
     } while (*(++file));
     *first_value = max_first_value;
     *nb_reserved_values = 1;

@@ -2,13 +2,21 @@
 
 Copyright (c) 2018, 2019, Oracle and/or its affiliates. All Rights Reserved.
 
-This program is free software; you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free Software
-Foundation; version 2 of the License.
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License, version 2.0,
+as published by the Free Software Foundation.
 
-This program is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+This program is also distributed with certain software (including
+but not limited to OpenSSL) that is licensed under separate terms,
+as designated in a particular file or component or in included license
+documentation.  The authors of MySQL hereby grant you an additional
+permission to link the program and your derivative works with the
+separately licensed software that they have included with MySQL.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License, version 2.0, for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
@@ -75,6 +83,7 @@ class Block {
   void reset() {
     memset(m_block, 0, QUEUE_BLOCK_SIZE);
     m_is_final_block = false;
+    m_is_flush_block = false;
     m_offset = 0;
   }
 
@@ -149,6 +158,15 @@ class Block {
   bool full() const MY_ATTRIBUTE((warn_unused_result)) {
     return (m_offset > QUEUE_BLOCK_SIZE - OS_FILE_LOG_BLOCK_SIZE);
   }
+
+  /// Whether this block is a flush block. A flush block is made from
+  /// the current temporary block redo_log_archive_tmp_block on a flush
+  /// request. A flush block may be full or not, depending on the
+  /// current work of the "producer". To avoid races set this variable
+  /// only under the log writer mutex. The "consumer" shall not update
+  /// its file write offset when it writes a flush block. The next
+  /// regular block shall overwrite it.
+  bool m_is_flush_block{false};
 
  private:
   /** The bytes in the log block object. */
@@ -423,20 +441,27 @@ static bool redo_log_archive_consume_running{false};
 static bool redo_log_archive_consume_complete{true};
 
 /** Event to inform that the consumer has exited after purging all the queue
-    elements */
+    elements or that it got a flush block. */
 static os_event_t redo_log_archive_consume_event{};
+
+/** Whether the consumer has copied a flush block. */
+static bool redo_log_archive_consume_flushed{false};
 
 /**
   Boolean indicating whether to produce queue blocks.
 
   WARNING: To avoid races, this variable must be read/written
            under the 'log_sys.writer_mutex' only.
-           Initialization to 'false' is an exception.
 */
 static bool redo_log_archive_produce_blocks{false};
 
-/** Temporary buffer used to build complete redo log blocks of size
-    QUEUE_BLOCK_SIZE by the producer. */
+/**
+  Temporary block used to build complete redo log blocks of size
+  QUEUE_BLOCK_SIZE by the producer.
+
+  WARNING: To avoid races, this variable must be read/written
+           under the 'log_sys.writer_mutex' only.
+*/
 static Block redo_log_archive_tmp_block{};
 
 /** Queue into which the producer enqueues redo log blocks of size
@@ -493,7 +518,7 @@ bool register_privilege(const char *priv_name) {
   To be called when the InnoDB handlerton is initialized.
 */
 void redo_log_archive_init() {
-  DBUG_ENTER("redo_log_archive_init");
+  DBUG_TRACE;
   /* Do not acquire the logwriter mutex at this early stage. */
   redo_log_archive_produce_blocks = false;
   if (redo_log_archive_initialized) {
@@ -522,7 +547,6 @@ void redo_log_archive_init() {
   if (failed) {
     redo_log_archive_deinit();
   }
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -537,7 +561,7 @@ void redo_log_archive_init() {
     @retval       true          failure
 */
 static bool drop_remnants(bool force) {
-  DBUG_ENTER("drop_remnants");
+  DBUG_TRACE;
   /* Do not start if a comsumer is still lurking around. */
   if (redo_log_archive_consume_running) {
     /* purecov: begin inspected */
@@ -549,7 +573,7 @@ static bool drop_remnants(bool force) {
     LogErr(INFORMATION_LEVEL, ER_INNODB_ERROR_LOGGER_MSG,
            (logmsgpfx + redo_log_archive_recorded_error).c_str());
     if (terminate_consumer(/*rapid*/ true) && !force) {
-      DBUG_RETURN(true);
+      return true;
     }
     /* purecov: end */
   }
@@ -571,7 +595,7 @@ static bool drop_remnants(bool force) {
                              redo_log_archive_file_pathname.c_str(), NULL);
     /* purecov: end */
   }
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -579,7 +603,7 @@ static bool drop_remnants(bool force) {
   To be called when the InnoDB handlerton is de-initialized.
 */
 void redo_log_archive_deinit() {
-  DBUG_ENTER("redo_log_archive_deinit");
+  DBUG_TRACE;
   if (redo_log_archive_initialized) {
     redo_log_archive_initialized = false;
     /* Do not acquire the logwriter mutex at this late stage. */
@@ -603,7 +627,6 @@ void redo_log_archive_deinit() {
     mutex_exit(&redo_log_archive_admin_mutex);
     mutex_free(&redo_log_archive_admin_mutex);
   }
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -665,21 +688,21 @@ int validate_redo_log_archive_dirs(THD *thd MY_ATTRIBUTE((unused)),
     @retval       true          failure
 */
 static bool verify_redo_log_archive_privilege(THD *thd) {
-  DBUG_ENTER("verify_redo_log_archive_privilege");
+  DBUG_TRACE;
   if (thd == nullptr) {
     /* service interface does not allow this. */
     /* purecov: begin inspected */
     my_error(ER_INVALID_USE_OF_NULL, MYF(0));
-    DBUG_RETURN(true);
+    return true;
     /* purecov: end */
   }
   auto sctx = thd->security_context();
   const char privilege[]{"INNODB_REDO_LOG_ARCHIVE"};
   if (!(sctx->has_global_grant(STRING_WITH_LEN(privilege)).first)) {
     my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), privilege);
-    DBUG_RETURN(true);
+    return true;
   }
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -692,7 +715,7 @@ static bool verify_redo_log_archive_privilege(THD *thd) {
     @retval       true          failure
 */
 static bool get_labeled_directory(const char *label, std::string *dir) {
-  DBUG_ENTER("get_labeled_directory");
+  DBUG_TRACE;
   DBUG_PRINT("redo_log_archive",
              ("label: '%s'  dirs: '%s'", label, redo_log_archive_dirs));
   size_t label_len = strlen(label);
@@ -722,7 +745,7 @@ static bool get_labeled_directory(const char *label, std::string *dir) {
   }
   if (ptr == nullptr) {
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_LABEL_NOT_FOUND, MYF(0), label);
-    DBUG_RETURN(true);
+    return true;
   }
   /* Search semi-colon. */
   const char *terminator = strchr(ptr, ';');
@@ -730,7 +753,7 @@ static bool get_labeled_directory(const char *label, std::string *dir) {
     /* validate_redo_log_archive_dirs() does not allow this. */
     /* purecov: begin inspected */
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_DIR_EMPTY, MYF(0), label);
-    DBUG_RETURN(true);
+    return true;
     /* purecov: end */
   }
   dir->assign(ptr, (terminator != nullptr) ? (terminator - ptr) : strlen(ptr));
@@ -739,7 +762,7 @@ static bool get_labeled_directory(const char *label, std::string *dir) {
   LogErr(INFORMATION_LEVEL, ER_INNODB_ERROR_LOGGER_MSG,
          (logmsgpfx + "selected dir '" + dir + "'").c_str());
 #endif /* DEBUG_REDO_LOG_ARCHIVE_EXTRA_LOG */
-  DBUG_RETURN(false);
+  return false;
 }
 
 #ifndef _WIN32
@@ -751,14 +774,14 @@ static bool get_labeled_directory(const char *label, std::string *dir) {
     @retval       true          failure
 */
 static bool verify_no_world_permissions(const Fil_path &path) {
-  DBUG_ENTER("verify_no_world_permissions");
+  DBUG_TRACE;
   struct stat statbuf;
   int ret = stat(path.abs_path().c_str(), &statbuf);
   if ((ret != 0) || ((statbuf.st_mode & S_IRWXO) != 0)) {
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_DIR_PERMISSIONS, MYF(0), path());
-    DBUG_RETURN(true);
+    return true;
   }
-  DBUG_RETURN(false);
+  return false;
 }
 #endif /* _WIN32 */
 
@@ -807,7 +830,7 @@ static std::string delimit_dir_name(const std::string &path_name) {
 static void append_path(const char *variable_name, const char *path_name,
                         std::vector<std::string> *variables,
                         std::vector<Fil_path> *directories) {
-  DBUG_ENTER("append_path");
+  DBUG_TRACE;
 #ifdef DEBUG_REDO_LOG_ARCHIVE_EXTRA
   DBUG_PRINT("redo_log_archive",
              ("append_path '%s' '%s'", variable_name, path_name));
@@ -828,7 +851,6 @@ static void append_path(const char *variable_name, const char *path_name,
       directories->push_back(path);
     }
   }
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -839,14 +861,14 @@ static void append_path(const char *variable_name, const char *path_name,
     @retval       true          failure
 */
 static bool verify_no_server_directory(const Fil_path &path) {
-  DBUG_ENTER("verify_no_server_directory");
+  DBUG_TRACE;
 
   /* Collect server directories as normalized absolute real path names. */
   std::vector<std::string> variables;
   std::vector<Fil_path> directories;
   append_path("datadir", mysql_real_data_home_ptr, &variables, &directories);
   append_path("innodb_data_home_dir", srv_data_home, &variables, &directories);
-  append_path("innodb_directories", innobase_directories, &variables,
+  append_path("innodb_directories", srv_innodb_directories, &variables,
               &directories);
   append_path("innodb_log_group_home_dir", srv_log_group_home_dir, &variables,
               &directories);
@@ -918,14 +940,14 @@ static bool verify_no_server_directory(const Fil_path &path) {
 #endif /* DEBUG_REDO_LOG_ARCHIVE_EXTRA_LOG */
       my_error(ER_INNODB_REDO_LOG_ARCHIVE_DIR_CLASH, MYF(0), path(),
                variables[idx].c_str(), compare_path());
-      DBUG_RETURN(true);
+      return true;
     }
   }
 #ifdef DEBUG_REDO_LOG_ARCHIVE_EXTRA_LOG
   LogErr(INFORMATION_LEVEL, ER_INNODB_ERROR_LOGGER_MSG,
          (logmsgpfx + "no match").c_str());
 #endif /* DEBUG_REDO_LOG_ARCHIVE_EXTRA_LOG */
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -935,7 +957,7 @@ static bool verify_no_server_directory(const Fil_path &path) {
 */
 static void construct_file_pathname(const Fil_path &path,
                                     std::string *file_pathname) {
-  DBUG_ENTER("construct_file_pathname");
+  DBUG_TRACE;
   file_pathname->assign(path.path());
   if (file_pathname->empty() || (file_pathname->back() != OS_PATH_SEPARATOR)) {
     file_pathname->push_back(OS_PATH_SEPARATOR); /* purecov: inspected */
@@ -947,7 +969,6 @@ static void construct_file_pathname(const Fil_path &path,
   DBUG_PRINT("redo_log_archive",
              ("redo log archive file '%s'", file_pathname->c_str()));
 #endif /* DEBUG_REDO_LOG_ARCHIVE_EXTRA */
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -967,14 +988,14 @@ static void construct_file_pathname(const Fil_path &path,
 static bool construct_secure_file_path_name(THD *thd, const char *label,
                                             const char *subdir,
                                             std::string *file_pathname) {
-  DBUG_ENTER("construct_secure_file_path_name");
+  DBUG_TRACE;
 
   /* 'label' must not be NULL, but can be empty. */
   if (label == nullptr) {
     /* mysqlbackup component does not allow this. */
     /* purecov: begin inspected */
     my_error(ER_INVALID_USE_OF_NULL, MYF(0));
-    DBUG_RETURN(true);
+    return true;
     /* purecov: end */
   }
 
@@ -987,7 +1008,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
   if ((redo_log_archive_dirs == nullptr) ||
       (redo_log_archive_dirs[0] == '\0')) {
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_DIRS_INVALID, MYF(0));
-    DBUG_RETURN(true);
+    return true;
   }
 
   /*
@@ -996,7 +1017,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
   */
   std::string directory;
   if (get_labeled_directory(label, &directory)) {
-    DBUG_RETURN(true);
+    return true;
   }
 
   /*
@@ -1006,7 +1027,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
   if ((subdir != nullptr) && (subdir[0] != '\0')) {
     if (Fil_path::type_of_path(subdir) != Fil_path::file_name_only) {
       my_error(ER_INNODB_REDO_LOG_ARCHIVE_START_SUBDIR_PATH, MYF(0));
-      DBUG_RETURN(true);
+      return true;
     }
     if (directory.back() != OS_PATH_SEPARATOR) {
       directory.push_back(OS_PATH_SEPARATOR);
@@ -1025,7 +1046,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
   Fil_path subdir_path(directory, /*normalize*/ false);
   if (!subdir_path.is_directory_and_exists()) {
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_NO_SUCH_DIR, MYF(0), subdir_path());
-    DBUG_RETURN(true);
+    return true;
   }
 
   /*
@@ -1033,7 +1054,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
     server directory.
   */
   if (verify_no_server_directory(subdir_path)) {
-    DBUG_RETURN(true);
+    return true;
   }
 
 #ifndef _WIN32
@@ -1041,7 +1062,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
     Security measure: The directory must not grant permissions to everyone.
   */
   if (verify_no_world_permissions(subdir_path)) {
-    DBUG_RETURN(true);
+    return true;
   }
 #endif /* _WIN32 */
 
@@ -1051,7 +1072,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
   */
   construct_file_pathname(subdir_path, file_pathname);
 
-  DBUG_RETURN(false);
+  return false;
 }
 
 /*
@@ -1070,7 +1091,7 @@ static bool construct_secure_file_path_name(THD *thd, const char *label,
     @retval       true          failure
 */
 static bool terminate_consumer(bool rapid) {
-  DBUG_ENTER("terminate_consumer");
+  DBUG_TRACE;
   if (rapid) {
     redo_log_archive_consume_complete = true;
     redo_log_archive_queue.deinit();
@@ -1084,9 +1105,12 @@ static bool terminate_consumer(bool rapid) {
       and the comsumer sees it after dequeueing a block. It will skip all
       blocks, but still terminate on the final block only.
     */
-    redo_log_archive_tmp_block.set_is_final_block(true);
     mutex_exit(&redo_log_archive_admin_mutex);
+    log_writer_mutex_enter(*log_sys);
+    redo_log_archive_tmp_block.set_is_final_block(true);
     redo_log_archive_queue.enqueue(redo_log_archive_tmp_block);
+    redo_log_archive_tmp_block.reset();
+    log_writer_mutex_exit(*log_sys);
     mutex_enter(&redo_log_archive_admin_mutex);
   }
 
@@ -1101,7 +1125,7 @@ static bool terminate_consumer(bool rapid) {
     os_event_t consume_event = redo_log_archive_consume_event;
     mutex_exit(&redo_log_archive_admin_mutex);
     os_event_wait_time(consume_event, 100000);  // 0.1 second
-    seconds_to_wait -= 0.1;
+    seconds_to_wait -= 0.1f;
     os_event_reset(consume_event);
     mutex_enter(&redo_log_archive_admin_mutex);
   }
@@ -1117,12 +1141,12 @@ static bool terminate_consumer(bool rapid) {
            (logmsgpfx + redo_log_archive_recorded_error).c_str());
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_FAILED, MYF(0),
              redo_log_archive_recorded_error.c_str());
-    DBUG_RETURN(true);
+    return true;
     /* purecov: end */
   }
 
   srv_threads.m_backup_log_archiver.join();
-  DBUG_RETURN(false);
+  return false;
 }
 
 /*
@@ -1130,13 +1154,13 @@ static bool terminate_consumer(bool rapid) {
 */
 static bool redo_log_archive_start(THD *thd, const char *label,
                                    const char *subdir) {
-  DBUG_ENTER("redo_log_archive_start");
+  DBUG_TRACE;
   DBUG_PRINT("redo_log_archive", ("label: '%s'  subdir: '%s'",
                                   (label == nullptr) ? "[NULL]" : label,
                                   (subdir == nullptr) ? "[NULL]" : subdir));
   /* Security measure: Require the redo log archive privilege. */
   if (verify_redo_log_archive_privilege(thd)) {
-    DBUG_RETURN(true);
+    return true;
   }
 
   /* Synchronize with with other threads while using global objects. */
@@ -1151,14 +1175,14 @@ static bool redo_log_archive_start(THD *thd, const char *label,
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_ACTIVE, MYF(0),
              redo_log_archive_file_pathname.c_str());
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
   }
 
   /* Drop potential left-over resources to avoid leaks. */
   if (drop_remnants(/*force*/ false)) {
     /* purecov: begin inspected */
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
     /* purecov: end */
   }
 
@@ -1168,7 +1192,7 @@ static bool redo_log_archive_start(THD *thd, const char *label,
   std::string file_pathname;
   if (construct_secure_file_path_name(thd, label, subdir, &file_pathname)) {
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
   }
 
   /* Get current session. */
@@ -1205,7 +1229,7 @@ static bool redo_log_archive_start(THD *thd, const char *label,
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_FILE_CREATE, MYF(0),
              file_pathname.c_str(), os_errno, errbuf);
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
   }
   DBUG_PRINT("redo_log_archive", ("Created redo_log_archive_file_pathname '%s'",
                                   file_pathname.c_str()));
@@ -1223,14 +1247,16 @@ static bool redo_log_archive_start(THD *thd, const char *label,
     my_error(ER_STD_BAD_ALLOC_ERROR, MYF(0), "redo_log_archive_consume_event",
              "redo_log_archive_start");
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
   }
   os_event_reset(consume_event);
   DBUG_PRINT("redo_log_archive", ("Created consume_event"));
 
-  /* Initialize the temporary block. */
+  /*
+    Initialize the temporary block. At this stage the producer is not
+    enabled. So we do not need to use the log writer mutex.
+  */
   redo_log_archive_tmp_block.reset();
-  redo_log_archive_tmp_block.set_is_final_block(false);
 
   /* Initialize the queue. */
   redo_log_archive_queue.init(QUEUE_SIZE_MAX);
@@ -1260,7 +1286,7 @@ static bool redo_log_archive_start(THD *thd, const char *label,
     Wait for the consumer to start. We do not want to report success
     before the consumer thread has started to work.
   */
-  float seconds_to_wait = 600.0;
+  float seconds_to_wait = 600.0f;
   DBUG_EXECUTE_IF("innodb_redo_log_archive_start_timeout",
                   seconds_to_wait = -1.0;);
   mutex_enter(&redo_log_archive_admin_mutex);
@@ -1269,11 +1295,11 @@ static bool redo_log_archive_start(THD *thd, const char *label,
     os_event_t consume_event = redo_log_archive_consume_event;
     mutex_exit(&redo_log_archive_admin_mutex);
     os_event_wait_time(consume_event, 100000);  // 0.1 second
-    seconds_to_wait -= 0.1;
+    seconds_to_wait -= 0.1f;
     os_event_reset(consume_event);
     mutex_enter(&redo_log_archive_admin_mutex);
   }
-  if (seconds_to_wait < 0.0) {
+  if (seconds_to_wait < 0.0f) {
     os_event_destroy(redo_log_archive_consume_event);
     redo_log_archive_consume_event = nullptr;
     redo_log_archive_consume_complete = true;
@@ -1292,11 +1318,11 @@ static bool redo_log_archive_start(THD *thd, const char *label,
     redo_log_archive_queue.deinit();
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_START_TIMEOUT, MYF(0));
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
   }
   mutex_exit(&redo_log_archive_admin_mutex);
   DBUG_PRINT("redo_log_archive", ("Redo log archiving started"));
-  DBUG_RETURN(false);
+  return false;
 }
 
 /*
@@ -1318,13 +1344,13 @@ static bool redo_log_archive_start(THD *thd, const char *label,
       => Stop quickly and record an error for the next stop operation.
 */
 static bool redo_log_archive_stop(THD *thd) {
-  DBUG_ENTER("redo_log_archive_stop");
+  DBUG_TRACE;
 
   /*
     Security measure: Require the redo log archive privilege.
   */
   if (verify_redo_log_archive_privilege(thd)) {
-    DBUG_RETURN(true);
+    return true;
   }
 
   /* Synchronize with with other threads while using global objects. */
@@ -1343,11 +1369,11 @@ static bool redo_log_archive_stop(THD *thd) {
                redo_log_archive_recorded_error.c_str());
       /* Do not clear the error, it may be wanted by another session again. */
       mutex_exit(&redo_log_archive_admin_mutex);
-      DBUG_RETURN(true);
+      return true;
     }
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_INACTIVE, MYF(0));
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
   }
 
   /*
@@ -1358,7 +1384,7 @@ static bool redo_log_archive_stop(THD *thd) {
       (redo_log_archive_thd != thd)) {
     my_error(ER_INNODB_REDO_LOG_ARCHIVE_SESSION, MYF(0));
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
   }
 
   DBUG_PRINT("redo_log_archive", ("Stopping redo log archiving on '%s'",
@@ -1377,7 +1403,7 @@ static bool redo_log_archive_stop(THD *thd) {
   mutex_enter(&redo_log_archive_admin_mutex);
 
   if (terminate_consumer(/*rapid*/ false)) {
-    DBUG_RETURN(true); /* purecov: inspected */
+    return true; /* purecov: inspected */
   }
   redo_log_archive_queue.deinit();
   /*
@@ -1429,12 +1455,111 @@ static bool redo_log_archive_stop(THD *thd) {
              redo_log_archive_recorded_error.c_str());
     /* Do not clear the error, it may be wanted by another session again. */
     mutex_exit(&redo_log_archive_admin_mutex);
-    DBUG_RETURN(true);
+    return true;
     /* purecov: end */
   }
   mutex_exit(&redo_log_archive_admin_mutex);
   /* Success */
-  DBUG_RETURN(false);
+  return false;
+}
+
+/*
+  Flush the redo log archive queue.
+*/
+static bool redo_log_archive_flush(THD *thd) {
+  DBUG_TRACE;
+
+  /*
+    Security measure: Require the redo log archive privilege.
+  */
+  if (verify_redo_log_archive_privilege(thd)) {
+    return true;
+  }
+
+  /* Synchronize with with other threads while using global objects. */
+  mutex_enter(&redo_log_archive_admin_mutex);
+
+  /*
+    If redo log archiving is inactive, the flush request fails.
+    If there was an error recorded, return it.
+  */
+  if (!redo_log_archive_active) {
+    DBUG_PRINT("redo_log_archive", ("Not active"));
+    my_error(ER_INNODB_REDO_LOG_ARCHIVE_INACTIVE, MYF(0));
+    mutex_exit(&redo_log_archive_admin_mutex);
+    return true;
+  }
+
+  /*
+    Redo log archiving is still active.
+    We must not flush it if another session has started it.
+  */
+  if ((redo_log_archive_session != thd_to_innodb_session(thd)) ||
+      (redo_log_archive_thd != thd)) {
+    my_error(ER_INNODB_REDO_LOG_ARCHIVE_SESSION, MYF(0));
+    mutex_exit(&redo_log_archive_admin_mutex);
+    return true;
+  }
+
+  DBUG_PRINT("redo_log_archive", ("Flushing the redo log archive on '%s'",
+                                  redo_log_archive_file_pathname.c_str()));
+
+  /*
+    This session has started the redo log archiving. Execute the flush.
+    Take the log writer mutex, mark the temporary block as a flush
+    block, enqueue it, and remove the mark again. The queue took a copy
+    of the block, including its mark. Do not leave the block modified
+    nor reset it. Normal use of it shall go on. The consumer shall write
+    it to the archive log file, but not update the file offset, so that
+    the next regular block overwrites it.
+  */
+  redo_log_archive_consume_flushed = false;
+  mutex_exit(&redo_log_archive_admin_mutex);
+  ut_ad(log_sys != nullptr);
+  log_writer_mutex_enter(*log_sys);
+  redo_log_archive_tmp_block.m_is_flush_block = true;
+  redo_log_archive_queue.enqueue(redo_log_archive_tmp_block);
+  redo_log_archive_tmp_block.m_is_flush_block = false;
+  /* Do not reset the block. The producer shall continue to fill it. */
+  log_writer_mutex_exit(*log_sys);
+
+  /*
+    Wait for the consumer to copy the flush block. The
+    redo_log_archive_consume_event is set after the flush block
+    is written into the redo log archive file.
+  */
+  float seconds_to_wait = 600.0;
+  mutex_enter(&redo_log_archive_admin_mutex);
+  while (!redo_log_archive_consume_flushed && (seconds_to_wait > 0.0) &&
+         (redo_log_archive_consume_event != nullptr)) {
+    os_event_t consume_event = redo_log_archive_consume_event;
+    mutex_exit(&redo_log_archive_admin_mutex);
+    os_event_wait_time(consume_event, 100000);  // 0.1 second
+    seconds_to_wait -= 0.1f;
+    os_event_reset(consume_event);
+    mutex_enter(&redo_log_archive_admin_mutex);
+  }
+  if (seconds_to_wait < 0.0) {
+    /* This would require yet another tricky error injection. */
+    /* purecov: begin inspected */
+    if (!redo_log_archive_recorded_error.empty()) {
+      redo_log_archive_recorded_error.append("; ");
+    }
+    redo_log_archive_recorded_error.append(
+        "Flushing of the archive log timed out");
+    LogErr(INFORMATION_LEVEL, ER_INNODB_ERROR_LOGGER_MSG,
+           (logmsgpfx + redo_log_archive_recorded_error).c_str());
+    my_error(ER_INNODB_REDO_LOG_ARCHIVE_FAILED, MYF(0),
+             redo_log_archive_recorded_error.c_str());
+    mutex_exit(&redo_log_archive_admin_mutex);
+    return true;
+    /* purecov: end */
+  }
+
+  /* Success */
+  DBUG_PRINT("redo_log_archive", ("Redo log archive flushed"));
+  mutex_exit(&redo_log_archive_admin_mutex);
+  return false;
 }
 
 /*
@@ -1503,14 +1628,13 @@ void redo_log_archive_produce(const byte *write_buf, const size_t write_size) {
     /*
       Scan the redo log block in chunks of  OS_FILE_LOG_BLOCK_SIZE (512) bytes.
       - If a chunk is empty or incomplete, parsing is stopped at this point.
-      - If the temporary buffer becomes full, it is enqueued and the temporary
-      buffer is cleared for storing further log records.
+      - If the temporary block becomes full, it is enqueued and it is
+      cleared for storing further log records.
     */
     for (size_t i = 0; i < write_size; i += OS_FILE_LOG_BLOCK_SIZE) {
       if (redo_log_archive_tmp_block.full()) {
         redo_log_archive_queue.enqueue(redo_log_archive_tmp_block);
         redo_log_archive_tmp_block.reset();
-        redo_log_archive_tmp_block.set_is_final_block(false);
       }
       if (!redo_log_archive_tmp_block.put_log_block(write_buf, i)) {
         break;
@@ -1524,7 +1648,7 @@ void redo_log_archive_produce(const byte *write_buf, const size_t write_size) {
   Write the blocks to the redo log archive file sequentially.
 */
 static void redo_log_archive_consumer() {
-  DBUG_ENTER("redo_log_archive_consume");
+  DBUG_TRACE;
   /* Synchronize with with other threads while using global objects. */
   mutex_enter(&redo_log_archive_admin_mutex);
 
@@ -1545,7 +1669,7 @@ static void redo_log_archive_consumer() {
                .c_str());
     mutex_exit(&redo_log_archive_admin_mutex);
     DBUG_PRINT("redo_log_archive", ("Other consumer is running"));
-    DBUG_VOID_RETURN;
+    return;
     /* purecov: end */
   }
   DBUG_EXECUTE_IF("innodb_redo_log_archive_start_timeout",
@@ -1579,7 +1703,7 @@ static void redo_log_archive_consumer() {
                .c_str());
     mutex_exit(&redo_log_archive_admin_mutex);
     DBUG_PRINT("redo_log_archive", ("Consumer is already marked complete"));
-    DBUG_VOID_RETURN;
+    return;
   }
   mutex_exit(&redo_log_archive_admin_mutex);
 
@@ -1649,7 +1773,18 @@ static void redo_log_archive_consumer() {
           break;
           /* purecov: end */
         }
-        file_offset += QUEUE_BLOCK_SIZE;
+        // If this is a flush block, do not update the file offset.
+        // The next regular block shall overwrite this one.
+        if (temp_block.m_is_flush_block) {
+          redo_log_archive_consume_flushed = true;
+          if (redo_log_archive_consume_event != nullptr) {
+            os_event_set(redo_log_archive_consume_event);
+          }
+          LogErr(INFORMATION_LEVEL, ER_INNODB_ERROR_LOGGER_MSG,
+                 (logmsgpfx + "Flushed redo log archive").c_str());
+        } else {
+          file_offset += QUEUE_BLOCK_SIZE;
+        }
       }
 
       if (temp_block.get_is_final_block()) {
@@ -1687,7 +1822,6 @@ static void redo_log_archive_consumer() {
   }
   mutex_exit(&redo_log_archive_admin_mutex);
   DBUG_PRINT("redo_log_archive", ("Redo log archive log consumer stopped"));
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -1798,6 +1932,50 @@ long long innodb_redo_log_archive_stop(
 }
 
 /**
+  Initialize UDF innodb_redo_log_archive_flush
+
+  See include/mysql/udf_registration_types.h
+*/
+bool innodb_redo_log_archive_flush_init(UDF_INIT *initid MY_ATTRIBUTE((unused)),
+                                        UDF_ARGS *args, char *message) {
+  if (args->arg_count != 0) {
+    strncpy(message, "Invalid number of arguments.", MYSQL_ERRMSG_SIZE);
+    return true;
+  }
+  return false;
+}
+
+/**
+  Deinitialize UDF innodb_redo_log_archive_flush
+
+  See include/mysql/udf_registration_types.h
+*/
+void innodb_redo_log_archive_flush_deinit(
+    UDF_INIT *initid MY_ATTRIBUTE((unused))) {
+  return;
+}
+
+/**
+  UDF innodb_redo_log_archive_flush
+
+  The UDF is of type Udf_func_longlong returning INT_RESULT
+
+  See include/mysql/udf_registration_types.h
+
+  The UDF expects one argument:
+  - A thread context pointer, maybe NULL
+
+  Returns zero on success, one otherwise.
+*/
+long long innodb_redo_log_archive_flush(
+    UDF_INIT *initid MY_ATTRIBUTE((unused)),
+    UDF_ARGS *args MY_ATTRIBUTE((unused)),
+    unsigned char *null_value MY_ATTRIBUTE((unused)),
+    unsigned char *error MY_ATTRIBUTE((unused))) {
+  return static_cast<long long>(meb::redo_log_archive_flush(current_thd));
+}
+
+/**
   Type and data for tracking registered UDFs.
 */
 struct udf_data_t {
@@ -1827,7 +2005,11 @@ static udf_data_t component_udfs[] = {
     {"innodb_redo_log_archive_stop", INT_RESULT,
      reinterpret_cast<Udf_func_any>(innodb_redo_log_archive_stop),
      reinterpret_cast<Udf_func_init>(innodb_redo_log_archive_stop_init),
-     reinterpret_cast<Udf_func_deinit>(innodb_redo_log_archive_stop_deinit)}};
+     reinterpret_cast<Udf_func_deinit>(innodb_redo_log_archive_stop_deinit)},
+    {"innodb_redo_log_archive_flush", INT_RESULT,
+     reinterpret_cast<Udf_func_any>(innodb_redo_log_archive_flush),
+     reinterpret_cast<Udf_func_init>(innodb_redo_log_archive_flush_init),
+     reinterpret_cast<Udf_func_deinit>(innodb_redo_log_archive_flush_deinit)}};
 
 /**
   Unregister UDF(s)

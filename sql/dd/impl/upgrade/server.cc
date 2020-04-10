@@ -181,12 +181,6 @@ Upgrade_error_counter Upgrade_error_counter::operator++(int) {
 
 namespace {
 
-const int SYS_TABLE_COUNT = 1;
-const int SYS_VIEW_COUNT = 100;
-const int SYS_TRIGGER_COUNT = 2;
-const int SYS_FUNCTION_COUNT = 22;
-const int SYS_PROCEDURE_COUNT = 26;
-
 static std::vector<uint> ignored_errors{
     ER_DUP_FIELDNAME, ER_DUP_KEYNAME, ER_BAD_FIELD_ERROR,
     ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE_V2, ER_DUP_ENTRY};
@@ -388,133 +382,37 @@ bool ignore_error_and_execute(THD *thd, const char *query_ptr) {
   return false;
 }
 
-ulong calc_server_version(const char *some_version) {
-  uint major, minor, version;
-  const char *point = some_version, *end_point;
-  major =
-      static_cast<uint>(strtoul(point, const_cast<char **>(&end_point), 10));
-  point = end_point + 1;
-  minor =
-      static_cast<uint>(strtoul(point, const_cast<char **>(&end_point), 10));
-  point = end_point + 1;
-  version =
-      static_cast<uint>(strtoul(point, const_cast<char **>(&end_point), 10));
-  return static_cast<ulong>(major) * 10000L +
-         static_cast<ulong>((minor * 100 + version));
-}
-
 bool fix_sys_schema(THD *thd) {
-  const char **query_ptr;
+  /*
+    Re-create SYS schema if:
 
+    - There is a server upgrade going on.
+    - Or the SYS schema does not exist.
+
+    With the SYS schema versioning removed, we make sure there is indeed
+    a server upgrade going on before we re-create the SYS schema. This has
+    the consequence that upgrade=FORCE will not re-create the SYS schema,
+    unless it does not exist. This is in line with the old behavior of the
+    SYS schema versioning and upgrade.
+  */
+  Schema_MDL_locker mdl_handler(thd);
+  dd::cache::Dictionary_client::Auto_releaser releaser(thd->dd_client());
+  const dd::Schema *sch = nullptr;
+  if (mdl_handler.ensure_locked("sys") ||
+      thd->dd_client()->acquire("sys", &sch))
+    return true;
+
+  if (sch != nullptr &&
+      !dd::bootstrap::DD_bootstrap_ctx::instance().is_server_upgrade() &&
+      (opt_upgrade_mode != UPGRADE_FORCE))
+    return false;
+
+  const char **query_ptr;
   LogErr(INFORMATION_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA);
   thd->user_var_events_alloc = thd->mem_root;
   for (query_ptr = &mysql_sys_schema[0]; *query_ptr != NULL; query_ptr++)
     if (ignore_error_and_execute(thd, *query_ptr)) return true;
   thd->mem_root->Clear();
-  return false;
-}
-
-bool check_and_fix_sys_schema(THD *thd) {
-  Schema_MDL_locker mdl_handler(thd);
-  dd::cache::Dictionary_client::Auto_releaser releaser(thd->dd_client());
-  const dd::Schema *sch = nullptr;
-  std::vector<const dd::Abstract_table *> tables;
-  std::vector<const dd::Routine *> routines;
-  std::vector<dd::String_type> triggers;
-
-  Ed_connection con(thd);
-  LEX_STRING str;
-  dd::String_type query = "SELECT * from sys.version";
-
-  uint table_count = 0, view_count = 0, function_count = 0, procedure_count = 0;
-  ulong disk_ver = 0;
-
-  if (mdl_handler.ensure_locked("sys") ||
-      thd->dd_client()->acquire("sys", &sch))
-    return true;
-  if (sch == nullptr) {
-    return fix_sys_schema(thd);
-  }
-
-  if (thd->dd_client()->fetch_schema_components(sch, &tables)) return true;
-  if (tables.size() == 0) {
-    // No objects
-    LogErr(INFORMATION_LEVEL, ER_SERVER_UPGRADE_EMPTY_SYS);
-    return fix_sys_schema(thd);
-  }
-
-  lex_string_strmake(thd->mem_root, &str, query.c_str(), query.size());
-  if (con.execute_direct(str)) {
-    // no sys.version view
-    LogErr(ERROR_LEVEL, ER_SERVER_UPGRADE_NO_SYS_VERSION);
-    return true;
-  }
-
-  List<Ed_row> &rows = *con.get_result_sets();
-  if (rows.begin() == rows.end()) {
-    // sys.version view exists but is empty
-    LogErr(ERROR_LEVEL, ER_SERVER_UPGRADE_SYS_VERSION_EMPTY);
-    return true;
-  }
-
-  disk_ver = calc_server_version((*rows.begin())[0].str);
-  if (calc_server_version(SYS_SCHEMA_VERSION) > disk_ver) {
-    // Outdated sys ver
-    LogErr(INFORMATION_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA_OUTDATED,
-           (*rows.begin())[0].str);
-    return fix_sys_schema(thd);
-  } else {
-    // SYS ver upto date
-    LogErr(INFORMATION_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA_UP_TO_DATE,
-           (*rows.begin())[0].str);
-  }
-
-  if (thd->dd_client()->fetch_schema_components(sch, &routines) ||
-      thd->dd_client()->fetch_schema_component_names<dd::Trigger>(sch,
-                                                                  &triggers))
-    return true;
-
-  std::for_each(tables.begin(), tables.end(), [&](const dd::Abstract_table *t) {
-    if (t->hidden() != dd::Abstract_table::HT_VISIBLE) return;
-    if (t->type() == dd::enum_table_type::BASE_TABLE)
-      table_count++;
-    else if (t->type() == dd::enum_table_type::USER_VIEW)
-      view_count++;
-  });
-
-  std::for_each(routines.begin(), routines.end(), [&](const dd::Routine *rt) {
-    if (rt->type() == dd::Routine::enum_routine_type::RT_FUNCTION)
-      function_count++;
-    else
-      procedure_count++;
-  });
-
-  if (SYS_TABLE_COUNT > table_count) {
-    LogErr(WARNING_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA_OBJECT_COUNT,
-           table_count, "tables", SYS_TABLE_COUNT);
-    return fix_sys_schema(thd);
-  }
-  if (SYS_VIEW_COUNT > view_count) {
-    LogErr(WARNING_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA_OBJECT_COUNT, view_count,
-           "views", SYS_VIEW_COUNT);
-    return fix_sys_schema(thd);
-  }
-  if (SYS_TRIGGER_COUNT > triggers.size()) {
-    LogErr(WARNING_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA_OBJECT_COUNT,
-           triggers.size(), "triggers", SYS_TRIGGER_COUNT);
-    return fix_sys_schema(thd);
-  }
-  if (SYS_FUNCTION_COUNT > function_count) {
-    LogErr(WARNING_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA_OBJECT_COUNT,
-           function_count, "functions", SYS_FUNCTION_COUNT);
-    return fix_sys_schema(thd);
-  }
-  if (SYS_PROCEDURE_COUNT > procedure_count) {
-    LogErr(WARNING_LEVEL, ER_SERVER_UPGRADE_SYS_SCHEMA_OBJECT_COUNT,
-           procedure_count, "procedures", SYS_PROCEDURE_COUNT);
-    return fix_sys_schema(thd);
-  }
-
   return false;
 }
 
@@ -584,51 +482,6 @@ bool do_server_upgrade_checks(THD *thd) {
 
   dd::cache::Dictionary_client::Auto_releaser releaser(thd->dd_client());
   Upgrade_error_counter error_count;
-
-  /*
-    If we upgrade from server version 8.0.14, 8.0.15 or 8.0.16, then we
-    must reject upgrade if all of the below hold:
-    - We are running with l_c_t_n == 1.
-    - We are running on a case sensitive file system.
-    - We have partitioned tables in our system.
-    - The user does not submit 'upgrade=FORCE' on the command line.
-  */
-  if (dd::bootstrap::DD_bootstrap_ctx::instance().upgraded_server_version_is(
-          bootstrap::SERVER_VERSION_80014) ||
-      dd::bootstrap::DD_bootstrap_ctx::instance().upgraded_server_version_is(
-          bootstrap::SERVER_VERSION_80015) ||
-      dd::bootstrap::DD_bootstrap_ctx::instance().upgraded_server_version_is(
-          bootstrap::SERVER_VERSION_80016)) {
-    if (lower_case_table_names == 1 && lower_case_file_system == 0 &&
-        opt_upgrade_mode != UPGRADE_FORCE) {
-      /*
-        We could do SELECT COUNT(*), but then we would need to analyze the
-        result set. With the query below, we can determine whether there
-        are partitioned tables just by comparing the end markers of the
-        result set iterator.
-      */
-      dd::String_type query = "SELECT id FROM mysql.table_partitions";
-      LEX_STRING str;
-      lex_string_strmake(thd->mem_root, &str, query.c_str(), query.size());
-      Ed_connection con(thd);
-      if (con.execute_direct(str)) {
-        LogErr(ERROR_LEVEL, ER_DD_INITIALIZE_SQL_ERROR, query.c_str(),
-               con.get_last_errno(), con.get_last_error());
-        return dd::end_transaction(thd, true);
-      }
-      List<Ed_row> &rows = *con.get_result_sets();
-      /*
-        If rows are found, then there are partitioned tables, and we reject
-        upgrade.
-      */
-      if (rows.begin() != rows.end()) {
-        LogErr(ERROR_LEVEL, ER_UPGRADE_WITH_PARTITIONED_TABLES_REJECTED,
-               dd::bootstrap::DD_bootstrap_ctx::instance()
-                   .get_upgraded_server_version());
-        return dd::end_transaction(thd, true);
-      }
-    }
-  }
 
   /*
     For any server upgrade, we will analyze events, routines, views and
@@ -788,6 +641,41 @@ bool do_server_upgrade_checks(THD *thd) {
     }
   }
 
+  if (!error_count.has_too_many_errors()) {
+    /*
+      Get hold of the InnoDB handlerton. The check for partitioned tables
+      using shared tablespaces is only relevant for InnoDB.
+    */
+    plugin_ref pr =
+        ha_resolve_by_name_raw(thd, LEX_CSTRING{STRING_WITH_LEN("InnoDB")});
+    handlerton *hton =
+        (pr != nullptr ? plugin_data<handlerton *>(pr) : nullptr);
+    DBUG_ASSERT(hton != nullptr && hton->is_tablespace_keyring_v1_encrypted);
+
+    /*
+      Get hold of all tablespaces, keep the non-implicit InnoDB spaces
+      in a map.
+    */
+    std::vector<const dd::Tablespace *> tablespaces;
+    if (thd->dd_client()->fetch_global_components(&tablespaces))
+      return dd::end_transaction(thd, true);
+
+    for (const dd::Tablespace *space : tablespaces) {
+      if (my_strcasecmp(system_charset_info, space->engine().c_str(),
+                        "InnoDB") != 0)
+        continue;
+
+      int error = 0;
+      bool is_tablespace_keyring_v1_encrypted =
+          hton->is_tablespace_keyring_v1_encrypted(*space, error);
+      DBUG_ASSERT(error == 0);
+      if (is_tablespace_keyring_v1_encrypted) {
+        LogErr(ERROR_LEVEL, ER_UPGRADE_KEYRING_V1_ENCRYPTION);
+        return dd::end_transaction(thd, true);
+      }
+    }
+  }
+
   /*
     If there are errors from any of the checks, we abort upgrade.
   */
@@ -941,7 +829,7 @@ bool upgrade_system_schemas(THD *thd) {
 
   bootstrap_error_handler.set_log_error(false);
   bool err =
-      fix_mysql_tables(thd) || check_and_fix_sys_schema(thd) ||
+      fix_mysql_tables(thd) || fix_sys_schema(thd) ||
       upgrade_help_tables(thd) ||
       (DBUG_EVALUATE_IF(
            "force_fix_user_schemas", true,
@@ -977,6 +865,12 @@ bool upgrade_system_schemas(THD *thd) {
 bool no_server_upgrade_required() {
   return !(dd::bootstrap::DD_bootstrap_ctx::instance().is_server_upgrade() ||
            opt_upgrade_mode == UPGRADE_FORCE);
+}
+
+bool I_S_upgrade_required() {
+  return dd::bootstrap::DD_bootstrap_ctx::instance().is_server_upgrade() ||
+         dd::bootstrap::DD_bootstrap_ctx::instance().I_S_upgrade_done() ||
+         opt_upgrade_mode == UPGRADE_FORCE;
 }
 
 }  // namespace upgrade

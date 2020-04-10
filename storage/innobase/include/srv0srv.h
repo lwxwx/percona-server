@@ -140,6 +140,23 @@ struct srv_stats_t {
 
   /** Number of rows inserted */
   ulint_ctr_64_t n_rows_inserted;
+  /** Number of system rows read. */
+  ulint_ctr_64_t n_system_rows_read;
+
+  /** Number of system rows updated */
+  ulint_ctr_64_t n_system_rows_updated;
+
+  /** Number of system rows deleted */
+  ulint_ctr_64_t n_system_rows_deleted;
+
+  /** Number of system rows inserted */
+  ulint_ctr_64_t n_system_rows_inserted;
+
+  /** Number of sampled pages read */
+  ulint_ctr_64_t n_sampled_pages_read;
+
+  /** Number of sampled pages skipped */
+  ulint_ctr_64_t n_sampled_pages_skipped;
 
   ulint_ctr_1_t n_lock_max_wait_time;
 
@@ -282,8 +299,8 @@ struct Srv_threads {
   /** true if tablespace alter encrypt thread is created */
   bool m_ts_alter_encrypt_thread_active;
 
-  /** true if there is keyring encryption thread running */
-  bool m_encryption_threads_active;
+  /** No of key rotation threads started */
+  size_t m_crypt_threads_n = 0;
 };
 
 /** Check if given thread is still active. */
@@ -317,6 +334,8 @@ extern bool srv_is_upgrade_mode;
 extern bool srv_downgrade_logs;
 extern bool srv_upgrade_old_undo_found;
 #endif /* INNODB_DD_TABLE */
+
+extern bool srv_downgrade_partition_files;
 
 #ifdef UNIV_DEBUG
 extern bool srv_is_uuid_ready;
@@ -372,12 +391,6 @@ extern ib_mutex_t page_zip_stat_per_index_mutex;
 extern ib_mutex_t srv_monitor_file_mutex;
 /* Temporary file for innodb monitor output */
 extern FILE *srv_monitor_file;
-/* Mutex for locking srv_dict_tmpfile. Only created if !srv_read_only_mode.
-This mutex has a very high rank; threads reserving it should not
-be holding any InnoDB latches. */
-extern ib_mutex_t srv_dict_tmpfile_mutex;
-/* Temporary file for output from the data dictionary */
-extern FILE *srv_dict_tmpfile;
 /* Mutex for locking srv_misc_tmpfile. Only created if !srv_read_only_mode.
 This mutex has a very low rank; threads reserving it should not
 acquire any further latches or sleep before releasing this one. */
@@ -421,6 +434,10 @@ Currently we support native aio on windows and linux */
 extern bool srv_use_native_aio;
 extern bool srv_numa_interleave;
 
+/* The innodb_directories variable value. This a list of directories
+deliminated by ';', i.e the FIL_PATH_SEPARATOR. */
+extern char *srv_innodb_directories;
+
 /** Server undo tablespaces directory, can be absolute path. */
 extern char *srv_undo_dir;
 
@@ -433,8 +450,7 @@ extern ulong srv_rollback_segments;
 /** Maximum size of undo tablespace. */
 extern unsigned long long srv_max_undo_tablespace_size;
 
-extern uint srv_n_fil_crypt_threads;
-extern uint srv_n_fil_crypt_threads_started;
+extern uint srv_n_fil_crypt_threads_requested;
 
 /** Rate at which UNDO records should be purged. */
 extern ulong srv_purge_rseg_truncate_frequency;
@@ -620,9 +636,18 @@ extern ulint srv_buf_pool_size;
 extern const ulint srv_buf_pool_min_size;
 /** Default pool size in bytes */
 extern const ulint srv_buf_pool_def_size;
+/** Maximum pool size in bytes */
+extern const longlong srv_buf_pool_max_size;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 extern ulonglong srv_buf_pool_chunk_unit;
+/** Minimum buffer pool chunk size. */
+extern const ulonglong srv_buf_pool_chunk_unit_min;
+/** The buffer pool chunk size must be a multiple of this number. */
+extern const ulonglong srv_buf_pool_chunk_unit_blk_sz;
+/** Maximum buffer pool chunk size. */
+extern const ulonglong srv_buf_pool_chunk_unit_max;
+
 /** Requested number of buffer pool instances */
 extern ulong srv_buf_pool_instances;
 /** Default number of buffer pool instances */
@@ -670,6 +695,11 @@ extern ulong srv_n_read_io_threads;
 extern ulong srv_n_write_io_threads;
 
 extern uint srv_change_buffer_max_size;
+
+/** Default value of srv_idle_flush_pct */
+extern const ulong srv_idle_flush_pct_default;
+/** How much flush to be done in case of server is idle */
+extern ulong srv_idle_flush_pct;
 
 /* Number of IO operations per second the server can do */
 extern ulong srv_io_capacity;
@@ -786,7 +816,7 @@ extern bool srv_purge_view_update_only_debug;
 extern bool srv_master_thread_disabled_debug;
 #endif /* UNIV_DEBUG */
 
-extern ulint srv_fatal_semaphore_wait_threshold;
+extern ulong srv_fatal_semaphore_wait_threshold;
 #define SRV_SEMAPHORE_WAIT_EXTENSION 7200
 extern ulint srv_dml_needed_delay;
 
@@ -1290,22 +1320,28 @@ struct export_var_t {
   ulint innodb_os_log_pending_writes;          /*!< srv_os_log_pending_writes */
   ulint innodb_os_log_pending_fsyncs;          /*!< fil_n_pending_log_flushes */
   ulint innodb_page_size;                      /*!< UNIV_PAGE_SIZE */
-  ulint innodb_pages_created;             /*!< buf_pool->stat.n_pages_created */
-  ulint innodb_pages_read;                /*!< buf_pool->stat.n_pages_read */
-  ulint innodb_pages_written;             /*!< buf_pool->stat.n_pages_written */
-  ulint innodb_row_lock_waits;            /*!< srv_n_lock_wait_count */
-  ulint innodb_row_lock_current_waits;    /*!< srv_n_lock_wait_current_count */
-  int64_t innodb_row_lock_time;           /*!< srv_n_lock_wait_time
-                                          / 1000 */
-  ulint innodb_row_lock_time_avg;         /*!< srv_n_lock_wait_time
-                                          / 1000
-                                          / srv_n_lock_wait_count */
-  ulint innodb_row_lock_time_max;         /*!< srv_n_lock_max_wait_time
-                                          / 1000 */
-  ulint innodb_rows_read;                 /*!< srv_n_rows_read */
-  ulint innodb_rows_inserted;             /*!< srv_n_rows_inserted */
-  ulint innodb_rows_updated;              /*!< srv_n_rows_updated */
-  ulint innodb_rows_deleted;              /*!< srv_n_rows_deleted */
+  ulint innodb_pages_created;          /*!< buf_pool->stat.n_pages_created */
+  ulint innodb_pages_read;             /*!< buf_pool->stat.n_pages_read */
+  ulint innodb_pages_written;          /*!< buf_pool->stat.n_pages_written */
+  ulint innodb_row_lock_waits;         /*!< srv_n_lock_wait_count */
+  ulint innodb_row_lock_current_waits; /*!< srv_n_lock_wait_current_count */
+  int64_t innodb_row_lock_time;        /*!< srv_n_lock_wait_time
+                                       / 1000 */
+  ulint innodb_row_lock_time_avg;      /*!< srv_n_lock_wait_time
+                                       / 1000
+                                       / srv_n_lock_wait_count */
+  ulint innodb_row_lock_time_max;      /*!< srv_n_lock_max_wait_time
+                                       / 1000 */
+  ulint innodb_rows_read;              /*!< srv_n_rows_read */
+  ulint innodb_rows_inserted;          /*!< srv_n_rows_inserted */
+  ulint innodb_rows_updated;           /*!< srv_n_rows_updated */
+  ulint innodb_rows_deleted;           /*!< srv_n_rows_deleted */
+  ulint innodb_system_rows_read;       /*!< srv_n_system_rows_read */
+  ulint innodb_system_rows_inserted;   /*!< srv_n_system_rows_inserted */
+  ulint innodb_system_rows_updated;    /*!< srv_n_system_rows_updated */
+  ulint innodb_system_rows_deleted;    /*!< srv_n_system_rows_deleted*/
+  ulint innodb_sampled_pages_read;
+  ulint innodb_sampled_pages_skipped;
   ulint innodb_num_open_files;            /*!< fil_n_file_opened */
   ulint innodb_truncated_status_writes;   /*!< srv_truncated_status_writes */
   ulint innodb_undo_tablespaces_total;    /*!< total number of undo tablespaces
@@ -1396,6 +1432,12 @@ struct srv_slot_t {
   /** Time when the thread was suspended. Initialized by
   lock_wait_table_reserve_slot() for lock wait. */
   ib_time_monotonic_t suspend_time;
+
+  /** Stores the current value of lock_wait_table_reservations, when
+  lock_wait_table_reserve_slot is called.
+  This can be used as a version number to avoid ABA problems.
+  Protected by lock->wait_mutex. */
+  uint64_t reservation_no;
 
   /** Wait time that if exceeded the thread will be timed out.
   Initialized by lock_wait_table_reserve_slot() for lock wait. */

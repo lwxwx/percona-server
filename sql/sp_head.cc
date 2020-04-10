@@ -33,15 +33,19 @@
 #include <algorithm>
 #include <atomic>
 #include <memory>
+#include <new>
 #include <utility>
 
+#include "lex_string.h"
 #include "m_ctype.h"
 #include "m_string.h"
 #include "my_alloc.h"
 #include "my_bitmap.h"
 #include "my_dbug.h"
+#include "my_hostname.h"
 #include "my_inttypes.h"
 #include "my_pointer_arithmetic.h"
+#include "my_systime.h"
 #include "my_user.h"  // parse_user
 #include "mysql/components/services/psi_error_bits.h"
 #include "mysql/plugin.h"
@@ -59,9 +63,9 @@
 #include "sql/derror.h"         // ER_THD
 #include "sql/discrete_interval.h"
 #include "sql/field.h"
-#include "sql/gis/srid.h"
 #include "sql/handler.h"
 #include "sql/item.h"
+#include "sql/locked_tables_list.h"
 #include "sql/log_event.h"  // append_query_string, Query_log_event
 #include "sql/mdl.h"
 #include "sql/mysqld.h"     // atomic_global_query_id
@@ -76,6 +80,7 @@
 #include "sql/sp_pcontext.h"
 #include "sql/sp_rcontext.h"
 #include "sql/sql_base.h"  // close_thread_tables
+#include "sql/sql_class.h"
 #include "sql/sql_const.h"
 #include "sql/sql_db.h"  // mysql_opt_change_db, mysql_change_db
 #include "sql/sql_digest_stream.h"
@@ -83,6 +88,7 @@
 #include "sql/sql_parse.h"  // cleanup_items
 #include "sql/sql_profile.h"
 #include "sql/sql_show.h"  // append_identifier
+#include "sql/thd_raii.h"
 #include "sql/thr_malloc.h"
 #include "sql/transaction.h"  // trans_commit_stmt
 #include "sql/trigger_def.h"
@@ -1734,8 +1740,8 @@ sp_head::sp_head(MEM_ROOT &&mem_root, enum_sp_type type)
   m_params = NULL_STR;
 
   m_defstr = NULL_STR;
-  m_body = NULL_STR;
-  m_body_utf8 = NULL_STR;
+  m_body = NULL_CSTR;
+  m_body_utf8 = NULL_CSTR;
 
   m_trg_chistics.ordering_clause = TRG_ORDER_NONE;
   m_trg_chistics.anchor_trigger_name = NULL_CSTR;
@@ -1792,17 +1798,21 @@ void sp_head::set_body_end(THD *thd) {
 
   /* Make the string of body (in the original character set). */
 
-  m_body.length = end_ptr - m_parser_data.get_body_start_ptr();
-  m_body.str = thd->strmake(m_parser_data.get_body_start_ptr(), m_body.length);
-  trim_whitespace(thd->charset(), &m_body);
+  LEX_STRING body;
+  body.length = end_ptr - m_parser_data.get_body_start_ptr();
+  body.str = thd->strmake(m_parser_data.get_body_start_ptr(), body.length);
+  trim_whitespace(thd->charset(), &body);
+  m_body = to_lex_cstring(body);
 
   /* Make the string of UTF-body. */
 
   lip->body_utf8_append(end_ptr);
 
-  m_body_utf8.length = lip->get_body_utf8_length();
-  m_body_utf8.str = thd->strmake(lip->get_body_utf8_str(), m_body_utf8.length);
-  trim_whitespace(thd->charset(), &m_body_utf8);
+  LEX_STRING body_utf8;
+  body_utf8.length = lip->get_body_utf8_length();
+  body_utf8.str = thd->strmake(lip->get_body_utf8_str(), body_utf8.length);
+  trim_whitespace(thd->charset(), &body_utf8);
+  m_body_utf8 = to_lex_cstring(body_utf8);
 
   /*
     Make the string of whole stored-program-definition query (in the
@@ -2030,7 +2040,7 @@ bool sp_head::execute(THD *thd, bool merge_da_on_success) {
     goto done;
   }
 
-  thd->is_slave_error = 0;
+  thd->is_slave_error = false;
   old_arena = thd->stmt_arena;
 
   /* Push a new Diagnostics Area. */
@@ -2368,7 +2378,7 @@ bool sp_head::execute_trigger(THD *thd, const LEX_CSTRING &db_name,
   Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
 
-  DBUG_ENTER("sp_head::execute_trigger");
+  DBUG_TRACE;
   DBUG_PRINT("info", ("trigger %s", m_name.str));
 
   Security_context *save_ctx = NULL;
@@ -2382,8 +2392,8 @@ bool sp_head::execute_trigger(THD *thd, const LEX_CSTRING &db_name,
   */
   DBUG_ASSERT(m_chistics->suid != SP_IS_NOT_SUID);
   if (m_security_ctx.change_security_context(thd, definer_user, definer_host,
-                                             &m_db, &save_ctx))
-    DBUG_RETURN(true);
+                                             m_db.str, &save_ctx))
+    return true;
 
   /*
     Fetch information about table-level privileges for subject table into
@@ -2405,7 +2415,7 @@ bool sp_head::execute_trigger(THD *thd, const LEX_CSTRING &db_name,
              thd->security_context()->host_or_ip().str, table_name.str);
 
     m_security_ctx.restore_security_context(thd, save_ctx);
-    DBUG_RETURN(true);
+    return true;
   }
   /*
     Optimizer trace note: we needn't explicitly test here that the connected
@@ -2465,7 +2475,7 @@ err_with_cleanup:
 
   if (thd->killed) thd->send_kill_message();
 
-  DBUG_RETURN(err_status);
+  return err_status;
 }
 
 bool sp_head::execute_function(THD *thd, Item **argp, uint argcount,
@@ -2481,7 +2491,7 @@ bool sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   Query_arena call_arena(&call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
 
-  DBUG_ENTER("sp_head::execute_function");
+  DBUG_TRACE;
   DBUG_PRINT("info", ("function %s", m_name.str));
 
   // Resetting THD::where to its default value
@@ -2499,7 +2509,7 @@ bool sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     */
     my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "FUNCTION", m_qname.str,
              m_root_parsing_ctx->context_var_count(), argcount);
-    DBUG_RETURN(true);
+    return true;
   }
 
   /*
@@ -2662,7 +2672,7 @@ bool sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       }
       thd->user_var_events.clear();
       /* Forget those values, in case more function calls are binlogged: */
-      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt = 0;
+      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt = false;
       thd->auto_inc_intervals_in_cur_stmt_for_binlog.empty();
     }
   }
@@ -2692,7 +2702,7 @@ err_with_cleanup:
       !thd->binlog_evt_union.do_union)
     thd->issue_unsafe_warnings();
 
-  DBUG_RETURN(err_status);
+  return err_status;
 }
 
 bool sp_head::execute_procedure(THD *thd, List<Item> *args) {
@@ -2705,7 +2715,7 @@ bool sp_head::execute_procedure(THD *thd, List<Item> *args) {
   bool save_enable_slow_log = false;
   bool save_log_general = false;
 
-  DBUG_ENTER("sp_head::execute_procedure");
+  DBUG_TRACE;
   DBUG_PRINT("info", ("procedure %s", m_name.str));
 
   // Argument count has been validated in prepare function.
@@ -2715,7 +2725,7 @@ bool sp_head::execute_procedure(THD *thd, List<Item> *args) {
     // Create a temporary old context. We need it to pass OUT-parameter values.
     parent_sp_runtime_ctx = sp_rcontext::create(thd, m_root_parsing_ctx, NULL);
 
-    if (!parent_sp_runtime_ctx) DBUG_RETURN(true);
+    if (!parent_sp_runtime_ctx) return true;
 
     parent_sp_runtime_ctx->sp = 0;
     thd->sp_runtime_ctx = parent_sp_runtime_ctx;
@@ -2732,7 +2742,7 @@ bool sp_head::execute_procedure(THD *thd, List<Item> *args) {
 
     if (!sp_runtime_ctx_saved) ::destroy(parent_sp_runtime_ctx);
 
-    DBUG_RETURN(true);
+    return true;
   }
 
   proc_runtime_ctx->sp = this;
@@ -2916,7 +2926,7 @@ bool sp_head::execute_procedure(THD *thd, List<Item> *args) {
       !thd->binlog_evt_union.do_union)
     thd->issue_unsafe_warnings();
 
-  DBUG_RETURN(err_status);
+  return err_status;
 }
 
 bool sp_head::reset_lex(THD *thd) {
@@ -3176,7 +3186,7 @@ bool sp_head::show_routine_code(THD *thd) {
 
     buffer.set("", 0, system_charset_info);
     i->print(thd, &buffer);
-    protocol->store(buffer.ptr(), buffer.length(), system_charset_info);
+    protocol->store_string(buffer.ptr(), buffer.length(), system_charset_info);
     if ((res = protocol->end_row())) break;
   }
 
@@ -3206,8 +3216,8 @@ bool sp_head::merge_table_list(THD *thd, TABLE_LIST *table,
               table->mdl_request.is_ddl_or_lock_tables_lock_request(),
               table->db, table->db_length, table->table_name)) {
         my_error(ER_NO_SYSTEM_TABLE_ACCESS, MYF(0),
-                 ER_THD(thd, dictionary->table_type_error_code(
-                                 table->db, table->table_name)),
+                 ER_THD_NONCONST(thd, dictionary->table_type_error_code(
+                                          table->db, table->table_name)),
                  table->db, table->table_name);
         return true;
       }
@@ -3333,8 +3343,8 @@ void sp_head::add_used_tables_to_table_list(THD *thd,
 
       table->is_system_view = dd::get_dictionary()->is_system_view_name(
           table->db, table->table_name);
-      table->cacheable_table = 1;
-      table->prelocking_placeholder = 1;
+      table->cacheable_table = true;
+      table->prelocking_placeholder = true;
       table->belong_to_view = belong_to_view;
       table->trg_event_map = stab->trg_event_map;
 
@@ -3380,7 +3390,7 @@ bool sp_head::set_security_ctx(THD *thd, Security_context **save_ctx) {
 
   if (m_chistics->suid != SP_IS_NOT_SUID &&
       m_security_ctx.change_security_context(thd, definer_user, definer_host,
-                                             &m_db, save_ctx)) {
+                                             m_db.str, save_ctx)) {
     return true;
   }
 
@@ -3414,6 +3424,28 @@ void sp_parser_data::start_parsing_sp_body(THD *thd, sp_head *sp) {
   thd->mem_root->set_error_for_capacity_exceeded(
       m_saved_memroot->get_error_for_capacity_exceeded());
   thd->reset_item_list();
+}
+
+void sp_parser_data::finish_parsing_sp_body(THD *thd) {
+  /*
+    In some cases the parser detects a syntax error and calls
+    THD::cleanup_after_parse_error() method only after finishing parsing
+    the whole routine. In such a situation sp_head::restore_thd_mem_root()
+    will be called twice - the first time as part of normal parsing process
+    and the second time by cleanup_after_parse_error().
+
+    To avoid ruining active arena/mem_root state in this case we skip
+    restoration of old arena/mem_root if this method has been already called
+    for this routine.
+  */
+  if (!is_parsing_sp_body()) return;
+
+  thd->free_items();
+  thd->mem_root = m_saved_memroot;
+  thd->set_item_list(m_saved_item_list);
+
+  m_saved_memroot = nullptr;
+  m_saved_item_list = nullptr;
 }
 
 bool sp_parser_data::add_backpatch_entry(sp_branch_instr *i, sp_label *label) {
@@ -3467,4 +3499,13 @@ void sp_parser_data::process_new_sp_instr(THD *thd, sp_instr *i) {
   i->m_arena.set_item_list(thd->item_list());
 
   thd->reset_item_list();
+}
+
+Stored_program_creation_ctx::Stored_program_creation_ctx(THD *thd)
+    : Default_object_creation_ctx(thd),
+      m_db_cl(thd->variables.collation_database) {}
+
+void Stored_program_creation_ctx::change_env(THD *thd) const {
+  thd->variables.collation_database = m_db_cl;
+  Default_object_creation_ctx::change_env(thd);
 }

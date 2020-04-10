@@ -40,6 +40,7 @@
 #include "sql/auth/auth_common.h"
 #include "sql/dd/cache/dictionary_client.h"  // dd::Dictionary_client
 #include "sql/dd/dd.h"                       // dd::create_object
+#include "sql/dd/dd_kill_immunizer.h"        // dd::DD_kill_immunizer
 #include "sql/dd/dd_table.h"                 // dd::is_encrypted
 #include "sql/dd/impl/sdi_utils.h"           // dd::sdi_utils::make_guard
 #include "sql/dd/properties.h"
@@ -174,12 +175,12 @@ bool complete_stmt(THD *thd, handlerton *hton, DISABLE_ROLLBACK &&dr,
       return true;
     }
 
-  dr();
-
   /* Commit the statement and call storage engine's post-DDL hook. */
   if (trans_commit_stmt(thd) || trans_commit(thd)) {
     return true;
   }
+
+  dr();
 
   if (hton && ddl_is_atomic(hton) && hton->post_ddl) {
     hton->post_ddl(thd);
@@ -209,7 +210,16 @@ bool lock_rec(THD *thd, MDL_request_list *rlst, const LEX_STRING &tsp) {
                    MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
   rlst->push_front(&backup_lock_request);
 
-  return thd->mdl_context.acquire_locks(rlst, thd->variables.lock_wait_timeout);
+  if (thd->mdl_context.acquire_locks(rlst, thd->variables.lock_wait_timeout))
+    return true;
+
+  /*
+    Now when we have protection against concurrent change of read_only
+    option we can safely re-check its value.
+  */
+  if (check_readonly(thd, true)) return true;
+
+  return false;
 }
 
 template <typename... Names>
@@ -364,7 +374,7 @@ bool intermediate_commit_unless_atomic_ddl(THD *thd, handlerton *hton) {
     return false;
   }
   /* purecov: begin inspected */
-  Disable_gtid_state_update_guard disabler{thd};
+  Implicit_substatement_state_guard substatement_guard{thd};
   return (trans_commit_stmt(thd) || trans_commit(thd));
   /* purecov: end */
 }
@@ -469,7 +479,10 @@ bool Sql_cmd_create_tablespace::execute(THD *thd) {
     encrypt_tablespace = dd::is_encrypted(m_options->encryption);
     encrypt_type = dd::make_string_type(m_options->encryption);
   } else {
-    encrypt_tablespace = thd->variables.default_table_encryption;
+    encrypt_tablespace =
+        thd->variables.default_table_encryption == DEFAULT_TABLE_ENC_ON ||
+        global_system_variables.default_table_encryption ==
+            DEFAULT_TABLE_ENC_ONLINE_TO_KEYRING;
     encrypt_type = encrypt_tablespace ? "Y" : "N";
   }
 
@@ -509,6 +522,8 @@ bool Sql_cmd_create_tablespace::execute(THD *thd) {
   // - Disallow encryption='y', if SE does not support it.
   if (hton->flags & HTON_SUPPORTS_TABLE_ENCRYPTION) {
     tablespace->options().set("encryption", encrypt_type);
+    tablespace->options().set("explicit_encryption",
+                              m_options->encryption.str ? true : false);
   } else if (encrypt_tablespace) {
     my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "ENCRYPTION");
     return true;
@@ -590,7 +605,7 @@ bool Sql_cmd_create_tablespace::execute(THD *thd) {
         return true;
       }
 
-      Disable_gtid_state_update_guard disabler{thd};
+      Implicit_substatement_state_guard substatement_guard{thd};
       (void)trans_commit_stmt(thd);
       (void)trans_commit(thd);
       /* purecov: end */
@@ -689,7 +704,7 @@ bool Sql_cmd_drop_tablespace::execute(THD *thd) {
         return true;
       }
 
-      Disable_gtid_state_update_guard disabler{thd};
+      Implicit_substatement_state_guard substatement_guard{thd};
       (void)trans_commit_stmt(thd);
       (void)trans_commit(thd);
       /* purecov: end */
@@ -717,10 +732,13 @@ bool Sql_cmd_drop_tablespace::execute(THD *thd) {
 }
 
 /*
-  Mark the tables in the tablespace with ENCRYPTION='y/n'. We check if the
-  table encryption type conflicts with the schema default encryption, and
-  throw error if table_encryption_privilege_check is enabled and the user
-  does not own TABLE_ENCRYPTION_ADMIN privilege.
+  Mark the tables in the tablespace with ENCRYPTION='y/n'. We only update
+  DD objects in memory and the real update of the data-dictionary happens
+  later.
+
+  We also check if the table encryption type conflicts with the schema
+  default encryption, and throw error if table_encryption_privilege_check
+  is enabled and the user does not own TABLE_ENCRYPTION_ADMIN privilege.
 
   @param thd    Thread.
   @param ts     Reference to tablespace object being altered.
@@ -732,11 +750,11 @@ bool Sql_cmd_drop_tablespace::execute(THD *thd) {
 
   @returns true on error, false on success
 */
-static bool update_table_encryption(THD *thd, const dd::Tablespace &ts,
-                                    dd::Tablespace_table_ref_vec *trefs,
-                                    Table_pair_list *tpl,
-                                    const LEX_STRING &requested_encryption,
-                                    MDL_request_list *table_mdl_reqs) {
+static bool set_table_encryption_type(THD *thd, const dd::Tablespace &ts,
+                                      dd::Tablespace_table_ref_vec *trefs,
+                                      Table_pair_list *tpl,
+                                      const LEX_STRING &requested_encryption,
+                                      MDL_request_list *table_mdl_reqs) {
   bool is_request_to_encrypt = dd::is_encrypted(requested_encryption);
 
   // If the source tablespace encryption type is same as request type.
@@ -805,16 +823,59 @@ static bool update_table_encryption(THD *thd, const dd::Tablespace &ts,
     // We throw warning only when creating a unencrypted table in a schema
     // which has default encryption enabled.
     else if (is_request_to_encrypt == false)
-      push_warning_printf(thd, Sql_condition::SL_WARNING,
-                          WARN_UNENCRYPTED_TABLE_IN_ENCRYPTED_DB,
-                          ER_THD(thd, WARN_UNENCRYPTED_TABLE_IN_ENCRYPTED_DB),
-                          "");
+      push_warning(thd, Sql_condition::SL_WARNING,
+                   WARN_UNENCRYPTED_TABLE_IN_ENCRYPTED_DB,
+                   ER_THD(thd, WARN_UNENCRYPTED_TABLE_IN_ENCRYPTED_DB));
   }
 
   // Update encryption as 'Y/N' for all tables in this tablespace.
   for (auto &tp : *tpl) {
     dd::Properties *table_options = &tp.second->options();
     table_options->set("encrypt_type", (is_request_to_encrypt ? "Y" : "N"));
+  }
+
+  return false;
+}
+
+/*
+  We upgrade the table lock to X so that we can update the dictionary
+  table metadata with proper ENCRYPTION clause.
+
+  @param thd    Thread.
+  @param table_mdl_reqs Pointer to MDL_request_list containing all MDL
+                        lock requests.
+
+  @note hton->alter_tablespace() in InnoDB SE doesn't support rollback yet.
+        To workaround this issue, which caused assertions in ntest runs
+        we make lock upgrade immune to KILL QUERY and low timeout
+        values.
+
+  @returns true on error,
+           false on success or when there are no tables in tablespace.
+ */
+
+static bool upgrade_lock_for_tables_in_tablespace(
+    THD *thd, MDL_request_list *table_mdl_reqs) {
+  /*
+    The following code gets executed only when there is request to change
+    the tablespace ENCRYPTION "and" if there are some tables in the
+    tablespace.
+  */
+  if (table_mdl_reqs->elements() == 0) return false;
+
+  // Install KILL QUERY immunizer.
+  dd::DD_kill_immunizer m_kill_immunizer(thd);
+
+  DEBUG_SYNC(thd, "upgrade_lock_for_tables_in_tablespace_kill_point");
+
+  MDL_request_list::Iterator it(*table_mdl_reqs);
+  const size_t req_count = table_mdl_reqs->elements();
+  for (size_t i = 0; i < req_count; ++i) {
+    MDL_request *r = it++;
+    if (r->key.mdl_namespace() == MDL_key::TABLE &&
+        thd->mdl_context.upgrade_shared_lock(r->ticket, MDL_EXCLUSIVE,
+                                             LONG_TIMEOUT))
+      return true;
   }
 
   return false;
@@ -887,10 +948,16 @@ bool Sql_cmd_alter_tablespace::execute(THD *thd) {
     if (hton->flags & HTON_SUPPORTS_TABLE_ENCRYPTION) {
       tsmp.second->options().set("encryption",
                                  dd::make_string_type(m_options->encryption));
-      if (update_table_encryption(thd, *tsmp.first, &trefs, &table_object_pairs,
-                                  m_options->encryption, &table_mdl_reqs))
+      if (set_table_encryption_type(thd, *tsmp.first, &trefs,
+                                    &table_object_pairs, m_options->encryption,
+                                    &table_mdl_reqs))
         return true;
     }
+  }
+
+  if (hton->flags & HTON_SUPPORTS_TABLE_ENCRYPTION) {
+    tsmp.second->options().set("explicit_encryption",
+                               m_options->encryption.str ? true : false);
   }
 
   /*
@@ -918,16 +985,8 @@ bool Sql_cmd_alter_tablespace::execute(THD *thd) {
     return true;
   }
 
-  // Upgrade SU to X on table names and then modified the DD objects.
-  MDL_request_list::Iterator it(table_mdl_reqs);
-  const size_t req_count = table_mdl_reqs.elements();
-  for (size_t i = 0; i < req_count; ++i) {
-    MDL_request *r = it++;
-    if (r->key.mdl_namespace() == MDL_key::TABLE &&
-        thd->mdl_context.upgrade_shared_lock(r->ticket, MDL_EXCLUSIVE,
-                                             thd->variables.lock_wait_timeout))
-      return true;
-  }
+  // Upgrade SU to X on table names.
+  if (upgrade_lock_for_tables_in_tablespace(thd, &table_mdl_reqs)) return true;
 
   // Wait and remove TABLE object from TDC.
   for (auto &tref : trefs) {
@@ -1242,9 +1301,9 @@ bool Sql_cmd_alter_tablespace_rename::execute(THD *thd) {
 
   // TODO WL#9536: Until crash-safe ddl is implemented we need to do
   // manual compensation in case of rollback
-  auto compensate_grd = dd::sdi_utils::make_guard(hton, [&](handlerton *hton) {
+  auto compensate_grd = dd::sdi_utils::make_guard(hton, [&](handlerton *ht) {
     std::unique_ptr<dd::Tablespace> comp{tsmp.first->clone()};
-    (void)hton->alter_tablespace(hton, thd, &ts_info, tsmp.second, comp.get());
+    (void)ht->alter_tablespace(ht, thd, &ts_info, tsmp.second, comp.get());
   });
 
   DBUG_EXECUTE_IF("tspr_post_se", {
@@ -1400,7 +1459,7 @@ bool Sql_cmd_create_undo_tablespace::execute(THD *thd) {
         return true;
       }
 
-      Disable_gtid_state_update_guard disabler{thd};
+      Implicit_substatement_state_guard substatement_guard{thd};
       (void)trans_commit_stmt(thd);
       (void)trans_commit(thd);
     }
@@ -1498,7 +1557,7 @@ bool Sql_cmd_alter_undo_tablespace::execute(THD *thd) {
       hton->alter_tablespace(hton, thd, &ts_info, tsmp.first, tsmp.second);
   if (map_errors(ha_error, "ALTER UNDO TABLEPSPACE", &ts_info)) {
     if (!ddl_is_atomic(hton)) {
-      Disable_gtid_state_update_guard disabler{thd};
+      Implicit_substatement_state_guard substatement_guard{thd};
       (void)trans_commit_stmt(thd);
       (void)trans_commit(thd);
     }
@@ -1598,7 +1657,7 @@ bool Sql_cmd_drop_undo_tablespace::execute(THD *thd) {
         return true;
       }
 
-      Disable_gtid_state_update_guard disabler{thd};
+      Implicit_substatement_state_guard substatement_guard{thd};
       (void)trans_commit_stmt(thd);
       (void)trans_commit(thd);
     }

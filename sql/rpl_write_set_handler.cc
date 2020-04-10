@@ -22,33 +22,35 @@
 
 #include "sql/rpl_write_set_handler.h"
 
-#include <string.h>
+#include <inttypes.h>
+#include <stddef.h>
 #include <sys/types.h>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../extra/lz4/my_xxhash.h"  // IWYU pragma: keep
 #include "lex_string.h"
 #include "m_ctype.h"
-#include "m_string.h"
 #include "my_base.h"
 #include "my_dbug.h"
 #include "my_inttypes.h"
 #include "my_murmur3.h"  // murmur3_32
-#include "sql/field.h"   // Field
-#include "sql/handler.h"
+#include "mysql_com.h"
+#include "sql/field.h"  // Field
+#include "sql/json_binary.h"
+#include "sql/json_dom.h"
 #include "sql/key.h"
 #include "sql/query_options.h"
 #include "sql/rpl_transaction_write_set_ctx.h"
 #include "sql/sql_class.h"  // THD
 #include "sql/sql_const.h"
-#include "sql/sql_list.h"  // List
 #include "sql/system_variables.h"
 #include "sql/table.h"  // TABLE
 #include "sql/transaction_info.h"
-#include "sql_string.h"
+#include "template_utils.h"
 
 #define HASH_STRING_SEPARATOR "½"
 
@@ -96,7 +98,7 @@ static void check_foreign_key(
     THD *thd,
 #endif
     std::map<std::string, std::string> &foreign_key_map) {
-  DBUG_ENTER("check_foreign_key");
+  DBUG_TRACE;
   DBUG_ASSERT(!(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS));
   DBUG_ASSERT(table->s->foreign_keys > 0);
 
@@ -163,8 +165,6 @@ static void check_foreign_key(
     for (uint c = 0; c < fk[i].columns; c++)
       foreign_key_map[fk[i].column_name[c].str] = pke_prefix;
   }
-
-  DBUG_VOID_RETURN;
 }
 
 #ifndef DBUG_OFF
@@ -412,7 +412,7 @@ static void generate_hash_pke(const std::string &pke, THD *thd
                               std::vector<std::string> &write_sets
 #endif
 ) {
-  DBUG_ENTER("generate_hash_pke");
+  DBUG_TRACE;
   DBUG_ASSERT(thd->variables.transaction_write_set_extraction !=
               HASH_ALGORITHM_OFF);
 
@@ -423,8 +423,7 @@ static void generate_hash_pke(const std::string &pke, THD *thd
 #ifndef DBUG_OFF
   write_sets.push_back(pke);
 #endif
-  DBUG_PRINT("info", ("pke: %s; hash: %llu", pke.c_str(), hash));
-  DBUG_VOID_RETURN;
+  DBUG_PRINT("info", ("pke: %s; hash: %" PRIu64, pke.c_str(), hash));
 }
 
 /**
@@ -444,10 +443,9 @@ static void generate_mv_hash_pke(const std::string &prefix_pke, THD *thd,
 #endif
 ) {
   Field_typed_array *field = down_cast<Field_typed_array *>(fld);
-  uint length = field->data_length();
-  const char *ptr = field->get_binary();
 
-  json_binary::Value v(json_binary::parse_binary(ptr, length));
+  json_binary::Value v(
+      json_binary::parse_binary(field->get_binary(), field->data_length()));
   uint elems = v.element_count();
   if (!elems || field->is_null()) {
     // Multi-valued key part doesn't contain actual values.
@@ -483,7 +481,7 @@ static void generate_mv_hash_pke(const std::string &prefix_pke, THD *thd,
 }
 
 void add_pke(TABLE *table, THD *thd, uchar *record) {
-  DBUG_ENTER("add_pke");
+  DBUG_TRACE;
   DBUG_ASSERT(record == table->record[0] || record == table->record[1]);
   /*
     The next section extracts the primary key equivalent of the rows that are
@@ -708,6 +706,4 @@ void add_pke(TABLE *table, THD *thd, uchar *record) {
   }
 
   if (!writeset_hashes_added) ws_ctx->set_has_missing_keys();
-
-  DBUG_VOID_RETURN;
 }

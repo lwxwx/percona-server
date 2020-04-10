@@ -949,9 +949,7 @@ static Value parse_scalar(uint8 type, const char *data, size_t len) {
       return Value(Value::UINT, uint8korr(data));
     case JSONB_TYPE_DOUBLE: {
       if (len < 8) return err(); /* purecov: inspected */
-      double d;
-      float8get(&d, data);
-      return Value(d);
+      return Value(float8get(data));
     }
     case JSONB_TYPE_STRING: {
       uint32 str_len;
@@ -1066,7 +1064,7 @@ static Value parse_value(uint8 type, const char *data, size_t len) {
 }
 
 Value parse_binary(const char *data, size_t len) {
-  DBUG_ENTER("json_binary::parse_binary");
+  DBUG_TRACE;
   /*
     Each document should start with a one-byte type specifier, so an
     empty document is invalid according to the format specification.
@@ -1075,10 +1073,10 @@ Value parse_binary(const char *data, size_t len) {
     the value NULL is inserted into a NOT NULL column. We choose to
     interpret empty values as the JSON null literal.
   */
-  if (len == 0) DBUG_RETURN(Value(Value::LITERAL_NULL));
+  if (len == 0) return Value(Value::LITERAL_NULL);
 
   Value ret = parse_value(data[0], data + 1, len - 1);
-  DBUG_RETURN(ret);
+  return ret;
 }
 
 /**

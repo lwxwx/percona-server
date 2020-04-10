@@ -1,4 +1,4 @@
-# Copyright (c) 2010, 2018, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2010, 2019, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 2.0,
@@ -21,8 +21,13 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
 # the test classes
-FILE(GLOB JAVA_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/*.java)
+SET(JAVA_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/JTieTestBase.java
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/MySqlUtilsTest.java
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/NdbJTieConstantsTest.java
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/NdbJTieMultiLibTest.java
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/NdbJTieSmokeTest.java
+  )
 
 SET(CLASSPATH
   ${CMAKE_BINARY_DIR}/storage/ndb/src/ndbjtie/test/target/classes
@@ -36,20 +41,21 @@ CREATE_JAR(ndbjtie-test ${JAVA_SOURCES}
 
 
 INCLUDE_DIRECTORIES(
-  	${CMAKE_SOURCE_DIR}/storage/ndb/src/ndbjtie/utils
-  	${CMAKE_SOURCE_DIR}/storage/ndb/src/ndbjtie/jtie
-  	${CMAKE_SOURCE_DIR}/storage/ndb/include/mgmapi
-  	${CMAKE_SOURCE_DIR}/storage/ndb/include/ndbapi
-  	${JNI_INCLUDE_DIRS})
+  ${CMAKE_SOURCE_DIR}/storage/ndb/src/ndbjtie/utils
+  ${CMAKE_SOURCE_DIR}/storage/ndb/src/ndbjtie/jtie
+  ${CMAKE_SOURCE_DIR}/storage/ndb/include/mgmapi
+  ${CMAKE_SOURCE_DIR}/storage/ndb/include/ndbapi
+  ${JNI_INCLUDE_DIRS}
+  )
 
 # enable safety behaviour
-SET(CMAKE_CXX_FLAGS
-	"${CMAKE_CXX_FLAGS} -DJTIE_OBJECT_CLEAR_ADDRESS_UPON_DELETE")
+STRING_APPEND(CMAKE_CXX_FLAGS " -DJTIE_OBJECT_CLEAR_ADDRESS_UPON_DELETE")
 
 # shared library for testing
 ADD_LIBRARY(libndbjtie_unit_tests SHARED
-	ndbjtie_unit_tests_consts.cpp
-	ndbjtie_unit_tests_lib.cpp)
+  ndbjtie_unit_tests_consts.cpp
+  ndbjtie_unit_tests_lib.cpp
+  )
 
 SET_TARGET_PROPERTIES(libndbjtie_unit_tests PROPERTIES
   LINK_FLAGS "${CMAKE_SHARED_LIBRARY_C_FLAGS}"
@@ -82,10 +88,12 @@ SET(NDBJTIE_JAR "${NDBJTIE_DIR}/ndbjtie-${JAVA_NDB_VERSION}.jar")
 GET_FILENAME_COMPONENT(NDBCLIENT_DIR "${NDBJTIE_DIR}" PATH)
 
 SET(MYJAPI_TEST_DIR "${NDBJTIE_DIR}/jtie/test/myjapi")
-SET(MYJAPI_TEST_JAR "${MYJAPI_TEST_DIR}/jtie-test-myjapi-${JAVA_NDB_VERSION}.jar")
+SET(MYJAPI_TEST_JAR
+  "${MYJAPI_TEST_DIR}/jtie-test-myjapi-${JAVA_NDB_VERSION}.jar")
 
 SET(UNLOAD_TEST_DIR "${NDBJTIE_DIR}/jtie/test/unload")
-SET(UNLOAD_TEST_JAR "${UNLOAD_TEST_DIR}/jtie-test-unload-${JAVA_NDB_VERSION}.jar")
+SET(UNLOAD_TEST_JAR
+  "${UNLOAD_TEST_DIR}/jtie-test-unload-${JAVA_NDB_VERSION}.jar")
 
 IF(WITH_ASAN)
   MESSAGE(STATUS "Skipping java tests for ASAN builds")

@@ -41,6 +41,7 @@
 #include "my_macros.h"
 #include "my_psi_config.h"
 #include "my_sys.h"
+#include "mysql/psi/mysql_file.h"
 #include "mysql/psi/mysql_mutex.h"
 #include "mysql/psi/mysql_socket.h"
 #include "mysql/thread_type.h"
@@ -63,7 +64,7 @@ struct mysql_mutex_t;
 
 void thd_init(THD *thd, char *stack_start, bool bound MY_ATTRIBUTE((unused)),
               PSI_thread_key psi_key MY_ATTRIBUTE((unused))) {
-  DBUG_ENTER("thd_init");
+  DBUG_TRACE;
   // TODO: Purge threads currently terminate too late for them to be added.
   // Note that P_S interprets all threads with thread_id != 0 as
   // foreground threads. And THDs need thread_id != 0 to be added
@@ -92,7 +93,6 @@ void thd_init(THD *thd, char *stack_start, bool bound MY_ATTRIBUTE((unused)),
   thd_set_thread_stack(thd, stack_start);
 
   thd->store_globals();
-  DBUG_VOID_RETURN;
 }
 
 THD *create_thd(bool enable_plugins, bool background_thread, bool bound,
@@ -265,12 +265,12 @@ int mysql_tmpfile_path(const char *path, const char *prefix) {
   DBUG_ASSERT((strlen(path) + strlen(prefix)) <= FN_REFLEN);
 
   char filename[FN_REFLEN];
-  File fd = create_temp_file(filename, path, prefix,
+  int mode = O_CREAT | O_EXCL | O_RDWR;
 #ifdef _WIN32
-                             O_TRUNC | O_SEQUENTIAL |
-#endif /* _WIN32 */
-                                 O_CREAT | O_EXCL | O_RDWR,
-                             UNLINK_FILE, MYF(MY_WME));
+  mode |= O_TRUNC | O_SEQUENTIAL;
+#endif
+  File fd = mysql_file_create_temp(PSI_NOT_INSTRUMENTED, filename, path, prefix,
+                                   mode, UNLINK_FILE, MYF(MY_WME));
   return fd;
 }
 

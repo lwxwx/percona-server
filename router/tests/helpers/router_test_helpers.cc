@@ -52,6 +52,7 @@ typedef long ssize_t;
 #include "mysqlrouter/utils.h"
 
 using mysql_harness::Path;
+using namespace std::chrono_literals;
 
 Path get_cmake_source_dir() {
   Path result;
@@ -235,7 +236,7 @@ int close_socket(SOCKET sock) {
 #endif
 }  // namespace
 
-bool wait_for_port_ready(unsigned port, unsigned timeout_msec,
+bool wait_for_port_ready(uint16_t port, std::chrono::milliseconds timeout,
                          const std::string &hostname) {
   struct addrinfo hints, *ainfo;
   memset(&hints, 0, sizeof hints);
@@ -245,7 +246,7 @@ bool wait_for_port_ready(unsigned port, unsigned timeout_msec,
 
   // Valgrind needs way more time
   if (getenv("WITH_VALGRIND")) {
-    timeout_msec *= 10;
+    timeout *= 10;
   }
 
   int status = getaddrinfo(hostname.c_str(), std::to_string(port).c_str(),
@@ -258,7 +259,7 @@ bool wait_for_port_ready(unsigned port, unsigned timeout_msec,
   std::shared_ptr<void> exit_freeaddrinfo(nullptr,
                                           [&](void *) { freeaddrinfo(ainfo); });
 
-  const unsigned MSEC_STEP = 10;
+  const auto MSEC_STEP = 10ms;
   const auto started = std::chrono::steady_clock::now();
   do {
     auto sock_id =
@@ -270,16 +271,20 @@ bool wait_for_port_ready(unsigned port, unsigned timeout_msec,
     std::shared_ptr<void> exit_close_socket(
         nullptr, [&](void *) { close_socket(sock_id); });
 
+#ifdef _WIN32
+    // On Windows if the port is not ready yet when we try the connect() first
+    // time it will block for 500ms (depends on the OS wide configuration) and
+    // retry again internally. Here we sleep for 100ms but will save this 500ms
+    // for most of the cases which is still a good deal
+    std::this_thread::sleep_for(100ms);
+#endif
     status = connect(sock_id, ainfo->ai_addr, ainfo->ai_addrlen);
     if (status < 0) {
-      unsigned step = std::min(timeout_msec, MSEC_STEP);
+      const auto step = std::min(timeout, MSEC_STEP);
       std::this_thread::sleep_for(std::chrono::milliseconds(step));
-      timeout_msec -= step;
+      timeout -= step;
     }
-  } while (status < 0 &&
-           timeout_msec > std::chrono::duration_cast<std::chrono::milliseconds>(
-                              std::chrono::steady_clock::now() - started)
-                              .count());
+  } while (status < 0 && timeout > std::chrono::steady_clock::now() - started);
 
   return status >= 0;
 }
@@ -300,28 +305,6 @@ void init_keyring(std::map<std::string, std::string> &default_section,
   // add relevant config settings to [DEFAULT] section
   default_section["keyring_path"] = keyring_file;
   default_section["master_key_path"] = masterkey_file;
-}
-
-void replace_process_env(std::istream &ins, std::ostream &outs,
-                         const std::map<std::string, std::string> &env_vars) {
-  std::string line;
-  const char *regex = "^(.*)process\\.env\\.([A-Za-z_][A-Za-z0-9_]*)(.*)$";
-
-  std::regex js_process_env_regex(regex);
-  while (std::getline(ins, line)) {
-    std::smatch m;
-    if (std::regex_match(line, m, js_process_env_regex)) {
-      try {
-        outs << m[1].str() << "\"" << env_vars.at(m[2].str()) << "\""
-             << m[3].str() << std::endl;
-      } catch (const std::out_of_range &) {
-        throw std::runtime_error("Envvar " + m[2].str() +
-                                 " requested, but isn't defined");
-      }
-    } else {
-      outs << line << std::endl;
-    }
-  }
 }
 
 namespace {
@@ -387,20 +370,43 @@ bool find_in_file(const std::string &file_path,
 }
 
 std::string get_file_output(const std::string &file_name,
-                            const std::string &file_path) {
-  return get_file_output(file_path + "/" + file_name);
+                            const std::string &file_path,
+                            bool throw_on_error /*=false*/) {
+  return get_file_output(file_path + "/" + file_name, throw_on_error);
 }
 
-std::string get_file_output(const std::string &file_name) {
+std::string get_file_output(const std::string &file_name,
+                            bool throw_on_error /*=false*/) {
   Path file(file_name);
   std::ifstream in_file;
-  in_file.open(file.c_str(), std::ifstream::in);
-  if (!in_file) {
-    return "Could not open file " + file.str() + " for reading.";
+  in_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+  try {
+    in_file.open(file.c_str(), std::ifstream::in);
+  } catch (const std::exception &e) {
+    const std::string msg =
+        "Could not open file '" + file.str() + "' for reading: ";
+    if (throw_on_error)
+      throw std::runtime_error(msg + e.what());
+    else
+      return "<THIS ERROR COMES FROM TEST FRAMEWORK'S get_file_output(), IT IS "
+             "NOT PART OF PROCESS OUTPUT: " +
+             msg + e.what() + ">";
   }
+  assert(in_file);
 
-  std::string result((std::istreambuf_iterator<char>(in_file)),
-                     std::istreambuf_iterator<char>());
+  std::string result;
+  try {
+    result.assign((std::istreambuf_iterator<char>(in_file)),
+                  std::istreambuf_iterator<char>());
+  } catch (const std::exception &e) {
+    const std::string msg = "Reading file '" + file.str() + "' failed: ";
+    if (throw_on_error)
+      throw std::runtime_error(msg + e.what());
+    else
+      return "<THIS ERROR COMES FROM TEST FRAMEWORK'S get_file_output(), IT IS "
+             "NOT PART OF PROCESS OUTPUT: " +
+             msg + e.what() + ">";
+  }
 
   return result;
 }
@@ -440,13 +446,4 @@ void connect_client_and_query_port(unsigned router_port, std::string &out_port,
         std::to_string(result->size()));
   }
   out_port = std::string((*result)[0]);
-}
-
-void rewrite_js_to_tracefile(
-    const std::string &infile_name, const std::string &outfile_name,
-    const std::map<std::string, std::string> &env_vars) {
-  std::ifstream js_file(infile_name);
-  std::ofstream json_file(outfile_name);
-
-  replace_process_env(js_file, json_file, env_vars);
 }

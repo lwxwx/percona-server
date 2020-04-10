@@ -26,9 +26,31 @@
   ::mysql_harness::logging::kMainLogger  // must precede #include "logging.h"
 #include "mysql/harness/loader.h"
 
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cassert>
+#include <cctype>
+#include <cstdarg>
+#include <cstring>
+#include <exception>
+#include <map>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <system_error>
+#include <thread>
+
+#ifndef _WIN32
+#include <dlfcn.h>
+#include <pthread.h>
+#include <unistd.h>
+#endif
+
 ////////////////////////////////////////
 // Package include files
 #include "builtin_plugins.h"
+#include "common.h"  // mysql_harness::rename_thread()
 #include "designator.h"
 #include "dim.h"
 #include "exception.h"
@@ -43,49 +65,6 @@ IMPORT_LOG_FUNCTIONS()
 
 #include "my_compiler.h"
 
-////////////////////////////////////////
-// Standard include files
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <cctype>
-#include <cstring>
-#include <exception>
-#include <map>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <system_error>
-#include <thread>
-
-#ifndef _WIN32
-#include <dlfcn.h>
-#include <unistd.h>
-#endif
-
-// <cassert> places assert() in global namespace on Ubuntu14.04, but might
-// place it in std:: on other platforms
-#include <assert.h>
-
-// safer than using cstdarg because va_* family of things might be macros or
-// functions on different platforms, in which case they will either have std::
-// prefix or they won't. Here's an example from QNX:
-//   https://svn.boost.org/trac/boost/ticket/3133
-#include <stdarg.h>
-
-// need POSIX signals and threads to support signal handling (pthread_sigmask(),
-// sigaction() and friends). For platforms that do not have them (e.g. Windows),
-// a different mechanism is used instead (see proxy_main()).
-// Compiler on Solaris does not always define _POSIX_C_SOURCE although the
-// signal handling is there
-#if (!defined _WIN32)
-#define USE_POSIX_SIGNALS
-#endif
-
-#ifdef USE_POSIX_SIGNALS
-#include <pthread.h>
-#endif
-
 using mysql_harness::utility::find_range_first;
 using mysql_harness::utility::make_range;
 using mysql_harness::utility::reverse;
@@ -94,6 +73,10 @@ using mysql_harness::Config;
 using mysql_harness::Path;
 
 using std::ostringstream;
+
+#if !defined(_WIN32)
+#define USE_POSIX_SIGNALS
+#endif
 
 /**
  * @defgroup Loader Plugin loader
@@ -125,6 +108,11 @@ std::mutex log_reopen_cond_mutex;
 std::condition_variable log_reopen_cond;
 static std::atomic<bool> g_log_reopen_requested{false};
 
+/**
+ * request application shutdown.
+ *
+ * @throws std::system_error same as std::unique_lock::lock does
+ */
 static void request_application_shutdown(const ShutdownReason reason) {
   {
     std::unique_lock<std::mutex> lk(we_might_shutdown_cond_mutex);
@@ -137,10 +125,20 @@ static void request_application_shutdown(const ShutdownReason reason) {
   log_reopen_cond.notify_one();
 }
 
+/**
+ * request application shutdown.
+ *
+ * @throws std::system_error same as std::unique_lock::lock does
+ */
 void request_application_shutdown() {
   request_application_shutdown(SHUTDOWN_REQUESTED);
 }
 
+/**
+ * notify a "log_reopen" is requested.
+ *
+ * @throws std::system_error same as std::unique_lock::lock does
+ */
 static void request_log_reopen() {
   {
     std::unique_lock<std::mutex> lk(log_reopen_cond_mutex);
@@ -151,8 +149,8 @@ static void request_log_reopen() {
 
 namespace {
 #ifdef USE_POSIX_SIGNALS
-const std::array<int, 5> g_fatal_signals{SIGSEGV, SIGABRT, SIGBUS, SIGILL,
-                                         SIGFPE};
+const std::array<int, 6> g_fatal_signals{SIGSEGV, SIGABRT, SIGBUS,
+                                         SIGILL,  SIGFPE,  SIGTRAP};
 #endif
 }  // namespace
 
@@ -170,34 +168,40 @@ static void block_all_nonfatal_signals() {
     throw std::runtime_error("pthread_sigmask() failed: " +
                              std::string(std::strerror(errno)));
   }
-#endif  // USE_POSIX_SIGNALS
+#endif
 }
 
-static void handle_fatal_signal(int sig) {
-#ifdef USE_POSIX_SIGNALS
-  my_safe_printf_stderr("Application got fatal signal: %d\n", sig);
-#ifdef HAVE_STACKTRACE
-  my_print_stacktrace(nullptr, 0);
-#endif  // HAVE_STACKTRACE
-#else
-  (void)sig;
-#endif  // USE_POSIX_SIGNALS
-}
+#if !defined(__has_feature)
+#define __has_feature(x) 0
+#endif
+
+// GCC defines __SANITIZE_ADDRESS
+// clang has __has_feature and 'address_sanitizer'
+#if defined(__SANITIZE_ADDRESS__) || (__has_feature(address_sanitizer))
+#define HAS_FEATURE_ASAN
+#endif
 
 static void register_fatal_signal_handler() {
-#ifdef USE_POSIX_SIGNALS
-#ifdef HAVE_STACKTRACE
+  // enable a crash handler on POSIX systems if not built with ASAN
+#if defined(USE_POSIX_SIGNALS) && !defined(HAS_FEATURE_ASAN)
+#if defined(HAVE_STACKTRACE)
   my_init_stacktrace();
 #endif  // HAVE_STACKTRACE
 
   struct sigaction sa;
   (void)sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESETHAND;
-  sa.sa_handler = handle_fatal_signal;
+  sa.sa_handler = [](int sig) {
+    my_safe_printf_stderr("Application got fatal signal: %d\n", sig);
+#ifdef HAVE_STACKTRACE
+    my_print_stacktrace(nullptr, 0);
+#endif  // HAVE_STACKTRACE
+  };
+
   for (const auto &sig : g_fatal_signals) {
     (void)sigaction(sig, &sa, NULL);
   }
-#endif  // USE_POSIX_SIGNALS
+#endif
 }
 
 static void start_and_detach_signal_handler_thread() {
@@ -272,7 +276,7 @@ static void log_reopen_thread_function() {
 }
 
 #ifdef _WIN32
-static BOOL ctrl_c_handler(DWORD ctrl_type) {
+static BOOL WINAPI ctrl_c_handler(DWORD ctrl_type) {
   if (ctrl_type == CTRL_C_EVENT || ctrl_type == CTRL_BREAK_EVENT) {
     // user presed Ctrl+C or we got Ctrl+Break request
     request_application_shutdown();
@@ -284,7 +288,7 @@ static BOOL ctrl_c_handler(DWORD ctrl_type) {
 }
 
 void register_ctrl_c_handler() {
-  if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)ctrl_c_handler, TRUE)) {
+  if (!SetConsoleCtrlHandler(ctrl_c_handler, TRUE)) {
     std::cerr << "Could not install Ctrl+C handler, exiting.\n";
     exit(1);
   }
@@ -456,6 +460,46 @@ PluginFuncEnv::pop_error() noexcept {
   error_message_.clear();
 
   return ret;
+}
+
+// PluginThreads
+
+/**
+ * join all threads.
+ *
+ * @throws std::system_error from std::thread::join()
+ */
+void PluginThreads::join() {
+  // wait for all plugin-threads to join
+  for (auto &thr : threads_) {
+    if (thr.joinable()) thr.join();
+  }
+}
+
+void PluginThreads::push_back(std::thread &&thr) {
+  // if push-back throws it won't inc' 'running_' which is good.
+  threads_.push_back(std::move(thr));
+  ++running_;
+}
+
+void PluginThreads::try_stopped(std::exception_ptr &first_exc) {
+  std::exception_ptr exc;
+  while (running_ > 0 && plugin_stopped_events_.try_pop(exc)) {
+    --running_;
+
+    if (exc) {
+      first_exc = exc;
+      return;
+    }
+  }
+}
+
+void PluginThreads::wait_all_stopped(std::exception_ptr &first_exc) {
+  // wait until all plugins signaled their return value
+  for (; running_ > 0; --running_) {
+    auto exc = plugin_stopped_events_.pop();
+    if (!first_exc) first_exc = exc;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -631,14 +675,90 @@ void Loader::unload_all() {
   // built-in plugins
 }
 
+/**
+ * If a isn't set, return b.
+ *
+ * like ?:, but ensures that b is _always_ evaluated first.
+ */
+template <class T>
+T value_or(T a, T b) {
+  return a ? a : b;
+}
+
+class LogReopenThread {
+ public:
+  /**
+   * @throws std::system_error if out of threads
+   */
+  LogReopenThread() : reopen_thr_{log_reopen_thread_function} {}
+
+  /**
+   * stop the log_reopen_thread_function.
+   *
+   * @throws std::system_error from request_application_shutdown()
+   */
+  void stop() { request_application_shutdown(); }
+
+  /**
+   * join the log_reopen thread.
+   *
+   * @throws std::system_error same as std::thread::join
+   */
+  void join() { reopen_thr_.join(); }
+
+  /**
+   * destruct the thread.
+   *
+   * Same as std::thread it may call std::terminate in case the thread isn't
+   * joined yet, but joinable.
+   *
+   * In casing join() fails as best-effort, a log-message is attempted to be
+   * written.
+   */
+  ~LogReopenThread() {
+    // if it didn't throw in the constructor, it is joinable and we have to
+    // signal its shutdown
+    if (reopen_thr_.joinable()) {
+      try {
+        // if stop throws ... the join will block
+        stop();
+
+        // if join throws, log it and expect std::thread::~thread to call
+        // std::terminate
+        join();
+      } catch (const std::exception &e) {
+        try {
+          log_error("~LogReopenThread failed to join its thread: %s", e.what());
+        } catch (...) {
+          // ignore it, we did our best to tell the user why std::terminate will
+          // be called in a bit
+        }
+      }
+    }
+  }
+
+ private:
+  std::thread reopen_thr_;
+};
+
 std::exception_ptr Loader::run() {
   // initialize plugins
   std::exception_ptr first_eptr = init_all();
 
   // run plugins if initialization didn't fail
   if (!first_eptr) {
-    start_all();  // if start() throws, exception is forwarded to main_loop()
-    first_eptr = main_loop();  // calls stop_all() before exiting
+    try {
+      start_all();  // if start() throws, exception is forwarded to
+                    // main_loop()
+
+      // may throw std::system_error
+      LogReopenThread log_reopen_thread;
+
+      first_eptr = main_loop();
+    } catch (const std::exception &e) {
+      log_error("failed running start/main: %s", e.what());
+      first_eptr = stop_and_wait_all();
+    }
   }
 
   // not strict requiremnt, just good measure (they're no longer needed at
@@ -646,10 +766,7 @@ std::exception_ptr Loader::run() {
   assert(plugin_start_env_.empty());
 
   // deinitialize plugins
-  std::exception_ptr tmp = deinit_all();
-  if (!first_eptr) {
-    first_eptr = tmp;
-  }
+  first_eptr = value_or(first_eptr, deinit_all());
 
   // return the first exception that was triggered by an error returned from
   // any plugin function
@@ -799,68 +916,78 @@ void Loader::start_all() {
   // if possible
   register_fatal_signal_handler();
 
-  // start all the plugins (call plugin's start() function)
-  for (const ConfigSection *section : config_.sections()) {
-    PluginInfo &plugin = plugins_.at(section->name);
-    void (*fptr)(PluginFuncEnv *) = plugin.plugin->start;
+  try {
+    // start all the plugins (call plugin's start() function)
+    for (const ConfigSection *section : config_.sections()) {
+      PluginInfo &plugin = plugins_.at(section->name);
+      void (*fptr)(PluginFuncEnv *) = plugin.plugin->start;
 
-    if (!fptr) {
-      log_debug("  plugin '%s:%s' doesn't implement start()",
-                section->name.c_str(), section->key.c_str());
+      if (!fptr) {
+        log_debug("  plugin '%s:%s' doesn't implement start()",
+                  section->name.c_str(), section->key.c_str());
 
-      // create a env object for later
+        // create a env object for later
+        assert(plugin_start_env_.count(section) == 0);
+        plugin_start_env_[section] =
+            std::make_shared<PluginFuncEnv>(nullptr, section, false);
+
+        continue;
+      }
+
+      // future will remain valid even after promise is destructed
+      std::promise<std::shared_ptr<PluginFuncEnv>> env_promise;
+
+      // plugin start() will run in this new thread
+      std::thread plugin_thread([fptr, section, &env_promise, this]() {
+        log_debug("  plugin '%s:%s' starting", section->name.c_str(),
+                  section->key.c_str());
+
+        // init env object and unblock harness thread
+        std::shared_ptr<PluginFuncEnv> this_thread_env =
+            std::make_shared<PluginFuncEnv>(nullptr, section, true);
+        env_promise.set_value(this_thread_env);  // shared_ptr gets copied here
+                                                 // (future will own a copy)
+
+        std::exception_ptr eptr;
+        call_plugin_function(this_thread_env.get(), eptr, fptr, "start",
+                             section->name.c_str(), section->key.c_str());
+
+        {
+          std::lock_guard<std::mutex> lock(we_might_shutdown_cond_mutex);
+          plugin_threads_.push_exit_status(std::move(eptr));
+        }
+        we_might_shutdown_cond.notify_one();
+      });
+
+      // we could combine the thread creation with emplace_back
+      // but that sometimes leads to a crash on ASAN build (when the thread
+      // limit is reached apparently sometimes half-baked thread object gets
+      // added to the vector and its destructor crashes later on when the vector
+      // gets destroyed)
+      plugin_threads_.push_back(std::move(plugin_thread));
+
+      // block until starter thread is started
+      // then save the env object for later
       assert(plugin_start_env_.count(section) == 0);
       plugin_start_env_[section] =
-          std::make_shared<PluginFuncEnv>(nullptr, section, false);
+          env_promise.get_future()
+              .get();  // returns shared_ptr to PluginFuncEnv;
+                       // PluginFuncEnv exists on heap
 
-      continue;
-    }
+    }  // for (const ConfigSection* section: config_.sections())
+  } catch (const std::system_error &e) {
+    throw std::system_error(e.code(), "starting plugin-threads failed");
+  }
 
-    // future will remain valid even after promise is destructed
-    std::promise<std::shared_ptr<PluginFuncEnv>> env_promise;
-
-    // plugin start() will run in this new thread
-    std::thread plugin_thread([fptr, section, &env_promise, this]() {
-      log_debug("  plugin '%s:%s' starting", section->name.c_str(),
-                section->key.c_str());
-
-      // init env object and unblock harness thread
-      std::shared_ptr<PluginFuncEnv> this_thread_env =
-          std::make_shared<PluginFuncEnv>(nullptr, section, true);
-      env_promise.set_value(this_thread_env);  // shared_ptr gets copied here
-                                               // (future will own a copy)
-
-      std::exception_ptr eptr;
-      call_plugin_function(this_thread_env.get(), eptr, fptr, "start",
-                           section->name.c_str(), section->key.c_str());
-
-      {
-        std::lock_guard<std::mutex> lock(we_might_shutdown_cond_mutex);
-        plugin_stopped_events_.push(std::move(eptr));
-      }
-      we_might_shutdown_cond.notify_one();
-    });
-
-    // we could combine the thread creation with emplace_back
-    // but that sometimes leads to a crash on ASAN build (when the thread limit
-    // is reached apparently sometimes half-baked thread object gets added to
-    // the vector and its destructor crashes later on when the vector gets
-    // destroyed)
-    plugin_threads_.push_back(std::move(plugin_thread));
-
-    // block until starter thread is started
-    // then save the env object for later
-    assert(plugin_start_env_.count(section) == 0);
-    plugin_start_env_[section] =
-        env_promise.get_future().get();  // returns shared_ptr to PluginFuncEnv;
-                                         // PluginFuncEnv exists on heap
-
-  }  // for (const ConfigSection* section: config_.sections())
-
-  // We wait with this until after we launch all plugin threads, to avoid
-  // a potential race if a signal was received while plugins were still
-  // launching.
-  start_and_detach_signal_handler_thread();
+  try {
+    // We wait with this until after we launch all plugin threads, to avoid
+    // a potential race if a signal was received while plugins were still
+    // launching.
+    start_and_detach_signal_handler_thread();
+  } catch (const std::system_error &e) {
+    // should we unblock the signals again?
+    throw std::system_error(e.code(), "starting signal-handler-thread failed");
+  }
 }
 
 /**
@@ -872,27 +999,23 @@ void Loader::start_all() {
  * - one plugin return an exception
  * - all plugins finished
  *
- * calls Loader::stop_all() and waits until all plugins finished.
- *
  * @returns first exception returned by any of the plugins start() or stop()
  * functions
  * @retval nullptr if no exception was returned
  */
 std::exception_ptr Loader::main_loop() {
+  // RouterRoutingTest::RoutingPluginCantSpawnMoreThreads is waiting for this
+  // log-message to appear in the log to get a predictible test-scenario.
+  //
+  // Changing or moving this message, will break that test.
   log_debug("Running.");
 
-  // let's spawn the log reopen thread
-  std::thread log_reopen_thread(log_reopen_thread_function);
-
   std::exception_ptr first_eptr;
-
-  size_t plugins_running = plugin_threads_.size();
-
   // wait for a reason to shutdown
   {
     std::unique_lock<std::mutex> lk(we_might_shutdown_cond_mutex);
 
-    we_might_shutdown_cond.wait(lk, [&first_eptr, &plugins_running, this] {
+    we_might_shutdown_cond.wait(lk, [&first_eptr, this] {
       // external shutdown
       if (g_shutdown_pending == SHUTDOWN_REQUESTED) return true;
 
@@ -910,50 +1033,34 @@ std::exception_ptr Loader::main_loop() {
         return true;
       }
 
-      // wait for the first non-fatal exit from plugin
-      for (std::exception_ptr tmp; plugin_stopped_events_.try_pop(tmp);) {
-        plugins_running--;
-
-        if (tmp) {
-          first_eptr = tmp;
-          return true;
-        }
-      }
+      plugin_threads_.try_stopped(first_eptr);
+      if (first_eptr) return true;
 
       // all plugins stop successfully
-      if (plugins_running == 0) return true;
+      if (plugin_threads_.running() == 0) return true;
 
       return false;
     });
   }
 
+  return value_or(first_eptr, stop_and_wait_all());
+}
+
+std::exception_ptr Loader::stop_and_wait_all() {
+  std::exception_ptr first_eptr;
+
   // stop all plugins
-  {
-    std::exception_ptr tmp = stop_all();
-    if (tmp && !first_eptr) {
-      first_eptr = tmp;
+  first_eptr = value_or(first_eptr, stop_all());
+
+  plugin_threads_.wait_all_stopped(first_eptr);
+  try {
+    plugin_threads_.join();
+  } catch (...) {
+    // may throw due to deadlocks and other system-related reasons.
+    if (!first_eptr) {
+      first_eptr = std::current_exception();
     }
   }
-
-  // wait until all plugins signaled their return value
-  for (; plugins_running > 0; plugins_running--) {
-    std::exception_ptr tmp = plugin_stopped_events_.pop();
-
-    if (tmp && !first_eptr) {
-      first_eptr = tmp;
-    }
-  }
-
-  // wait for all plugin-threads to join
-  for (auto &thr : plugin_threads_) {
-    thr.join();
-  }
-
-  // before trying to join the log_reopen_thread we need to make sure to trigger
-  // its exit
-  request_application_shutdown();
-  // join the log_reopen_thread
-  log_reopen_thread.join();
 
   // we will no longer need the env objects for start(), might as well
   // clean them up now for good measure
@@ -1011,8 +1118,8 @@ std::exception_ptr Loader::deinit_all() {
 
   // call deinit() on all plugins that support the call
   std::exception_ptr first_eptr;
-  for (std::string &plugin_name : deinit_order) {
-    PluginInfo &info = plugins_.at(plugin_name);
+  for (const std::string &plugin_name : deinit_order) {
+    const PluginInfo &info = plugins_.at(plugin_name);
 
     if (!info.plugin->deinit) {
       log_debug("  plugin '%s' doesn't implement deinit()",

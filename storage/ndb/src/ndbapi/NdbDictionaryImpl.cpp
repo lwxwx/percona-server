@@ -2950,10 +2950,21 @@ NdbDictInterface::execSignal(void* dictImpl,
     const NodeFailRep *rep = CAST_CONSTPTR(NodeFailRep,
                                            signal->getDataPtr());
     Uint32 len = NodeFailRep::getNodeMaskLength(signal->getLength());
-    assert(len == NodeBitmask::Size); // only full length in ndbapi
-    for (Uint32 i = BitmaskImpl::find_first(len, rep->theAllNodes);
+    const Uint32* nbm;
+    if (signal->m_noOfSections >= 1)
+    {
+      assert (len == 0);
+      nbm = ptr[0].p;
+      len = ptr[0].sz;
+    }
+    else
+    {
+      assert(len == NodeBitmask::Size); // only full length in ndbapi
+      nbm = rep->theAllNodes;
+    }
+    for (Uint32 i = BitmaskImpl::find_first(len, nbm);
          i != BitmaskImpl::NotFound;
-         i = BitmaskImpl::find_next(len, rep->theAllNodes, i + 1))
+         i = BitmaskImpl::find_next(len, nbm, i + 1))
     {
       if (i <= MAX_DATA_NODE_ID)
       {
@@ -3438,7 +3449,8 @@ void NdbTableImpl::IndirectReader(SimpleProperties::Reader & it,
   NdbTableImpl * impl = static_cast<NdbTableImpl *>(dest);
   Uint16 key = it.getKey();
 
-  if(key == DictTabInfo::FrmData) {
+  /* Metadata may be stored as FrmData or MysqlDictMetadata */
+  if(key == DictTabInfo::FrmData || key == DictTabInfo::MysqlDictMetadata) {
     /* Expand the UtilBuffer to the required length, then copy data in */
     impl->m_frm.grow(it.getPaddedLength());
     it.getString(static_cast<char *>(impl->m_frm.append(it.getValueLen())));
@@ -3450,7 +3462,8 @@ bool NdbTableImpl::IndirectWriter(SimpleProperties::Writer & it,
                                   const void * src) {
   const NdbTableImpl * impl = static_cast<const NdbTableImpl *>(src);
 
-  if(key == DictTabInfo::FrmData)
+  /* Always store metadata as MysqlDictMetadata */
+  if(key == DictTabInfo::MysqlDictMetadata)
     return it.add(key, impl->m_frm.get_data(), impl->m_frm.length());
 
   return true;
@@ -4694,19 +4707,6 @@ loop:
       Uint32 ah;
       const Uint32 byteSize = col->m_defaultValue.length();
       assert(byteSize <= NDB_MAX_TUPLE_SIZE);
-
-      if (byteSize > 0)
-      {
-        if (unlikely(! ndb_native_default_support(ndb.getMinDbNodeVersion())))
-        {
-          /* We can't create a table with native defaults with
-           * this kernel version
-           * Schema feature requires data node upgrade
-           */
-          m_error.code = 794;
-          DBUG_RETURN(-1);
-        }
-      }   
 
       //The AttributeId of a column isn't decided now, so 0 is used.
       AttributeHeader::init(&ah, 0, byteSize);
@@ -7353,23 +7353,10 @@ NdbDictInterface::listObjects(NdbApiSignal* signal,
       }
       return -1;
     }
-    NodeInfo info = m_impl->getNodeInfo(aNodeId).m_info;
-    if (ndbd_LIST_TABLES_CONF_long_signal(info.m_version))
-    {
-      /*
-        Called node will return a long signal
-       */
-      listTablesLongSignal = true;
-    }
-    else if (listTablesLongSignal)
-    {
-      /*
-        We are requesting info from a table with table id > 4096
-        and older versions don't support that, bug#36044
-      */
-      m_error.code= 4105;
-      return -1;
-    }
+    /*
+      Called node will return a long signal
+     */
+    listTablesLongSignal = true;
 
     if (m_impl->sendSignal(signal, aNodeId) != 0) {
       continue;
@@ -7408,17 +7395,6 @@ void
 NdbDictInterface::execLIST_TABLES_CONF(const NdbApiSignal* signal,
                                        const LinearSectionPtr ptr[3])
 {
-  Uint16 nodeId = refToNode(signal->theSendersBlockRef);
-  NodeInfo info = m_impl->getNodeInfo(nodeId).m_info;
-  if (!ndbd_LIST_TABLES_CONF_long_signal(info.m_version))
-  {
-    /*
-      Sender doesn't support new signal format
-     */
-    NdbDictInterface::execOLD_LIST_TABLES_CONF(signal, ptr);
-    return;
-  }
-
   const ListTablesConf* const conf=
     CAST_CONSTPTR(ListTablesConf, signal->getDataPtr());
   if(!m_tx.checkRequestId(conf->senderData, "LIST_TABLES_CONF"))
@@ -7482,23 +7458,6 @@ NdbDictInterface::execLIST_TABLES_CONF(const NdbApiSignal* signal,
   }
 
   m_impl->theWaiter.signal(NO_WAIT);
-}
-
-
-void
-NdbDictInterface::execOLD_LIST_TABLES_CONF(const NdbApiSignal* signal,
-                                           const LinearSectionPtr ptr[3])
-{
-  const unsigned off = OldListTablesConf::HeaderLength;
-  const unsigned len = (signal->getLength() - off);
-  if (m_buffer.append(signal->getDataPtr() + off, len << 2))
-  {
-    m_error.code= 4000;
-  }
-  if (signal->getLength() < OldListTablesConf::SignalLength) {
-    // last signal has less than full length
-    m_impl->theWaiter.signal(NO_WAIT);
-  }
 }
 
 int
@@ -10488,13 +10447,6 @@ NdbDictionaryImpl::beginSchemaTrans(bool retry711)
   DBUG_ENTER("beginSchemaTrans");
   if (m_tx.m_state == NdbDictInterface::Tx::Started) {
     m_error.code = 4410;
-    DBUG_RETURN(-1);
-  }
-  if (!m_receiver.checkAllNodeVersionsMin(NDBD_SCHEMA_TRANS_VERSION))
-  {
-    /* Upgrade 6.3 -> 7.0 path */
-    /* Schema transaction not possible until upgrade complete */
-    m_error.code = 4411;
     DBUG_RETURN(-1);
   }
   // TODO real transId

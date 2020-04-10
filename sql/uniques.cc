@@ -109,7 +109,7 @@ class Uniq_param {
 */
 static uint uniq_read_to_buffer(IO_CACHE *fromfile, Merge_chunk *merge_chunk,
                                 Uniq_param *param) {
-  DBUG_ENTER("uniq_read_to_buffer");
+  DBUG_TRACE;
   const uint rec_length = param->rec_length;
 
   const ha_rows count =
@@ -124,16 +124,16 @@ static uint uniq_read_to_buffer(IO_CACHE *fromfile, Merge_chunk *merge_chunk,
     if (mysql_encryption_file_pread(fromfile, merge_chunk->buffer_start(),
                                     bytes_to_read, merge_chunk->file_position(),
                                     MYF_RW))
-      DBUG_RETURN((uint)-1); /* purecov: inspected */
+      return (uint)-1; /* purecov: inspected */
 
     merge_chunk->init_current_key();
     merge_chunk->advance_file_position(bytes_to_read);
     merge_chunk->decrement_rowcount(count);
     merge_chunk->set_mem_count(count);
-    DBUG_RETURN(bytes_to_read);
+    return bytes_to_read;
   }
 
-  DBUG_RETURN(0);
+  return 0;
 } /* uniq_read_to_buffer */
 
 /**
@@ -167,15 +167,9 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
   Merge_chunk *merge_chunk;
   Uniq_param::chunk_compare_fun cmp;
   Merge_chunk_compare_context *first_cmp_arg;
-  std::atomic<THD::killed_state> *killed = &thd->killed;
-  std::atomic<THD::killed_state> not_killable{THD::NOT_KILLED};
-  DBUG_ENTER("uniq_merge_buffers");
+  DBUG_TRACE;
 
   thd->inc_status_sort_merge_passes();
-  if (param->not_killable) {
-    killed = &not_killable;
-    not_killable = THD::NOT_KILLED;
-  }
 
   rec_length = param->rec_length;
 
@@ -201,10 +195,10 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
   Priority_queue<Merge_chunk *,
                  std::vector<Merge_chunk *, Malloc_allocator<Merge_chunk *>>,
                  decltype(greater)>
-  queue(greater,
-        Malloc_allocator<Merge_chunk *>(key_memory_Filesort_info_merge));
+      queue(greater,
+            Malloc_allocator<Merge_chunk *>(key_memory_Filesort_info_merge));
 
-  if (queue.reserve(chunk_array.size())) DBUG_RETURN(1);
+  if (queue.reserve(chunk_array.size())) return 1;
 
   for (merge_chunk = chunk_array.begin(); merge_chunk != chunk_array.end();
        merge_chunk++) {
@@ -213,8 +207,7 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
     merge_chunk->set_max_keys(maxcount);
     uint bytes_read = uniq_read_to_buffer(from_file, merge_chunk, param);
 
-    if (static_cast<int>(bytes_read) == -1)
-      DBUG_RETURN(-1); /* purecov: inspected */
+    if (static_cast<int>(bytes_read) == -1) return -1; /* purecov: inspected */
 
     strpos += bytes_read;
     merge_chunk->set_buffer_end(strpos);
@@ -233,7 +226,7 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
     merge_chunk = queue.top();
     memcpy(param->unique_buff, merge_chunk->current_key(), rec_length);
     if (my_b_write(to_file, merge_chunk->current_key(), rec_length)) {
-      DBUG_RETURN(1); /* purecov: inspected */
+      return 1; /* purecov: inspected */
     }
     merge_chunk->advance_current_key(rec_length);
     merge_chunk->decrement_mem_count();
@@ -247,14 +240,14 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
         queue.pop();
         reuse_freed_buff(merge_chunk, &queue);
       } else if (error == -1)
-        DBUG_RETURN(error);
+        return error;
     }
     queue.update_top();  // Top element has been used
   }
 
   while (queue.size() > 1) {
-    if (*killed) {
-      DBUG_RETURN(1); /* purecov: inspected */
+    if (thd->killed && !param->not_killable) {
+      return 1; /* purecov: inspected */
     }
     for (;;) {
       merge_chunk = queue.top();
@@ -271,7 +264,7 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
                             bytes_to_write));
         if (my_b_write(to_file, merge_chunk->current_key() + offset,
                        bytes_to_write)) {
-          DBUG_RETURN(1); /* purecov: inspected */
+          return 1; /* purecov: inspected */
         }
         if (--max_rows == 0) {
           error = 0; /* purecov: inspected */
@@ -289,7 +282,7 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
           reuse_freed_buff(merge_chunk, &queue);
           break; /* One buffer has been removed */
         } else if (error == -1)
-          DBUG_RETURN(error); /* purecov: inspected */
+          return error; /* purecov: inspected */
       }
       /*
         The Merge_chunk at the queue's top had one of its keys consumed, thus
@@ -326,7 +319,7 @@ static int merge_buffers(THD *thd, Uniq_param *param, IO_CACHE *from_file,
       const uint bytes_to_write = param->rec_length;
       if (my_b_write(to_file, merge_chunk->current_key() + offset,
                      bytes_to_write)) {
-        DBUG_RETURN(1); /* purecov: inspected */
+        return 1; /* purecov: inspected */
       }
       merge_chunk->advance_current_key(rec_length);
     }
@@ -338,7 +331,7 @@ end:
   last_chunk->set_rowcount(std::min(org_max_rows - max_rows, param->max_rows));
   last_chunk->set_file_position(to_start_filepos);
 
-  DBUG_RETURN(error);
+  return error;
 } /* merge_buffers */
 
 int unique_write_to_file(void *v_key, element_count, void *v_unique) {
@@ -370,8 +363,10 @@ Unique::Unique(qsort2_cmp comp_func, void *comp_func_fixed_arg, uint size_arg,
       size(size_arg),
       elements(0) {
   my_b_clear(&file);
-  init_tree(&tree, (ulong)(max_in_memory_size / 16), 0, size, comp_func, 0,
-            NULL, comp_func_fixed_arg);
+  init_tree(&tree,
+            /* memory_limit */ 0, size, comp_func,
+            /* with_delete */ false,
+            /* free_element */ nullptr, comp_func_fixed_arg);
   /*
     If you change the following, change it in get_max_elements function, too.
   */
@@ -666,7 +661,7 @@ void Unique::reset() {
   if (elements) {
     file_ptrs.clear();
     MY_ATTRIBUTE((unused))
-    int reinit_res = reinit_io_cache(&file, WRITE_CACHE, 0L, 0, 1);
+    int reinit_res = reinit_io_cache(&file, WRITE_CACHE, 0L, false, true);
     DBUG_ASSERT(reinit_res == 0);
   }
   /*
@@ -743,7 +738,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                        IO_CACHE *file) {
   if (end <= begin ||
       merge_buffer_size < (ulong)(key_length * (end - begin + 1)))
-    return 1;
+    return true;
 
   Merge_chunk_compare_context compare_context = {compare, compare_arg};
   Priority_queue<Merge_chunk *,
@@ -751,7 +746,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                  Merge_chunk_less>
       queue((Merge_chunk_less(compare_context)),
             (Malloc_allocator<Merge_chunk *>(key_memory_Unique_merge_buffer)));
-  if (queue.reserve(end - begin)) return 1;
+  if (queue.reserve(end - begin)) return true;
 
   /* we need space for one key when a piece of merge buffer is re-read */
   merge_buffer_size -= key_length;
@@ -872,9 +867,10 @@ bool Unique::walk(tree_walk_action action, void *walk_action_arg) {
     return tree_walk(&tree, action, walk_action_arg, left_root_right);
 
   /* flush current tree to the file to have some memory for merge buffer */
-  if (flush()) return 1;
-  if (flush_io_cache(&file) || reinit_io_cache(&file, READ_CACHE, 0L, 0, 0))
-    return 1;
+  if (flush()) return true;
+  if (flush_io_cache(&file) ||
+      reinit_io_cache(&file, READ_CACHE, 0L, false, false))
+    return true;
 
   /*
     Compute the size of the merge buffer used by merge_walk(). This buffer
@@ -887,7 +883,7 @@ bool Unique::walk(tree_walk_action action, void *walk_action_arg) {
 
   if (!(merge_buffer = (uchar *)my_malloc(key_memory_Unique_merge_buffer,
                                           merge_buffer_size, MYF(0))))
-    return 1;
+    return true;
   res = merge_walk(merge_buffer, merge_buffer_size, size, file_ptrs.begin(),
                    file_ptrs.end(), action, walk_action_arg, tree.compare,
                    tree.custom_arg, &file);
@@ -911,18 +907,18 @@ bool Unique::get(TABLE *table) {
                            size * tree.elements_in_tree, MYF(0)));
     if ((record_pointers = table->unique_result.sorted_result.get())) {
       (void)tree_walk(&tree, unique_write_to_ptrs, this, left_root_right);
-      return 0;
+      return false;
     }
   }
   /* Not enough memory; Save the result to file && free memory used by tree */
-  if (flush()) return 1;
+  if (flush()) return true;
 
   IO_CACHE *outfile = table->unique_result.io_cache;
   Merge_chunk *file_ptr = file_ptrs.begin();
   size_t num_chunks = file_ptrs.size();
   uchar *sort_memory;
   my_off_t save_pos;
-  bool error = 1;
+  bool error = true;
 
   /* Open cached file if it isn't open */
   DBUG_ASSERT(table->unique_result.io_cache == NULL);
@@ -933,8 +929,8 @@ bool Unique::get(TABLE *table) {
                    open_cached_file_encrypted(outfile, mysql_tmpdir,
                                               TEMP_PREFIX, READ_RECORD_BUFFER,
                                               MYF(MY_WME), encrypt_tmp_files)))
-    return 1;
-  if (reinit_io_cache(outfile, WRITE_CACHE, 0L, 0, 0) != 0) return 1;
+    return true;
+  if (reinit_io_cache(outfile, WRITE_CACHE, 0L, 0, 0) != 0) return true;
 
   MY_ATTRIBUTE((unused))
   int reinit_res = reinit_io_cache(outfile, WRITE_CACHE, 0L, 0, 0);
@@ -945,13 +941,13 @@ bool Unique::get(TABLE *table) {
   uniq_param.rec_length = size;
   uniq_param.max_keys_per_buffer =
       static_cast<uint>(max_in_memory_size / uniq_param.rec_length);
-  uniq_param.not_killable = 1;
+  uniq_param.not_killable = true;
 
   const size_t num_bytes =
       (uniq_param.max_keys_per_buffer + 1) * uniq_param.rec_length;
   if (!(sort_memory = (uchar *)my_malloc(key_memory_Unique_sort_buffer,
                                          num_bytes, MYF(0))))
-    return 1;
+    return true;
   uniq_param.unique_buff =
       sort_memory + (uniq_param.max_keys_per_buffer * uniq_param.rec_length);
 
@@ -965,20 +961,21 @@ bool Unique::get(TABLE *table) {
                       Merge_chunk_array(file_ptrs.begin(), file_ptrs.size()),
                       &num_chunks, &file))
     goto err;
-  if (flush_io_cache(&file) || reinit_io_cache(&file, READ_CACHE, 0L, 0, 0))
+  if (flush_io_cache(&file) ||
+      reinit_io_cache(&file, READ_CACHE, 0L, false, false))
     goto err;
   if (merge_buffers(table->in_use, &uniq_param, &file, outfile,
                     Sort_buffer(sort_memory, num_bytes), file_ptr,
                     Merge_chunk_array(file_ptr, num_chunks), 0))
     goto err;
-  error = 0;
+  error = false;
 err:
   my_free(sort_memory);
-  if (flush_io_cache(outfile)) error = 1;
+  if (flush_io_cache(outfile)) error = true;
 
   /* Setup io_cache for reading */
   save_pos = outfile->pos_in_file;
-  if (reinit_io_cache(outfile, READ_CACHE, 0L, 0, 0)) error = 1;
+  if (reinit_io_cache(outfile, READ_CACHE, 0L, false, false)) error = true;
   outfile->end_of_file = save_pos;
   return error;
 }

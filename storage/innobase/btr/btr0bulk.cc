@@ -57,7 +57,7 @@ dberr_t PageBulk::init() {
   mtr = static_cast<mtr_t *>(mem_heap_alloc(m_heap, sizeof(mtr_t)));
   mtr_start(mtr);
 
-  if (m_index->is_committed()) {
+  if (!dict_index_is_online_ddl(m_index)) {
     mtr_x_lock(dict_index_get_lock(m_index), mtr);
   }
 
@@ -218,9 +218,11 @@ void PageBulk::insert(const rec_t *rec, ulint *offsets) {
     ulint *old_offsets =
         rec_get_offsets(old_rec, m_index, nullptr, ULINT_UNDEFINED, &m_heap);
 
-    ut_ad(cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index) > 0 ||
+    ut_ad(cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index,
+                      page_is_spatial_non_leaf(old_rec, m_index)) > 0 ||
           (m_index->is_multi_value() &&
-           cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index) >= 0));
+           cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index,
+                       page_is_spatial_non_leaf(old_rec, m_index)) >= 0));
   }
 
   m_total_data += rec_size;
@@ -351,8 +353,6 @@ void PageBulk::commit(bool success) {
 bool PageBulk::compress() {
   ut_ad(!m_modified);
   ut_ad(m_page_zip != nullptr);
-
-  DBUG_EXECUTE_IF("innodb_bulk_load_compress_sleep", os_thread_sleep(1000000););
 
   return (
       page_zip_compress(m_page_zip, m_page, m_index, page_zip_level, m_mtr));
@@ -618,7 +618,7 @@ void PageBulk::release() {
 dberr_t PageBulk::latch() {
   mtr_start(m_mtr);
 
-  if (m_index->is_committed()) {
+  if (!dict_index_is_online_ddl(m_index)) {
     mtr_x_lock(dict_index_get_lock(m_index), m_mtr);
   }
 
@@ -651,6 +651,15 @@ dberr_t PageBulk::latch() {
 
   return (m_err);
 }
+
+#ifdef UNIV_DEBUG
+/* Check if an index is locked */
+bool PageBulk::isIndexXLocked() {
+  return (dict_index_is_online_ddl(m_index) &&
+          mtr_memo_contains_flagged(m_mtr, dict_index_get_lock(m_index),
+                                    MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+}
+#endif  // UNIV_DEBUG
 
 /** Split a page
 @param[in]	page_bulk	page to split
@@ -718,6 +727,15 @@ dberr_t BtrBulk::pageCommit(PageBulk *page_bulk, PageBulk *next_page_bulk,
     page_bulk->setNext(FIL_NULL);
   }
 
+  /* Assert that no locks are held during bulk load operation
+  in case of a online ddl operation. Insert thread acquires index->lock
+  to check the online status of index. During bulk load index,
+  there are no concurrent insert or reads and hence, there is no
+  need to acquire a lock in that case. */
+  ut_ad(!page_bulk->isIndexXLocked());
+
+  DBUG_EXECUTE_IF("innodb_bulk_load_sleep", os_thread_sleep(1000000););
+
   /* Compress page if it's a compressed table. */
   if (page_bulk->isTableCompressed() && !page_bulk->compress()) {
     return (pageSplit(page_bulk, next_page_bulk));
@@ -763,6 +781,7 @@ BtrBulk::BtrBulk(dict_index_t *index, trx_id_t trx_id, FlushObserver *observer)
   ut_ad(m_flush_observer != nullptr);
 #ifdef UNIV_DEBUG
   fil_space_inc_redo_skipped_count(m_index->space);
+  m_index_online = m_index->online_status;
 #endif /* UNIV_DEBUG */
 }
 
@@ -938,8 +957,6 @@ dberr_t BtrBulk::insert(dtuple_t *tuple, ulint level) {
       return (err);
     }
 
-    DEBUG_SYNC_C("bulk_load_insert");
-
     m_page_bulks->push_back(new_page_bulk);
     ut_ad(level + 1 == m_page_bulks->size());
     m_root_level = level;
@@ -1037,6 +1054,11 @@ if no error occurs.
 @return error code  */
 dberr_t BtrBulk::finish(dberr_t err) {
   ut_ad(m_page_bulks);
+
+#ifdef UNIV_DEBUG
+  /* Assert that the index online status has not changed */
+  ut_ad(m_index->online_status == m_index_online);
+#endif  // UNIV_DEBUG
 
   page_no_t last_page_no = FIL_NULL;
 

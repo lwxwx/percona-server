@@ -1720,7 +1720,7 @@ static dberr_t verify_post_encryption_checksum(const IORequest &type,
           encryption.is_encrypted_and_compressed(buf));
     }
 
-    if (encryption.m_encryption_rotation == Encryption::NO_ROTATION &&
+    if (encryption.m_encryption_rotation == Encryption_rotation::NO_ROTATION &&
         !is_crypt_checksum_correct) {  // There is no re-encryption going on
       const auto space_id =
           mach_read_from_4(buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -1733,7 +1733,8 @@ static dberr_t verify_post_encryption_checksum(const IORequest &type,
   }
 
   if (encryption.m_encryption_rotation ==
-      Encryption::MASTER_KEY_TO_KEYRING) {  // There is re-encryption going on
+      Encryption_rotation::MASTER_KEY_TO_KEYRING) {  // There is re-encryption
+                                                     // going on
     encryption.m_type =
         is_crypt_checksum_correct
             ? Encryption::KEYRING  // assume page is RK encrypted
@@ -1778,9 +1779,9 @@ static bool load_key_needed_for_decryption(const IORequest &type,
     byte *key_read;
 
     size_t key_len;
-    if (Encryption::get_tablespace_key(encryption.m_key_id,
-                                       key_version_read_from_page, &key_read,
-                                       &key_len) == false) {
+    if (Encryption::get_tablespace_key(
+            encryption.m_key_id, encryption.m_key_id_uuid,
+            key_version_read_from_page, &key_read, &key_len) == false) {
       return false;
     }
 
@@ -1798,16 +1799,13 @@ static bool load_key_needed_for_decryption(const IORequest &type,
     encryption.m_key_version = key_version_read_from_page;
   } else {
     ut_ad(encryption.m_type == Encryption::AES);
-    if (encryption.m_encryption_rotation == Encryption::NO_ROTATION)
+    if (encryption.m_encryption_rotation == Encryption_rotation::NO_ROTATION)
       return true;  // we are all set - needed key was alread loaded into
                     // encryption module
 
     ut_ad(encryption.m_encryption_rotation ==
-          Encryption::MASTER_KEY_TO_KEYRING);
-    ut_ad(encryption.m_tablespace_iv != NULL);
-    encryption.m_iv = encryption.m_tablespace_iv;  // iv comes from tablespace
-                                                   // header for MK encryption
-    ut_ad(encryption.m_tablespace_key != NULL);
+              Encryption_rotation::MASTER_KEY_TO_KEYRING &&
+          encryption.m_tablespace_key != nullptr);
     encryption.set_key(encryption.m_tablespace_key, ENCRYPTION_KEY_LEN, false);
   }
 
@@ -1990,10 +1988,17 @@ static char *os_file_get_parent_dir(const char *path) {
     return (NULL);
   }
 
+  if (last_slash - path < 0) {
+    /* Sanity check, it prevents gcc from trying to handle this case which
+     * results in warnings for some optimized builds */
+    return (NULL);
+  }
+
   /* Non-trivial directory component */
 
   return (mem_strdupl(path, last_slash - path));
 }
+
 #ifdef UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR
 
 /* Test the function os_file_get_parent_dir. */
@@ -3987,9 +3992,9 @@ void os_aio_simulated_put_read_threads_to_sleep() { /* No op on non Windows */
 }
 
 /** Depth first traversal of the directory starting from basedir
-@param[in]	basedir		Start scanning from this directory
-@param[in]      recursive       True if scan should be recursive
-@param[in]	f		Function to call for each entry */
+@param[in]  basedir     Start scanning from this directory
+@param[in]  recursive  `true` if scan should be recursive
+@param[in]  f           Function to call for each entry */
 void Dir_Walker::walk_posix(const Path &basedir, bool recursive, Function &&f) {
   using Stack = std::stack<Entry>;
 
@@ -4001,6 +4006,12 @@ void Dir_Walker::walk_posix(const Path &basedir, bool recursive, Function &&f) {
     Entry current = directories.top();
 
     directories.pop();
+
+    /* Ignore hidden directories and files. */
+    if (Fil_path::is_hidden(current.m_path)) {
+      ib::info(ER_IB_MSG_SKIP_HIDDEN_DIR, current.m_path.c_str());
+      continue;
+    }
 
     DIR *parent = opendir(current.m_path.c_str());
 
@@ -4037,9 +4048,14 @@ void Dir_Walker::walk_posix(const Path &basedir, bool recursive, Function &&f) {
 
       path.append(dirent->d_name);
 
+      /* Ignore hidden subdirectories and files. */
+      if (Fil_path::is_hidden(path)) {
+        ib::info(ER_IB_MSG_SKIP_HIDDEN_DIR, path.c_str());
+        continue;
+      }
+
       if (is_directory(path) && recursive) {
         directories.push(Entry(path, current.m_depth + 1));
-
       } else {
         f(path, current.m_depth + 1);
       }
@@ -5192,10 +5208,9 @@ void AIO::simulated_put_read_threads_to_sleep() {
 }
 
 /** Depth first traversal of the directory starting from basedir
-@param[in]	basedir		Start scanning from this directory
-@param[in]      recursive       true if scan should be recursive
-@param[in]	f		Callback for each entry found
-@param[in,out]	args		Optional arguments for f */
+@param[in]      basedir    Start scanning from this directory
+@param[in]      recursive  `true` if scan should be recursive
+@param[in]      f          Callback for each entry found */
 void Dir_Walker::walk_win32(const Path &basedir, bool recursive, Function &&f) {
   using Stack = std::stack<Entry>;
 
@@ -5236,6 +5251,11 @@ void Dir_Walker::walk_win32(const Path &basedir, bool recursive, Function &&f) {
 
     directories.pop();
 
+    if (Fil_path::is_hidden(current.m_path)) {
+      ib::info(ER_IB_MSG_SKIP_HIDDEN_DIR, current.m_path.c_str());
+      continue;
+    }
+
     HANDLE h;
     WIN32_FIND_DATA dirent;
 
@@ -5262,6 +5282,12 @@ void Dir_Walker::walk_win32(const Path &basedir, bool recursive, Function &&f) {
 
       path.resize(path.size() - 1);
       path.append(dirent.cFileName);
+
+      /* Ignore hidden files and directories. */
+      if (Fil_path::is_hidden(dirent) || Fil_path::is_hidden(path)) {
+        ib::info(ER_IB_MSG_SKIP_HIDDEN_DIR, path.c_str());
+        continue;
+      }
 
       if ((dirent.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && recursive) {
         path.append("\\*");
@@ -5514,7 +5540,7 @@ static MY_ATTRIBUTE((warn_unused_result)) ssize_t
   meb_mutex.unlock();
 #endif /* UNIV_HOTBACKUP */
 
-  const ib_uint64_t start_time = trx_stats::start_io_read(trx, n);
+  const ib_time_monotonic_us_t start_time = trx_stats::start_io_read(trx, n);
 
   (void)os_atomic_increment_ulint(&os_n_pending_reads, 1);
   MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_READS);
@@ -5532,6 +5558,7 @@ static MY_ATTRIBUTE((warn_unused_result)) ssize_t
 /** Requests a synchronous positioned read operation.
 @return DB_SUCCESS if request was successful, false if fail
 @param[in]	type		IO flags
+@param[in]  file_name file name
 @param[in]	file		handle to an open file
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset from the start where to read
@@ -5540,9 +5567,9 @@ static MY_ATTRIBUTE((warn_unused_result)) ssize_t
 @param[in]	exit_on_err	if true then exit on error
 @return DB_SUCCESS or error code */
 static MY_ATTRIBUTE((warn_unused_result)) dberr_t
-    os_file_read_page(IORequest &type, os_file_t file, void *buf,
-                      os_offset_t offset, ulint n, ulint *o, bool exit_on_err,
-                      trx_t *trx) {
+    os_file_read_page(IORequest &type, const char *file_name, os_file_t file,
+                      void *buf, os_offset_t offset, ulint n, ulint *o,
+                      bool exit_on_err, trx_t *trx) {
 #ifdef UNIV_HOTBACKUP
   static meb::Mutex meb_mutex;
 
@@ -5600,12 +5627,12 @@ static MY_ATTRIBUTE((warn_unused_result)) dberr_t
     }
 
     if (exit_on_err) {
-      if (!os_file_handle_error(NULL, "read")) {
+      if (!os_file_handle_error(file_name, "read")) {
         /* Hard error */
         break;
       }
 
-    } else if (!os_file_handle_error_no_exit(NULL, "read", false)) {
+    } else if (!os_file_handle_error_no_exit(file_name, "read", false)) {
       /* Hard error */
       break;
     }
@@ -5979,16 +6006,19 @@ function!
 Requests a synchronous positioned read operation.
 @return DB_SUCCESS if request was successful, DB_IO_ERROR on failure
 @param[in]	type		IO flags
+@param[in]  file_name file name
 @param[in]	file		handle to an open file
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @return DB_SUCCESS or error code */
-dberr_t os_file_read_func(IORequest &type, os_file_t file, void *buf,
-                          os_offset_t offset, ulint n, trx_t *trx) {
+dberr_t os_file_read_func(IORequest &type, const char *file_name,
+                          os_file_t file, void *buf, os_offset_t offset,
+                          ulint n, trx_t *trx) {
   ut_ad(type.is_read());
 
-  return (os_file_read_page(type, file, buf, offset, n, nullptr, true, trx));
+  return (os_file_read_page(type, file_name, file, buf, offset, n, nullptr,
+                            true, trx));
 }
 
 /** NOTE! Use the corresponding macro os_file_read_first_page(), not
@@ -5996,24 +6026,27 @@ directly this function!
 Requests a synchronous positioned read operation of page 0 of IBD file
 @return DB_SUCCESS if request was successful, DB_IO_ERROR on failure
 @param[in]	type		IO flags
+@param[in]  file_name file name
 @param[in]	file		handle to an open file
 @param[out]	buf		buffer where to read
 @param[in]	n		number of bytes to read, starting from offset
 @param[in]	exit_on_err	if true then exit on error
 @return DB_SUCCESS or error code */
-dberr_t os_file_read_first_page_func(IORequest &type, os_file_t file, void *buf,
-                                     ulint n, bool exit_on_err) {
+dberr_t os_file_read_first_page_func(IORequest &type, const char *file_name,
+                                     os_file_t file, void *buf, ulint n,
+                                     bool exit_on_err) {
   ut_ad(type.is_read());
 
-  dberr_t err = os_file_read_page(type, file, buf, 0, UNIV_ZIP_SIZE_MIN,
-                                  nullptr, exit_on_err, nullptr);
+  dberr_t err =
+      os_file_read_page(type, file_name, file, buf, 0, UNIV_ZIP_SIZE_MIN,
+                        nullptr, exit_on_err, nullptr);
 
   if (err == DB_SUCCESS) {
     uint32_t flags = fsp_header_get_flags(static_cast<byte *>(buf));
     const page_size_t page_size(flags);
     ut_ad(page_size.physical() <= n);
-    err = os_file_read_page(type, file, buf, 0, page_size.physical(), nullptr,
-                            true, nullptr);
+    err = os_file_read_page(type, file_name, file, buf, 0, page_size.physical(),
+                            nullptr, true, nullptr);
     if (err == DB_SUCCESS) {
       srv_stats.page0_read.add(1);
     }
@@ -6056,8 +6089,8 @@ static dberr_t os_file_copy_read_write(os_file_t src_file,
       request_size = size;
     }
 
-    err = os_file_read_func(read_request, src_file, buf_ptr, src_offset,
-                            request_size, nullptr);
+    err = os_file_read_func(read_request, nullptr, src_file, buf_ptr,
+                            src_offset, request_size, nullptr);
 
     if (err != DB_SUCCESS) {
       return (err);
@@ -6152,18 +6185,22 @@ not directly this function!
 Requests a synchronous positioned read operation.
 @return DB_SUCCESS if request was successful, DB_IO_ERROR on failure
 @param[in]	type		IO flags
+@param[in]  file_name file name
 @param[in]	file		handle to an open file
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @param[out]	o		number of bytes actually read
 @return DB_SUCCESS or error code */
-dberr_t os_file_read_no_error_handling_func(IORequest &type, os_file_t file,
-                                            void *buf, os_offset_t offset,
-                                            ulint n, ulint *o) {
+dberr_t os_file_read_no_error_handling_func(IORequest &type,
+                                            const char *file_name,
+                                            os_file_t file, void *buf,
+                                            os_offset_t offset, ulint n,
+                                            ulint *o) {
   ut_ad(type.is_read());
 
-  return (os_file_read_page(type, file, buf, offset, n, o, false, nullptr));
+  return (os_file_read_page(type, file_name, file, buf, offset, n, o, false,
+                            nullptr));
 }
 
 /** NOTE! Use the corresponding macro os_file_write(), not directly
@@ -7501,7 +7538,7 @@ dberr_t os_aio_func(IORequest &type, AIO_mode aio_mode, const char *name,
     and os_file_write_func() */
 
     if (type.is_read()) {
-      return (os_file_read_func(type, file.m_file, buf, offset, n, trx));
+      return (os_file_read_func(type, name, file.m_file, buf, offset, n, trx));
     }
 
     ut_ad(type.is_write());
@@ -7796,8 +7833,9 @@ class SimulatedAIOHandler {
   /** Do the file read
   @param[in,out]	slot		Slot that has the IO context */
   void read(Slot *slot) {
-    dberr_t err = os_file_read_func(slot->type, slot->file.m_file, slot->ptr,
-                                    slot->offset, slot->len, nullptr);
+    dberr_t err =
+        os_file_read_func(slot->type, slot->name, slot->file.m_file, slot->ptr,
+                          slot->offset, slot->len, nullptr);
     ut_a(err == DB_SUCCESS);
   }
 
@@ -8358,7 +8396,6 @@ Encryption::Encryption(const Encryption &other) noexcept
       m_klen(other.m_klen),
       m_key_allocated(other.m_key_allocated),
       m_iv(other.m_iv),
-      m_tablespace_iv(other.m_tablespace_iv),
       m_tablespace_key(other.m_tablespace_key),
       m_key_version(other.m_key_version),
       m_key_id(other.m_key_id),
@@ -8367,6 +8404,7 @@ Encryption::Encryption(const Encryption &other) noexcept
   if (other.m_key_allocated && other.m_key != NULL)
     m_key = static_cast<byte *>(
         my_memdup(PSI_NOT_INSTRUMENTED, other.m_key, other.m_klen, MYF(0)));
+  memcpy(m_key_id_uuid, other.m_key_id_uuid, ENCRYPTION_SERVER_UUID_LEN + 1);
 }
 
 Encryption::~Encryption() {
@@ -8418,32 +8456,50 @@ void Encryption::random_value(byte *value) {
   my_rand_buffer(value, ENCRYPTION_KEY_LEN);
 }
 
-void Encryption::fill_key_name(char *key_name, uint key_id) {
+void Encryption::fill_key_name(char *key_name, uint key_id, const char *uuid) {
 #ifndef UNIV_INNOCHECKSUM
+  // Each key that we fetch/remove/store in keyring for KEYRING encryption has
+  // to go through one of fill_key_name function. All InnoDB keys used for
+  // KEYRING encryption should have uuid assigned.
+  ut_ad(strlen(uuid) > 0);
+
   memset(key_name, 0, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN);
 
-  snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN, "%s-%u",
-           ENCRYPTION_PERCONA_SYSTEM_KEY_PREFIX, key_id);
+  snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN, "%s-%u-%s",
+           ENCRYPTION_PERCONA_SYSTEM_KEY_PREFIX, key_id, uuid);
 #endif
 }
 
-void Encryption::fill_key_name(char *key_name, uint key_id, uint key_version) {
+void Encryption::fill_key_name(char *key_name, uint key_id, const char *uuid,
+                               uint key_version) {
 #ifndef UNIV_INNOCHECKSUM
+  // Each key that we fetch/remove/store in keyring for KEYRING encryption has
+  // to go through one of fill_key_name function. All InnoDB keys used for
+  // KEYRING encryption should have uuid assigned.
+  ut_ad(strlen(uuid) > 0);
+
   memset(key_name, 0, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN);
 
-  snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN, "%s-%u:%u",
-           ENCRYPTION_PERCONA_SYSTEM_KEY_PREFIX, key_id, key_version);
+  snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN, "%s-%u-%s:%u",
+           ENCRYPTION_PERCONA_SYSTEM_KEY_PREFIX, key_id, uuid, key_version);
 #endif
 }
 
-void Encryption::create_tablespace_key(byte **tablespace_key, uint key_id) {
+void Encryption::create_tablespace_key(byte **tablespace_key, uint key_id,
+                                       const char *uuid) {
 #ifndef UNIV_INNOCHECKSUM
   char *key_type = nullptr;
   size_t key_len;
   char key_name[ENCRYPTION_MASTER_KEY_NAME_MAX_LEN];
   int ret;
 
-  fill_key_name(key_name, key_id);
+  // Newly created tablespace keys should always have uuid equal to server_uuid.
+  // There are situations when server_uuid is not available - like when parsing
+  // redo logs. Then we read uuid from crypto's redo log.
+  ut_ad(strlen(server_uuid) == 0 ||
+        memcmp(server_uuid, uuid, ENCRYPTION_SERVER_UUID_LEN) == 0);
+
+  fill_key_name(key_name, key_id, uuid);
 
   /* We call key ring API to generate tablespace key here. */
   ret = my_key_generate(key_name, "AES", nullptr, ENCRYPTION_KEY_LEN);
@@ -8504,13 +8560,14 @@ void Encryption::get_keyring_key(const char *key_name, byte **key,
 #endif
 }
 
-bool Encryption::get_tablespace_key(uint key_id, uint tablespace_key_version,
+bool Encryption::get_tablespace_key(uint key_id, const char *uuid,
+                                    uint tablespace_key_version,
                                     byte **tablespace_key, size_t *key_len) {
   bool result = true;
 #ifndef UNIV_INNOCHECKSUM
   char key_name[ENCRYPTION_MASTER_KEY_NAME_MAX_LEN];
 
-  fill_key_name(key_name, key_id, tablespace_key_version);
+  fill_key_name(key_name, key_id, uuid, tablespace_key_version);
 
   Encryption::get_keyring_key(key_name, tablespace_key, key_len);
 
@@ -8549,14 +8606,14 @@ void Encryption::get_latest_system_key(const char *system_key_name, byte **key,
 }
 
 // tablespace_key_version as output parameter
-void Encryption::get_latest_tablespace_key(uint key_id,
+void Encryption::get_latest_tablespace_key(uint key_id, const char *uuid,
                                            uint *tablespace_key_version,
                                            byte **tablespace_key) {
 #ifndef UNIV_INNOCHECKSUM
   size_t key_len;
   char key_name[ENCRYPTION_MASTER_KEY_NAME_MAX_LEN];
 
-  fill_key_name(key_name, key_id);
+  fill_key_name(key_name, key_id, uuid);
 
   get_latest_system_key(key_name, tablespace_key, tablespace_key_version,
                         &key_len);
@@ -8572,11 +8629,12 @@ void Encryption::get_latest_tablespace_key(uint key_id,
 #endif
 }
 
-bool Encryption::tablespace_key_exists(uint key_id) {
+bool Encryption::tablespace_key_exists(uint key_id, const char *uuid) {
   uint tablespace_key_version = 0;
   byte *tablespace_key = NULL;
 
-  get_latest_tablespace_key(key_id, &tablespace_key_version, &tablespace_key);
+  get_latest_tablespace_key(key_id, uuid, &tablespace_key_version,
+                            &tablespace_key);
 
   if (tablespace_key == NULL) {
     return false;
@@ -8587,12 +8645,12 @@ bool Encryption::tablespace_key_exists(uint key_id) {
 }
 
 bool Encryption::tablespace_key_exists_or_create_new_one_if_does_not_exist(
-    uint key_id) {
+    uint key_id, const char *uuid) {
   uint tablespace_key_version;
   byte *tablespace_key;
 
-  get_latest_tablespace_key_or_create_new_one(key_id, &tablespace_key_version,
-                                              &tablespace_key);
+  get_latest_key_or_create(key_id, uuid, &tablespace_key_version,
+                           &tablespace_key);
 
   if (tablespace_key == NULL) {
     return false;
@@ -8604,7 +8662,7 @@ bool Encryption::tablespace_key_exists_or_create_new_one_if_does_not_exist(
 
 bool Encryption::create_tablespace_key(EncryptionKeyId key_id) {
   byte *tablespace_key = nullptr;
-  Encryption::create_tablespace_key(&tablespace_key, key_id);
+  Encryption::create_tablespace_key(&tablespace_key, key_id, server_uuid);
   if (tablespace_key == nullptr) {
     return true;
   }
@@ -8612,18 +8670,39 @@ bool Encryption::create_tablespace_key(EncryptionKeyId key_id) {
   return false;
 }
 
-void Encryption::get_latest_tablespace_key_or_create_new_one(
-    uint key_id, uint *tablespace_key_version, byte **tablespace_key) {
-  get_latest_tablespace_key(key_id, tablespace_key_version, tablespace_key);
+void Encryption::get_latest_key_or_create(uint tablespace_key_id,
+                                          const char *uuid,
+                                          uint *tablespace_key_version,
+                                          byte **tablespace_key) {
+  get_latest_tablespace_key(tablespace_key_id, uuid, tablespace_key_version,
+                            tablespace_key);
   if (*tablespace_key == NULL) {
-    Encryption::create_tablespace_key(tablespace_key, key_id);
+    Encryption::create_tablespace_key(tablespace_key, tablespace_key_id, uuid);
     *tablespace_key_version = 1;
   }
 }
 
+/** Checks if keyring is installed and it is operational.
+ *  This is done by trying to fetch/create
+ *  dummy percona_keyring_test key
+@return true if success */
 bool Encryption::is_keyring_alive() {
-  return Encryption::tablespace_key_exists_or_create_new_one_if_does_not_exist(
-      0);  // DEFAULT ENCRYPTION KEY
+  byte *keyring_test_key{nullptr};
+  size_t key_len{0};
+  const char *percona_keyring_test_key_name{"percona_keyring_test"};
+
+  Encryption::get_keyring_key(percona_keyring_test_key_name, &keyring_test_key,
+                              &key_len);
+
+  if (keyring_test_key != nullptr) {
+    my_free(keyring_test_key);
+    return true;
+  }
+
+  int ret = my_key_generate(percona_keyring_test_key_name, "AES", nullptr,
+                            ENCRYPTION_KEY_LEN);
+
+  return (ret == 0) ? true : false;
 }
 
 bool Encryption::can_page_be_keyring_encrypted(ulint page_type) {
@@ -8643,12 +8722,13 @@ bool Encryption::can_page_be_keyring_encrypted(byte *page) {
   return can_page_be_keyring_encrypted(mach_read_from_2(page + FIL_PAGE_TYPE));
 }
 
-uint Encryption::encryption_get_latest_version(uint key_id) {
+uint Encryption::encryption_get_latest_version(uint key_id, const char *uuid) {
 #ifndef UNIV_INNOCHECKSUM
   uint tablespace_key_version = ENCRYPTION_KEY_VERSION_INVALID;
   byte *tablespace_key = nullptr;
 
-  get_latest_tablespace_key(key_id, &tablespace_key_version, &tablespace_key);
+  get_latest_tablespace_key(key_id, uuid, &tablespace_key_version,
+                            &tablespace_key);
 
   if (tablespace_key == NULL) return ENCRYPTION_KEY_VERSION_INVALID;
 
@@ -8773,19 +8853,22 @@ void Encryption::get_master_key(ulint *master_key_id, byte **master_key) {
   extern ib_mutex_t master_key_id_mutex;
   bool key_id_locked = false;
 
-  if (s_master_key_id == 0) {
+  if (s_master_key_id == ENCRYPTION_DEFAULT_MASTER_KEY_ID) {
+    /* Take mutex as master_key_id is going to change. */
     mutex_enter(&master_key_id_mutex);
     key_id_locked = true;
   }
 
   memset(key_name, 0x0, sizeof(key_name));
 
-  if (s_master_key_id == 0) {
+  /* Check for s_master_key_id again, as a parallel rotation might have caused
+  it to change. */
+  if (s_master_key_id == ENCRYPTION_DEFAULT_MASTER_KEY_ID) {
     memset(s_uuid, 0x0, sizeof(s_uuid));
 
-    /* If m_master_key is 0, means there's no encrypted
-    tablespace, we need to generate the first master key,
-    and store it to key ring. */
+    /* If m_master_key is ENCRYPTION_DEFAULT_MASTER_KEY_ID, it means there's
+    no encrypted tablespace yet. Generate the first master key now and store
+    it to keyring. */
     memcpy(s_uuid, server_uuid, sizeof(s_uuid) - 1);
 
     /* Prepare the server s_uuid. */
@@ -8971,13 +9054,13 @@ bool Encryption::fill_encryption_info(uint key_version, byte *iv,
   byte *ptr = encrypt_info;
   ulint crc;
   memset(encrypt_info, 0, ENCRYPTION_INFO_SIZE);
-  memcpy(ptr, ENCRYPTION_KEY_MAGIC_RK, ENCRYPTION_MAGIC_SIZE);
+  memcpy(ptr, ENCRYPTION_KEY_MAGIC_RK_V2, ENCRYPTION_MAGIC_SIZE);
   ptr += ENCRYPTION_MAGIC_SIZE;
   /* Write master key id. */
   mach_write_to_4(ptr, key_version);
   ptr += 4;
   /* Write server uuid. */
-  memcpy(ptr, s_uuid, ENCRYPTION_SERVER_UUID_LEN);
+  memcpy(ptr, server_uuid, ENCRYPTION_SERVER_UUID_LEN);
   ptr += ENCRYPTION_SERVER_UUID_LEN;
   /* Write tablespace iv. */
   memcpy(ptr, iv, ENCRYPTION_KEY_LEN);
@@ -9085,6 +9168,11 @@ byte *Encryption::get_master_key_from_info(byte *encrypt_info, Version version,
   return (ptr);
 }
 
+/** Decoding the encryption info from the first page of a tablespace.
+@param[in,out]	key		key
+@param[in,out]	iv		iv
+@param[in]	encryption_info	encryption info
+@return true if success */
 bool Encryption::decode_encryption_info(byte *key, byte *iv,
                                         byte *encryption_info,
                                         bool decrypt_key) {
@@ -9722,8 +9810,8 @@ dberr_t Encryption::decrypt_log_block(const IORequest &type, byte *src,
 
       if (m_key_version != enc_key_version &&
           enc_key_version != REDO_LOG_ENCRYPT_NO_VERSION) {
-        redo_log_key *mkey =
-            redo_log_key_mgr.load_key_version(nullptr, enc_key_version);
+        redo_log_key *mkey = redo_log_key_mgr.load_key_version(
+            nullptr, m_key_id_uuid, enc_key_version);
         m_key_version = mkey->version;
         m_key = reinterpret_cast<unsigned char *>(mkey->key);
       }
@@ -10148,8 +10236,8 @@ bool os_dblwr_encrypt_page(fil_space_t *space, page_t *in_page,
 
   IORequest write_request(IORequest::WRITE);
   write_request.encryption_key(space->encryption_key, space->encryption_klen,
-                               false, space->encryption_iv, 0, 0, NULL, NULL);
-
+                               false, space->encryption_iv, 0, 0, nullptr,
+                               nullptr);
   write_request.encryption_algorithm(Encryption::AES);
 
   page_size_t page_size(space->flags);
@@ -10193,7 +10281,8 @@ dberr_t os_dblwr_decrypt_page(fil_space_t *space, page_t *page) {
   IORequest decrypt_request;
 
   decrypt_request.encryption_key(space->encryption_key, space->encryption_klen,
-                                 false, space->encryption_iv, 0, 0, NULL, NULL);
+                                 false, space->encryption_iv, 0, 0, nullptr,
+                                 nullptr);
 
   decrypt_request.encryption_algorithm(Encryption::AES);
 

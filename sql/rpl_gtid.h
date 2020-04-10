@@ -44,7 +44,8 @@ class THD;
   Report an error from code that can be linked into either the server
   or mysqlbinlog.  There is no common error reporting mechanism, so we
   have to duplicate the error message (write it out in the source file
-  for mysqlbinlog, write it in share/errmsg-utf8.txt for the server).
+  for mysqlbinlog, write it in share/messages_to_clients.txt for the
+  server).
 
   @param MYSQLBINLOG_ERROR arguments to mysqlbinlog's 'error'
   function, including the function call parentheses
@@ -161,7 +162,7 @@ extern void check_return_status(enum_return_status status, const char *action,
     if (__propagate_error_status != RETURN_STATUS_OK) {                       \
       __CHECK_RETURN_STATUS(__propagate_error_status, "Propagating", #STATUS, \
                             ALLOW_UNREPORTED);                                \
-      DBUG_RETURN(RETURN_VALUE);                                              \
+      return RETURN_VALUE;                                                    \
     }                                                                         \
   } while (0)
 /// Low-level macro that returns STATUS. @see __DO_RETURN_STATUS
@@ -170,7 +171,7 @@ extern void check_return_status(enum_return_status status, const char *action,
     enum_return_status __return_status_status = STATUS;                 \
     __CHECK_RETURN_STATUS(__return_status_status, "Returning", #STATUS, \
                           ALLOW_UNREPORTED);                            \
-    DBUG_RETURN(__return_status_status);                                \
+    return __return_status_status;                                      \
   } while (0)
 /**
   If STATUS (of type enum_return_status) returns RETURN_STATUS_OK,
@@ -203,7 +204,7 @@ extern void check_return_status(enum_return_status status, const char *action,
 */
 #define RETURN_REPORTED_STATUS(STATUS) __RETURN_STATUS(STATUS, false)
 /// Returns RETURN_STATUS_OK.
-#define RETURN_OK DBUG_RETURN(RETURN_STATUS_OK)
+#define RETURN_OK return RETURN_STATUS_OK
 /// Does a DBUG_PRINT and returns RETURN_STATUS_REPORTED_ERROR.
 #define RETURN_REPORTED_ERROR RETURN_STATUS(RETURN_STATUS_REPORTED_ERROR)
 /// Does a DBUG_PRINT and returns RETURN_STATUS_UNREPORTED_ERROR.
@@ -213,7 +214,7 @@ extern void check_return_status(enum_return_status status, const char *action,
   enum to map the result of Uuid::parse to the above Macros
 */
 inline enum_return_status map_macro_enum(int status) {
-  DBUG_ENTER("map status error with the return value of uuid::parse_method");
+  DBUG_TRACE;
   if (status == 0)
     RETURN_OK;
   else
@@ -831,19 +832,19 @@ class Mutex_cond_array {
     thread was killed, the error has been generated.
   */
   inline bool wait(const THD *thd, int sidno, struct timespec *abstime) const {
-    DBUG_ENTER("Mutex_cond_array::wait");
+    DBUG_TRACE;
     int error = 0;
     Mutex_cond *mutex_cond = get_mutex_cond(sidno);
     global_lock->unlock();
     mysql_mutex_assert_owner(&mutex_cond->mutex);
-    if (is_thd_killed(thd)) DBUG_RETURN(true);
+    if (is_thd_killed(thd)) return true;
     if (abstime != nullptr)
       error =
           mysql_cond_timedwait(&mutex_cond->cond, &mutex_cond->mutex, abstime);
     else
       mysql_cond_wait(&mutex_cond->cond, &mutex_cond->mutex);
     mysql_mutex_assert_owner(&mutex_cond->mutex);
-    DBUG_RETURN(is_timeout(error));
+    return is_timeout(error);
   }
 #ifdef MYSQL_SERVER
   /// Execute THD::enter_cond for the n'th condition variable.
@@ -1362,11 +1363,11 @@ class Gtid_set {
     @param gno GNO of the GTID to add.
   */
   void _add_gtid(rpl_sidno sidno, rpl_gno gno) {
-    DBUG_ENTER("Gtid_set::_add_gtid(sidno, gno)");
+    DBUG_TRACE;
     Interval_iterator ivit(this, sidno);
     Free_intervals_lock lock(this);
     add_gno_interval(&ivit, gno, gno + 1, &lock);
-    DBUG_VOID_RETURN;
+    return;
   }
   /**
     Removes the given GTID from this Gtid_set.
@@ -1375,13 +1376,13 @@ class Gtid_set {
     @param gno GNO of the GTID to remove.
   */
   void _remove_gtid(rpl_sidno sidno, rpl_gno gno) {
-    DBUG_ENTER("Gtid_set::_remove_gtid(rpl_sidno, rpl_gno)");
+    DBUG_TRACE;
     if (sidno <= get_max_sidno()) {
       Interval_iterator ivit(this, sidno);
       Free_intervals_lock lock(this);
       remove_gno_interval(&ivit, gno, gno + 1, &lock);
     }
-    DBUG_VOID_RETURN;
+    return;
   }
   /**
     Adds the given GTID to this Gtid_set.
@@ -2600,9 +2601,9 @@ class Gtid_state {
     @retval false The gtid is not logged in the binary log.
   */
   bool is_executed(const Gtid &gtid) const {
-    DBUG_ENTER("Gtid_state::is_executed");
+    DBUG_TRACE;
     bool ret = executed_gtids.contains_gtid(gtid);
-    DBUG_RETURN(ret);
+    return ret;
   }
   /**
     Returns true if GTID is owned, otherwise returns 0.
@@ -2679,7 +2680,7 @@ class Gtid_state {
     gtid_mode could have changed to ON by a concurrent SET GTID_MODE.)
   */
   void acquire_anonymous_ownership() {
-    DBUG_ENTER("Gtid_state::acquire_anonymous_ownership");
+    DBUG_TRACE;
     sid_lock->assert_some_lock();
     DBUG_ASSERT(get_gtid_mode(GTID_MODE_LOCK_SID) != GTID_MODE_ON);
 #ifndef DBUG_OFF
@@ -2689,12 +2690,12 @@ class Gtid_state {
     DBUG_PRINT("info",
                ("atomic_anonymous_gtid_count increased to %d", new_value));
     DBUG_ASSERT(new_value >= 1);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   /// Release anonymous ownership.
   void release_anonymous_ownership() {
-    DBUG_ENTER("Gtid_state::release_anonymous_ownership");
+    DBUG_TRACE;
     sid_lock->assert_some_lock();
     DBUG_ASSERT(get_gtid_mode(GTID_MODE_LOCK_SID) != GTID_MODE_ON);
 #ifndef DBUG_OFF
@@ -2704,7 +2705,7 @@ class Gtid_state {
     DBUG_PRINT("info",
                ("atomic_anonymous_gtid_count decreased to %d", new_value));
     DBUG_ASSERT(new_value >= 0);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   /// Return the number of clients that hold anonymous ownership.
@@ -2715,7 +2716,7 @@ class Gtid_state {
     transaction having GTID_NEXT=AUTOMATIC.
   */
   void begin_automatic_gtid_violating_transaction() {
-    DBUG_ENTER("Gtid_state::begin_automatic_gtid_violating_transaction");
+    DBUG_TRACE;
     DBUG_ASSERT(get_gtid_mode(GTID_MODE_LOCK_SID) <= GTID_MODE_OFF_PERMISSIVE);
     DBUG_ASSERT(get_gtid_consistency_mode() != GTID_CONSISTENCY_MODE_ON);
 #ifndef DBUG_OFF
@@ -2727,7 +2728,7 @@ class Gtid_state {
         ("ongoing_automatic_gtid_violating_transaction_count increased to %d",
          new_value));
     DBUG_ASSERT(new_value >= 1);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   /**
@@ -2735,7 +2736,7 @@ class Gtid_state {
     transaction having GTID_NEXT=AUTOMATIC.
   */
   void end_automatic_gtid_violating_transaction() {
-    DBUG_ENTER("Gtid_state::end_automatic_gtid_violating_transaction");
+    DBUG_TRACE;
 #ifndef DBUG_OFF
     global_sid_lock->rdlock();
     DBUG_ASSERT(get_gtid_mode(GTID_MODE_LOCK_SID) <= GTID_MODE_OFF_PERMISSIVE);
@@ -2749,7 +2750,7 @@ class Gtid_state {
         ("ongoing_automatic_gtid_violating_transaction_count decreased to %d",
          new_value));
     DBUG_ASSERT(new_value >= 0);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   /**
@@ -2765,7 +2766,7 @@ class Gtid_state {
     transaction having GTID_NEXT=ANONYMOUS.
   */
   void begin_anonymous_gtid_violating_transaction() {
-    DBUG_ENTER("Gtid_state::begin_anonymous_gtid_violating_transaction");
+    DBUG_TRACE;
     DBUG_ASSERT(get_gtid_mode(GTID_MODE_LOCK_SID) != GTID_MODE_ON);
     DBUG_ASSERT(get_gtid_consistency_mode() != GTID_CONSISTENCY_MODE_ON);
 #ifndef DBUG_OFF
@@ -2775,7 +2776,7 @@ class Gtid_state {
     DBUG_PRINT("info", ("atomic_anonymous_gtid_violation_count increased to %d",
                         new_value));
     DBUG_ASSERT(new_value >= 1);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   /**
@@ -2783,7 +2784,7 @@ class Gtid_state {
     transaction having GTID_NEXT=ANONYMOUS.
   */
   void end_anonymous_gtid_violating_transaction() {
-    DBUG_ENTER("Gtid_state::end_anonymous_gtid_violating_transaction");
+    DBUG_TRACE;
 #ifndef DBUG_OFF
     global_sid_lock->rdlock();
     DBUG_ASSERT(get_gtid_mode(GTID_MODE_LOCK_SID) != GTID_MODE_ON);
@@ -2797,7 +2798,7 @@ class Gtid_state {
         ("ongoing_anonymous_gtid_violating_transaction_count decreased to %d",
          new_value));
     DBUG_ASSERT(new_value >= 0);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   void end_gtid_violating_transaction(THD *thd);
@@ -2816,7 +2817,7 @@ class Gtid_state {
   */
   void begin_gtid_wait(
       enum_gtid_mode_lock gtid_mode_lock MY_ATTRIBUTE((unused))) {
-    DBUG_ENTER("Gtid_state::begin_gtid_wait");
+    DBUG_TRACE;
     DBUG_ASSERT(get_gtid_mode(gtid_mode_lock) != GTID_MODE_OFF);
 #ifndef DBUG_OFF
     int32 new_value =
@@ -2825,7 +2826,7 @@ class Gtid_state {
     DBUG_PRINT("info", ("atomic_gtid_wait_count changed from %d to %d",
                         new_value - 1, new_value));
     DBUG_ASSERT(new_value >= 1);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   /**
@@ -2833,7 +2834,7 @@ class Gtid_state {
     WAIT_FOR_EXECUTED_GTID_SET or WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS.
   */
   void end_gtid_wait() {
-    DBUG_ENTER("Gtid_state::end_gtid_wait");
+    DBUG_TRACE;
     DBUG_ASSERT(get_gtid_mode(GTID_MODE_LOCK_NONE) != GTID_MODE_OFF);
 #ifndef DBUG_OFF
     int32 new_value =
@@ -2842,7 +2843,7 @@ class Gtid_state {
     DBUG_PRINT("info", ("atomic_gtid_wait_count changed from %d to %d",
                         new_value + 1, new_value));
     DBUG_ASSERT(new_value >= 0);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   /**
@@ -3181,6 +3182,9 @@ class Gtid_state {
   */
   int warn_or_err_on_modify_gtid_table(THD *thd, TABLE_LIST *table);
 #endif
+
+  /* Allows to extract snapshot GTID_EXECUTED */
+  void get_snapshot_gtid_executed(std::string &snapshot_gtid_executed);
 
  private:
   /**

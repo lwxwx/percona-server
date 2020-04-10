@@ -62,12 +62,10 @@
 // In OpenSSL before 1.1.0, we need this first.
 #include <winsock2.h>
 #endif  // WIN32
-#include <wolfssl_fix_namespace_pollution_pre.h>
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#include <wolfssl_fix_namespace_pollution.h>
 #endif
 #ifdef XCOM_HAVE_OPENSSL
 #include "plugin/group_replication/libmysqlgcs/src/bindings/xcom/xcom/xcom_ssl_transport.h"
@@ -1012,7 +1010,6 @@ static int dial(server *s) {
            NDBG(s->port, u));
     set_connected(&s->con, CON_FD);
     alive(s);
-    server_detected(s);
     update_detected(get_site_def_rw());
   }
   FINALLY
@@ -1184,6 +1181,8 @@ static int read_bytes(connection_descriptor const *rfd, char *p, uint32_t n,
 
   TASK_BEGIN
 
+      (void)
+  s;
   ep->left = n;
   ep->bytes = (char *)p;
   while (ep->left > 0) {
@@ -1199,7 +1198,6 @@ static int read_bytes(connection_descriptor const *rfd, char *p, uint32_t n,
     } else {
       ep->bytes += nread;
       ep->left -= (uint32_t)nread;
-      if (s) server_detected(s);
     }
   }
   assert(ep->left == 0);
@@ -1233,6 +1231,9 @@ static int buffered_read_bytes(connection_descriptor const *rfd, srv_buf *buf,
   uint32_t nget = 0;
 
   TASK_BEGIN
+
+      (void)
+  s;
   ep->left = n;
   ep->bytes = (char *)p;
 
@@ -1269,7 +1270,6 @@ static int buffered_read_bytes(connection_descriptor const *rfd, srv_buf *buf,
         nget = get_srv_buf(buf, ep->bytes, ep->left);
         ep->bytes += nget;
         ep->left -= nget;
-        if (s) server_detected(s);
       }
     }
   }
@@ -1608,7 +1608,7 @@ int sender_task(task_arg arg) {
       }
       CHANNEL_GET(&ep->s->outgoing, &ep->link, msg_link);
       {
-        int64_t ret;
+        int64_t ret_code;
         DBGOUT(FN; PTREXP(stack); PTREXP(ep->link));
         DBGOUT(FN; PTREXP(&ep->s->outgoing);
                COPY_AND_FREE_GOUT(dbg_msg_link(ep->link)););
@@ -1627,8 +1627,8 @@ int sender_task(task_arg arg) {
                      add_event(string_arg("to"));
                      add_event(uint_arg(ep->link->p->to));
                      add_event(string_arg(pax_op_to_str(ep->link->p->op))););
-          TASK_CALL(_send_msg(ep->s, ep->link->p, ep->link->to, &ret));
-          if (ret < 0) {
+          TASK_CALL(_send_msg(ep->s, ep->link->p, ep->link->to, &ret_code));
+          if (ret_code < 0) {
             goto next;
           }
           ADD_EVENTS(add_event(string_arg("sent ep->link->p->synode"));
@@ -1641,12 +1641,12 @@ int sender_task(task_arg arg) {
           /* Send protocol negotiation request */
           do {
             TASK_CALL(send_proto(&ep->s->con, my_xcom_version, x_version_req,
-                                 ep->tag, &ret));
+                                 ep->tag, &ret_code));
             if (!is_connected(&ep->s->con)) {
               goto next;
             }
             ep->tag = incr_tag(ep->tag);
-          } while (ret < 0);
+          } while (ret_code < 0);
           G_DEBUG("sent negotiation request for protocol %d fd %d",
                   my_xcom_version, ep->s->con.fd);
           ADD_EVENTS(

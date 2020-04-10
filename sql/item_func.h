@@ -30,6 +30,7 @@
 #include <functional>
 
 #include "decimal.h"
+#include "field_types.h"
 #include "ft_global.h"
 #include "lex_string.h"
 #include "m_ctype.h"
@@ -39,7 +40,6 @@
 #include "my_dbug.h"
 #include "my_inttypes.h"
 #include "my_pointer_arithmetic.h"
-#include "my_sys.h"
 #include "my_table_map.h"
 #include "my_thread_local.h"
 #include "my_time.h"
@@ -52,7 +52,7 @@
 #include "sql/field.h"
 #include "sql/handler.h"
 #include "sql/item.h"        // Item_result_field
-#include "sql/my_decimal.h"  // string2my_decimal
+#include "sql/my_decimal.h"  // str2my_decimal
 #include "sql/parse_tree_node_base.h"
 #include "sql/set_var.h"  // enum_var_type
 #include "sql/sql_const.h"
@@ -60,6 +60,7 @@
 #include "sql/table.h"
 #include "sql/thr_malloc.h"
 #include "sql_string.h"
+#include "template_utils.h"
 
 class Json_wrapper;
 class PT_item_list;
@@ -70,6 +71,7 @@ class sp_rcontext;
 struct MY_BITMAP;
 template <class T>
 class List;
+class QEP_TAB;
 
 /* Function items used by mysql */
 
@@ -176,6 +178,8 @@ class Item_func : public Item_result_field {
     MUL_FUNC,
     DIV_FUNC,
     CEILING_FUNC,
+    ROUND_FUNC,
+    TRUNCATE_FUNC,
     SQRT_FUNC,
     ABS_FUNC,
     FLOOR_FUNC,
@@ -185,11 +189,16 @@ class Item_func : public Item_result_field {
     SIN_FUNC,
     TAN_FUNC,
     COS_FUNC,
+    COT_FUNC,
+    DEGREES_FUNC,
+    RADIANS_FUNC,
+    EXP_FUNC,
     ASIN_FUNC,
     ATAN_FUNC,
     ACOS_FUNC,
     MOD_FUNC,
     IF_FUNC,
+    NULLIF_FUNC,
     CASE_FUNC,
     YEAR_FUNC,
     MONTH_FUNC,
@@ -203,12 +212,15 @@ class Item_func : public Item_result_field {
     WEEK_FUNC,
     WEEKDAY_FUNC,
     DATEADD_FUNC,
+    TIMESTAMPDIFF_FUNC,
     DATETIME_LITERAL,
     GREATEST_FUNC,
+    COALESCE_FUNC,
     LEAST_FUNC,
     JSON_CONTAINS,
     JSON_OVERLAPS,
-    MEMBER_OF_FUNC
+    MEMBER_OF_FUNC,
+    STRCMP_FUNC
   };
   enum optimize_type {
     OPTIMIZE_NONE,
@@ -349,7 +361,7 @@ class Item_func : public Item_result_field {
   void set_used_tables(table_map map) { used_tables_cache = map; }
   bool eq(const Item *item, bool binary_cmp) const override;
   virtual optimize_type select_optimize(const THD *) { return OPTIMIZE_NONE; }
-  virtual bool have_rev_func() const { return 0; }
+  virtual bool have_rev_func() const { return false; }
   virtual Item *key_item() const { return args[0]; }
   inline Item **arguments() const {
     DBUG_ASSERT(argument_count() > 0);
@@ -391,7 +403,6 @@ class Item_func : public Item_result_field {
   void signal_divide_by_null();
   void signal_invalid_argument_for_log();
   friend class udf_handler;
-  Field *tmp_table_field() { return result_field; }
   Field *tmp_table_field(TABLE *t_arg) override;
   Item *get_tmp_table_item(THD *thd) override;
 
@@ -421,19 +432,7 @@ class Item_func : public Item_result_field {
     return agg_item_charsets_for_comparison(c, func_name(), items, nitems,
                                             item_sep);
   }
-  /*
-    Aggregate arguments for string result, when some comparison
-    is involved internally, e.g: REPLACE(a,b,c)
-    - convert to @@character_set_connection if all arguments are numbers
-    - disallow DERIVATION_NONE
-  */
-  bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
-                                                          Item **items,
-                                                          uint nitems,
-                                                          int item_sep = 1) {
-    return agg_item_charsets_for_string_result_with_comparison(
-        c, func_name(), items, nitems, item_sep);
-  }
+
   bool walk(Item_processor processor, enum_walk walk, uchar *arg) override;
   Item *transform(Item_transformer transformer, uchar *arg) override;
   Item *compile(Item_analyzer analyzer, uchar **arg_p,
@@ -546,6 +545,28 @@ class Item_func : public Item_result_field {
       Item *arg MY_ATTRIBUTE((unused))) {
     return CACHE_NONE;
   }
+
+  /// Returns true if this Item has at least one condition that can be
+  /// implemented as hash join. A hash join condition is an equi-join condition
+  /// where one side of the condition refers to the right table, and the other
+  /// side of the condition refers to one or more of the left tables.
+  ///
+  /// @param left_tables the left tables in the join
+  /// @param right_table the right table of the join
+  ///
+  /// @retval true if the Item has at least one hash join condition
+  virtual bool has_any_hash_join_condition(
+      const table_map left_tables MY_ATTRIBUTE((unused)),
+      const QEP_TAB &right_table MY_ATTRIBUTE((unused))) const {
+    return false;
+  }
+
+  /// Returns true if this Item has at least one non equi-join condition.
+  /// A non equi-join condition is a condition where both sides refer to at
+  /// least one table, and the operator is not equals '='.
+  ///
+  /// @retval true if the Item has at least one non equi-join condition
+  virtual bool has_any_non_equi_join_condition() const { return false; }
 
  protected:
   /**
@@ -780,11 +801,11 @@ class Item_func_num1 : public Item_func_numhybrid {
   }
   bool date_op(MYSQL_TIME *, my_time_flags_t) override {
     DBUG_ASSERT(0);
-    return 0;
+    return false;
   }
   bool time_op(MYSQL_TIME *) override {
     DBUG_ASSERT(0);
-    return 0;
+    return false;
   }
 };
 
@@ -809,11 +830,11 @@ class Item_num_op : public Item_func_numhybrid {
   }
   bool date_op(MYSQL_TIME *, my_time_flags_t) override {
     DBUG_ASSERT(0);
-    return 0;
+    return false;
   }
   bool time_op(MYSQL_TIME *) override {
     DBUG_ASSERT(0);
-    return 0;
+    return false;
   }
 };
 
@@ -965,6 +986,7 @@ class Item_typecast_real final : public Item_func {
     else
       set_data_type_float();
   }
+  Item_typecast_real(Item *a) : Item_func(a) { set_data_type_double(); }
   String *val_str(String *str) override;
   double val_real() override;
   longlong val_int() override;
@@ -1136,6 +1158,7 @@ class Item_func_exp final : public Item_dec_func {
   Item_func_exp(const POS &pos, Item *a) : Item_dec_func(pos, a) {}
   double val_real() override;
   const char *func_name() const override { return "exp"; }
+  enum Functype functype() const override { return EXP_FUNC; }
 };
 
 class Item_func_ln final : public Item_dec_func {
@@ -1239,6 +1262,7 @@ class Item_func_cot final : public Item_dec_func {
   Item_func_cot(const POS &pos, Item *a) : Item_dec_func(pos, a) {}
   double val_real() override;
   const char *func_name() const override { return "cot"; }
+  enum Functype functype() const override { return COT_FUNC; }
 };
 
 class Item_func_integer : public Item_int_func {
@@ -1251,8 +1275,7 @@ class Item_func_int_val : public Item_func_num1 {
  public:
   Item_func_int_val(Item *a) : Item_func_num1(a) {}
   Item_func_int_val(const POS &pos, Item *a) : Item_func_num1(pos, a) {}
-  void fix_num_length_and_dec() override;
-  void set_numeric_type() override;
+  bool resolve_type(THD *thd) override;
 };
 
 class Item_func_ceiling final : public Item_func_int_val {
@@ -1299,6 +1322,9 @@ class Item_func_round final : public Item_func_num1 {
   longlong int_op() override;
   my_decimal *decimal_op(my_decimal *) override;
   bool resolve_type(THD *) override;
+  enum Functype functype() const override {
+    return truncate ? TRUNCATE_FUNC : ROUND_FUNC;
+  }
 };
 
 class Item_func_rand final : public Item_real_func {
@@ -1350,19 +1376,34 @@ class Item_func_sign final : public Item_int_func {
   bool resolve_type(THD *thd) override;
 };
 
-class Item_func_units final : public Item_real_func {
-  const char *name;
+// Common base class for the DEGREES and RADIANS functions.
+class Item_func_units : public Item_real_func {
   double mul, add;
 
+ protected:
+  Item_func_units(const POS &pos, Item *a, double mul_arg, double add_arg)
+      : Item_real_func(pos, a), mul(mul_arg), add(add_arg) {}
+
  public:
-  Item_func_units(const POS &pos, const char *name_arg, Item *a, double mul_arg,
-                  double add_arg)
-      : Item_real_func(pos, a), name(name_arg), mul(mul_arg), add(add_arg) {}
   double val_real() override;
-  const char *func_name() const override { return name; }
   bool resolve_type(THD *thd) override;
 };
 
+class Item_func_degrees final : public Item_func_units {
+ public:
+  Item_func_degrees(const POS &pos, Item *a)
+      : Item_func_units(pos, a, 180.0 / M_PI, 0.0) {}
+  const char *func_name() const override { return "degrees"; }
+  enum Functype functype() const override { return DEGREES_FUNC; }
+};
+
+class Item_func_radians final : public Item_func_units {
+ public:
+  Item_func_radians(const POS &pos, Item *a)
+      : Item_func_units(pos, a, M_PI / 180.0, 0.0) {}
+  const char *func_name() const override { return "radians"; }
+  enum Functype functype() const override { return RADIANS_FUNC; }
+};
 class Item_func_min_max : public Item_func_numhybrid {
  public:
   Item_func_min_max(const POS &pos, PT_item_list *opt_list, bool is_least_func)
@@ -1629,6 +1670,9 @@ class Item_func_find_in_set final : public Item_int_func {
   longlong val_int() override;
   const char *func_name() const override { return "find_in_set"; }
   bool resolve_type(THD *) override;
+  const CHARSET_INFO *compare_collation() const override {
+    return cmp_collation.collation;
+  }
 };
 
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
@@ -2077,7 +2121,8 @@ class Item_func_udf_str : public Item_udf_func {
   my_decimal *val_decimal(my_decimal *dec_buf) override {
     String *res = val_str(&str_value);
     if (!res) return NULL;
-    string2my_decimal(E_DEC_FATAL_ERROR, res, dec_buf);
+    str2my_decimal(E_DEC_FATAL_ERROR, res->ptr(), res->length(), res->charset(),
+                   dec_buf);
     return dec_buf;
   }
   bool get_date(MYSQL_TIME *ltime, my_time_flags_t fuzzydate) override {
@@ -2235,11 +2280,9 @@ class Item_master_gtid_set_wait final : public Item_int_func {
   String value;
 
  public:
-  Item_master_gtid_set_wait(const POS &pos, Item *a) : Item_int_func(pos, a) {}
-  Item_master_gtid_set_wait(const POS &pos, Item *a, Item *b)
-      : Item_int_func(pos, a, b) {}
-  Item_master_gtid_set_wait(const POS &pos, Item *a, Item *b, Item *c)
-      : Item_int_func(pos, a, b, c) {}
+  Item_master_gtid_set_wait(const POS &pos, Item *a);
+  Item_master_gtid_set_wait(const POS &pos, Item *a, Item *b);
+  Item_master_gtid_set_wait(const POS &pos, Item *a, Item *b, Item *c);
 
   bool itemize(Parse_context *pc, Item **res) override;
   longlong val_int() override;
@@ -3312,7 +3355,7 @@ class Item_func_match final : public Item_real_func {
   bool itemize(Parse_context *pc, Item **res) override;
 
   void cleanup() override {
-    DBUG_ENTER("Item_func_match::cleanup");
+    DBUG_TRACE;
     Item_real_func::cleanup();
     if (!master && ft_handler) {
       ft_handler->please->close_search(ft_handler);
@@ -3322,7 +3365,7 @@ class Item_func_match final : public Item_real_func {
     concat_ws = NULL;
     table_ref = NULL;  // required by Item_func_match::eq()
     master = NULL;
-    DBUG_VOID_RETURN;
+    return;
   }
   Item *key_item() const override { return against; }
   enum Functype functype() const override { return FT_FUNC; }
@@ -3626,7 +3669,6 @@ class Item_func_sp final : public Item_func {
   sp_name *m_name;
   mutable sp_head *m_sp;
   TABLE *dummy_table;
-  uchar result_buf[64];
   /*
      The result field of the concrete stored function.
   */
@@ -3788,9 +3830,47 @@ class Item_func_version final : public Item_static_string_func {
   bool itemize(Parse_context *pc, Item **res) override;
 };
 
+/**
+  Internal function used by INFORMATION_SCHEMA implementation to check
+  if a role is a mandatory role.
+*/
+
+class Item_func_internal_is_mandatory_role : public Item_int_func {
+ public:
+  Item_func_internal_is_mandatory_role(const POS &pos, Item *a, Item *b)
+      : Item_int_func(pos, a, b) {}
+  longlong val_int() override;
+  const char *func_name() const override {
+    return "internal_is_mandatory_role";
+  }
+  enum Functype functype() const override { return DD_INTERNAL_FUNC; }
+  bool resolve_type(THD *) override {
+    maybe_null = true;
+    return false;
+  }
+};
+
+/**
+  Internal function used by INFORMATION_SCHEMA implementation to check
+  if a role is enabled.
+*/
+
+class Item_func_internal_is_enabled_role : public Item_int_func {
+ public:
+  Item_func_internal_is_enabled_role(const POS &pos, Item *a, Item *b)
+      : Item_int_func(pos, a, b) {}
+  longlong val_int() override;
+  const char *func_name() const override { return "internal_is_enabled_role"; }
+  enum Functype functype() const override { return DD_INTERNAL_FUNC; }
+  bool resolve_type(THD *) override {
+    maybe_null = true;
+    return false;
+  }
+};
+
 Item *get_system_var(Parse_context *pc, enum_var_type var_type, LEX_STRING name,
                      LEX_STRING component);
-extern bool check_reserved_words(LEX_STRING *name);
+extern bool check_reserved_words(const char *name);
 extern enum_field_types agg_field_type(Item **items, uint nitems);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);

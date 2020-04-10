@@ -102,10 +102,10 @@ class Hint_scanner {
   void syntax_warning(const char *msg) const;
 
   int get_next_token() {
-    DBUG_ENTER("Hint_scanner::get_next_token");
+    DBUG_TRACE;
     prev_token = scan();
     add_hint_token_digest();
-    DBUG_RETURN(prev_token);
+    return prev_token;
   }
 
  protected:
@@ -408,11 +408,11 @@ class Hint_scanner {
     for (const char *s = from, *end = from + len; s < end;) {
       switch (char_classes[(uchar)*s]) {
         case HINT_CHR_MB: {
-          size_t len = my_ismbchar(cs, s, end);
-          DBUG_ASSERT(len > 1);
-          memcpy(t, s, len);
-          t += len;
-          s += len;
+          size_t hint_len = my_ismbchar(cs, s, end);
+          DBUG_ASSERT(hint_len > 1);
+          memcpy(t, s, hint_len);
+          t += hint_len;
+          s += hint_len;
         }
           continue;
         case Separator:

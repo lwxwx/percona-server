@@ -48,7 +48,7 @@ bool System_table_access::open_table(THD *thd, const LEX_CSTRING dbstr,
                                      Open_tables_backup *backup) {
   Query_tables_list query_tables_list_backup;
 
-  DBUG_ENTER("System_table_access::open_table");
+  DBUG_TRACE;
   before_open(thd);
 
   /*
@@ -78,7 +78,7 @@ bool System_table_access::open_table(THD *thd, const LEX_CSTRING dbstr,
              tbstr.str);
     else
       my_error(ER_NO_SUCH_TABLE, MYF(0), dbstr.str, tbstr.str);
-    DBUG_RETURN(true);
+    return true;
   }
 
   if (tables.table->s->fields < max_num_field) {
@@ -93,14 +93,14 @@ bool System_table_access::open_table(THD *thd, const LEX_CSTRING dbstr,
     my_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2, MYF(0),
              tables.table->s->db.str, tables.table->s->table_name.str,
              max_num_field, tables.table->s->fields);
-    DBUG_RETURN(true);
+    return true;
   }
 
   thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
 
   *table = tables.table;
   tables.table->use_all_columns();
-  DBUG_RETURN(false);
+  return false;
 }
 
 bool System_table_access::close_table(THD *thd, TABLE *table,
@@ -109,7 +109,7 @@ bool System_table_access::close_table(THD *thd, TABLE *table,
   Query_tables_list query_tables_list_backup;
   bool res = false;
 
-  DBUG_ENTER("System_table_access::close_table");
+  DBUG_TRACE;
 
   if (table) {
     if (error)
@@ -143,8 +143,15 @@ bool System_table_access::close_table(THD *thd, TABLE *table,
     thd->restore_backup_open_tables_state(backup);
   }
 
-  DBUG_EXECUTE_IF("simulate_flush_commit_error", { res = true; });
-  DBUG_RETURN(res);
+  DBUG_EXECUTE_IF("simulate_flush_commit_error", {
+    my_printf_error(ER_ERROR_DURING_FLUSH_LOGS,
+                    ER_THD(thd, ER_ERROR_DURING_FLUSH_LOGS), MYF(ME_FATALERROR),
+                    true);
+    LogErr(ERROR_LEVEL, ER_ERROR_DURING_FLUSH_LOG_COMMIT_PHASE, true);
+    return true;
+  });
+
+  return res;
 }
 
 THD *System_table_access::create_thd() {
@@ -158,10 +165,8 @@ THD *System_table_access::create_thd() {
 }
 
 void System_table_access::drop_thd(THD *thd) {
-  DBUG_ENTER("System_table_access::drop_thd");
+  DBUG_TRACE;
 
   delete thd;
   current_thd = nullptr;
-
-  DBUG_VOID_RETURN;
 }

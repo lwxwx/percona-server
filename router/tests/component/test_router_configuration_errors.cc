@@ -55,7 +55,7 @@ TEST_P(RouterTestBrokenConfig, ensure) {
       &default_section)};
   auto &router{launch_router({"-c", conf_file}, EXIT_FAILURE)};
 
-  EXPECT_NO_THROW(EXPECT_EQ(EXIT_FAILURE, router.wait_for_exit()));
+  check_exit_code(router, EXIT_FAILURE);
 
   EXPECT_THAT(router.get_full_logfile(),
               ::testing::HasSubstr(GetParam().expected_logfile_substring));
@@ -211,7 +211,37 @@ static const BrokenConfigParams broken_config_params[]{
      },
      "option user in [metadata_cache:one] is required",
      ""},
-
+    {"metadata_cache_gr_notifications_for_rs_cluster",
+     {
+         ConfigBuilder::build_section("metadata_cache",
+                                      {{"user", "whateva"},
+                                       {"cluster_type", "rs"},
+                                       {"use_gr_notifications", "1"}}),
+     },
+     "option 'use_gr_notifications' is not valid for cluster type 'rs'",
+     ""},
+    {"metadata_cache_invalid_cluster_type",
+     {
+         ConfigBuilder::build_section("metadata_cache",
+                                      {
+                                          {"user", "whateva"},
+                                          {"cluster_type", "invalid"},
+                                      }),
+     },
+     " option cluster_type in [metadata_cache] is incorrect 'invalid', "
+     "expected 'rs' or 'gr'",
+     ""},
+    {"metadata_cache_invalid_cluster_type2",
+     {
+         ConfigBuilder::build_section("metadata_cache",
+                                      {
+                                          {"user", "whateva"},
+                                          {"cluster_type", "<>."},
+                                      }),
+     },
+     " option cluster_type in [metadata_cache] is incorrect '<>.', expected "
+     "'rs' or 'gr'",
+     ""},
     {"no_plugin",
      {},
      "",
@@ -346,7 +376,7 @@ class RouterCmdlineTest : public RouterComponentTest {
 TEST_F(RouterCmdlineTest, help_output_is_sane) {
   auto &router{launch_router(std::vector<std::string>{"--help"})};
 
-  EXPECT_NO_THROW(EXPECT_EQ(EXIT_SUCCESS, router.wait_for_exit()));
+  check_exit_code(router, EXIT_SUCCESS);
 
   EXPECT_THAT(router.get_full_output(),
               ::testing::StartsWith("MySQL Router  Ver "));
@@ -418,7 +448,7 @@ TEST_F(RouterCmdlineTest, one_plugin_works) {
       conf_dir_.name(), mysql_harness::join(sections, "\n"))};
   auto &router{launch_router({"-c", conf_file})};
 
-  EXPECT_NO_THROW(EXPECT_EQ(EXIT_SUCCESS, router.wait_for_exit()));
+  check_exit_code(router, EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[]) {

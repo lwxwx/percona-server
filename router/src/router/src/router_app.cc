@@ -77,6 +77,7 @@ const std::string path_sep = ";";
 #endif
 
 IMPORT_LOG_FUNCTIONS()
+using namespace std::string_literals;
 
 using mysql_harness::DIM;
 using mysql_harness::get_strerror;
@@ -312,7 +313,7 @@ void MySQLRouter::init_keyring(mysql_harness::Config &config) {
   }
   if (needs_keyring) {
     // Initialize keyring
-    keyring_info_.init(config, origin_.str());
+    keyring_info_.init(config);
 
     if (keyring_info_.use_master_key_external_facility()) {
       init_keyring_using_external_facility(config);
@@ -654,6 +655,17 @@ void MySQLRouter::start() {
   loader_->start();
 }
 
+void MySQLRouter::stop() {
+  // Remove the pidfile if present
+  if (!pid_file_path_.empty()) {
+    mysql_harness::Path pid_file_path(pid_file_path_);
+    if (pid_file_path.is_regular()) {
+      log_debug("Removing pidfile %s", pid_file_path.c_str());
+      std::remove(pid_file_path.c_str());
+    }
+  }
+}
+
 void MySQLRouter::set_default_config_files(const char *locations) noexcept {
   std::stringstream ss_line{locations};
 
@@ -719,7 +731,54 @@ void MySQLRouter::prepare_command_options() noexcept {
   // omit the --conf prefix, even if it affects both the bootstrap
   // and the configuration.
 
+  using OptionNames = CmdOption::OptionNames;
+
   arg_handler_.clear_options();
+
+  arg_handler_.add_option(
+      OptionNames({"--account"}),
+      "Account (username) to be used by Router when talking to cluster."
+      " (bootstrap)",
+      CmdOptionValueReq::required, "account",
+      [this](const string &username) {
+        if (username.empty())
+          throw std::runtime_error(
+              "Value for --account option cannot be empty");
+        if (this->bootstrap_options_.count("account"))
+          throw std::runtime_error("Option --account can only be given once");
+        this->bootstrap_options_["account"] = username;
+      },
+      [this](const string &) { this->assert_bootstrap_mode("--account"); });
+
+  arg_handler_.add_option(
+      OptionNames({"--account-create"}),
+      "Specifies account creation policy (useful for guarding against "
+      "accidentally bootstrapping using a wrong account). <mode> is one of:\n"
+      "  'always'        - bootstrap only if account doesn't exist\n"
+      "  'never'         - bootstrap only if account exists\n"
+      "  'if-not-exists' - bootstrap either way (default)\n"
+      "This option can only be used if option '--account' is also used.\n"
+      "Argument 'never' cannot be used together with option '--account-host'\n"
+      "(bootstrap)",
+      CmdOptionValueReq::required, "mode",
+      [this](const string &create) {
+        if (create != "always" && create != "if-not-exists" &&
+            create != "never")
+          throw std::runtime_error(
+              "Invalid value for --account-create option.  Valid values: "
+              "always, if-not-exists, never");
+        if (this->bootstrap_options_.count("account-create"))
+          throw std::runtime_error(
+              "Option --account-create can only be given once");
+        this->bootstrap_options_["account-create"] = create;
+      },
+      [this](const string &) {
+        this->assert_bootstrap_mode("--account-create");
+        if (!this->bootstrap_options_.count("account"))
+          throw std::runtime_error(
+              "Option --account-create can only be used together with "
+              "--account.");
+      });
 
   arg_handler_.add_option(
       OptionNames({"--account-host"}),
@@ -739,7 +798,14 @@ void MySQLRouter::prepare_command_options() noexcept {
         auto it = std::unique(hostnames.begin(), hostnames.end());
         hostnames.resize(std::distance(hostnames.begin(), it));
       },
-      [this] { this->assert_bootstrap_mode("--account-host"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--account-host");
+        const auto it = this->bootstrap_options_.find("account-create");
+        if (it != this->bootstrap_options_.end() && it->second == "never")
+          throw std::runtime_error(
+              "Option '--account-create never' cannot be used together with "
+              "'--account-host <host>'");
+      });
 
   arg_handler_.add_option(
       OptionNames({"-B", "--bootstrap"}),
@@ -766,7 +832,9 @@ void MySQLRouter::prepare_command_options() noexcept {
         this->save_bootstrap_option_not_empty("--bootstrap-socket",
                                               "bootstrap_socket", socket_name);
       },
-      [this] { this->assert_bootstrap_mode("--bootstrap-socket"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--bootstrap-socket");
+      });
 
   arg_handler_.add_option(
       OptionNames({"--conf-base-port"}),
@@ -775,7 +843,9 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &port) {
         this->bootstrap_options_["base-port"] = port;
       },
-      [this] { this->assert_bootstrap_mode("--conf-base-port"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--conf-base-port");
+      });
 
   arg_handler_.add_option(
       OptionNames({"--conf-bind-address"}),
@@ -785,7 +855,9 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &address) {
         this->bootstrap_options_["bind-address"] = address;
       },
-      [this] { this->assert_bootstrap_mode("--conf-bind-address"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--conf-bind-address");
+      });
 
 #ifndef _WIN32
   arg_handler_.add_option(
@@ -794,13 +866,17 @@ void MySQLRouter::prepare_command_options() noexcept {
       "(bootstrap)",
       CmdOptionValueReq::none, "",
       [this](const string &) { this->bootstrap_options_["skip-tcp"] = "1"; },
-      [this] { this->assert_bootstrap_mode("--conf-skip-tcp"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--conf-skip-tcp");
+      });
   arg_handler_.add_option(
       OptionNames({"--conf-use-sockets"}),
       "Whether to use Unix domain sockets. (bootstrap)",
       CmdOptionValueReq::none, "",
       [this](const string &) { this->bootstrap_options_["use-sockets"] = "1"; },
-      [this] { this->assert_bootstrap_mode("--conf-use-sockets"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--conf-use-sockets");
+      });
 #endif
 
   arg_handler_.add_option(OptionNames({"-c", "--config"}),
@@ -834,7 +910,9 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &) {
         this->bootstrap_options_["use-gr-notifications"] = "1";
       },
-      [this] { this->assert_bootstrap_mode("--conf-use-gr-notifications"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--conf-use-gr-notifications");
+      });
 
   arg_handler_.add_option(
       OptionNames({"-d", "--directory"}),
@@ -847,7 +925,9 @@ void MySQLRouter::prepare_command_options() noexcept {
         }
         this->bootstrap_directory_ = path;
       },
-      [this] { this->assert_bootstrap_mode("-d/--directory"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("-d/--directory");
+      });
 
   arg_handler_.add_option(
       CmdOption::OptionNames({"-a", "--extra-config"}),
@@ -863,7 +943,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       "(bootstrap)",
       CmdOptionValueReq::none, "",
       [this](const string &) { this->bootstrap_options_["force"] = "1"; },
-      [this] { this->assert_bootstrap_mode("--force"); });
+      [this](const string &) { this->assert_bootstrap_mode("--force"); });
 
   arg_handler_.add_option(
       OptionNames({"--force-password-validation"}),
@@ -873,7 +953,9 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &) {
         this->bootstrap_options_["force-password-validation"] = "1";
       },
-      [this] { this->assert_bootstrap_mode("--force-password-validation"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--force-password-validation");
+      });
 
   arg_handler_.add_option(CmdOption::OptionNames({"-?", "--help"}),
                           "Display this help and exit.",
@@ -890,7 +972,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &master_key_reader) {
         this->keyring_info_.set_master_key_reader(master_key_reader);
       },
-      [this] {
+      [this](const string &) {
         this->assert_bootstrap_mode("--master-key-reader");
         if (this->keyring_info_.get_master_key_reader().empty() !=
             this->keyring_info_.get_master_key_writer().empty())
@@ -907,7 +989,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &master_key_writer) {
         this->keyring_info_.set_master_key_writer(master_key_writer);
       },
-      [this] {
+      [this](const string &) {
         this->assert_bootstrap_mode("--master-key-writer");
         if (this->keyring_info_.get_master_key_reader().empty() !=
             this->keyring_info_.get_master_key_writer().empty())
@@ -921,7 +1003,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       "Gives a symbolic name for the router instance. (bootstrap)",
       CmdOptionValueReq::optional, "name",
       [this](const string &name) { this->bootstrap_options_["name"] = name; },
-      [this] { this->assert_bootstrap_mode("--name"); });
+      [this](const string &) { this->assert_bootstrap_mode("--name"); });
 
   arg_handler_.add_option(
       OptionNames({"--password-retries"}),
@@ -931,7 +1013,9 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &retries) {
         this->bootstrap_options_["password-retries"] = retries;
       },
-      [this] { this->assert_bootstrap_mode("--password-retries"); });
+      [this](const string &) {
+        this->assert_bootstrap_mode("--password-retries");
+      });
 
   arg_handler_.add_option(
       OptionNames({"--read-timeout"}),
@@ -959,7 +1043,7 @@ void MySQLRouter::prepare_command_options() noexcept {
           throw std::runtime_error(
               "Option --report-host can only be used once.");
       },
-      [this] { this->assert_bootstrap_mode("--report-host"); });
+      [this](const string &) { this->assert_bootstrap_mode("--report-host"); });
 
   arg_handler_.add_option(
       OptionNames({"--ssl-ca"}),
@@ -968,7 +1052,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &path) {
         this->save_bootstrap_option_not_empty("--ssl-ca", "ssl_ca", path);
       },
-      [this] { this->assert_bootstrap_mode("--ssl-ca"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-ca"); });
 
   arg_handler_.add_option(
       OptionNames({"--ssl-capath"}),
@@ -979,7 +1063,7 @@ void MySQLRouter::prepare_command_options() noexcept {
         this->save_bootstrap_option_not_empty("--ssl-capath", "ssl_capath",
                                               path);
       },
-      [this] { this->assert_bootstrap_mode("--ssl-capath"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-capath"); });
 
   arg_handler_.add_option(
       OptionNames({"--ssl-cert"}),
@@ -989,7 +1073,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &path) {
         this->save_bootstrap_option_not_empty("--ssl-cert", "ssl_cert", path);
       },
-      [this] { this->assert_bootstrap_mode("--ssl-cert"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-cert"); });
 
   arg_handler_.add_option(
       OptionNames({"--ssl-cipher"}),
@@ -999,7 +1083,7 @@ void MySQLRouter::prepare_command_options() noexcept {
         this->save_bootstrap_option_not_empty("--ssl-cipher", "ssl_cipher",
                                               cipher);
       },
-      [this] { this->assert_bootstrap_mode("--ssl-cipher"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-cipher"); });
 
   arg_handler_.add_option(
       OptionNames({"--ssl-crl"}),
@@ -1008,7 +1092,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &path) {
         this->save_bootstrap_option_not_empty("--ssl-crl", "ssl_crl", path);
       },
-      [this] { this->assert_bootstrap_mode("--ssl-crl"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-crl"); });
 
   arg_handler_.add_option(
       OptionNames({"--ssl-crlpath"}),
@@ -1019,7 +1103,7 @@ void MySQLRouter::prepare_command_options() noexcept {
         this->save_bootstrap_option_not_empty("--ssl-crlpath", "ssl_crlpath",
                                               path);
       },
-      [this] { this->assert_bootstrap_mode("--ssl-crlpath"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-crlpath"); });
 
   arg_handler_.add_option(
       OptionNames({"--ssl-key"}),
@@ -1029,7 +1113,7 @@ void MySQLRouter::prepare_command_options() noexcept {
       [this](const string &path) {
         this->save_bootstrap_option_not_empty("--ssl-key", "ssl_key", path);
       },
-      [this] { this->assert_bootstrap_mode("--ssl-key"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-key"); });
 
   char ssl_mode_vals[128];
   char ssl_mode_desc[384];
@@ -1057,7 +1141,15 @@ void MySQLRouter::prepare_command_options() noexcept {
           throw std::runtime_error("Invalid value for --ssl-mode option");
         }
       },
-      [this] { this->assert_bootstrap_mode("--ssl-mode"); });
+      [this](const string &) { this->assert_bootstrap_mode("--ssl-mode"); });
+
+  arg_handler_.add_option(
+      OptionNames({"--strict"}),
+      "Upgrades account verification failure warning into a fatal error. "
+      "(bootstrap)",
+      CmdOptionValueReq::none, "",
+      [this](const string &) { this->bootstrap_options_["strict"] = "1"; },
+      [this](const string &) { this->assert_bootstrap_mode("--strict"); });
 
   arg_handler_.add_option(
       OptionNames({"--tls-version"}),
@@ -1067,14 +1159,14 @@ void MySQLRouter::prepare_command_options() noexcept {
         this->save_bootstrap_option_not_empty("--tls-version", "tls_version",
                                               version);
       },
-      [this] { this->assert_bootstrap_mode("--tls-version"); });
+      [this](const string &) { this->assert_bootstrap_mode("--tls-version"); });
 #ifndef _WIN32
   arg_handler_.add_option(
       OptionNames({"-u", "--user"}),
       "Run the mysqlrouter as the user having the name user_name.",
       CmdOptionValueReq::required, "username",
       [this](const string &username) { this->username_ = username; },
-      [this] {
+      [this](const string &) {
         if (this->bootstrap_uri_.empty()) {
           this->user_cmd_line_ = this->username_;
         } else {
@@ -1181,17 +1273,19 @@ void MySQLRouter::bootstrap(const std::string &server_url) {
   auto default_paths = get_default_paths();
 
   if (bootstrap_directory_.empty()) {
-    std::string config_file_path = mysqlrouter::substitute_variable(
-        MYSQL_ROUTER_CONFIG_FOLDER "/mysqlrouter.conf", "{origin}",
-        origin_.str());
-    std::string state_file_path = mysqlrouter::substitute_variable(
-        MYSQL_ROUTER_DATA_FOLDER "/state.json", "{origin}", origin_.str());
-    std::string master_key_path = mysqlrouter::substitute_variable(
-        MYSQL_ROUTER_CONFIG_FOLDER "/mysqlrouter.key", "{origin}",
-        origin_.str());
-    std::string default_keyring_file;
-    default_keyring_file = mysqlrouter::substitute_variable(
-        MYSQL_ROUTER_DATA_FOLDER, "{origin}", origin_.str());
+    std::string config_file_path =
+        mysql_harness::Path(default_paths.at("config_folder"s))
+            .join("mysqlrouter.conf"s)
+            .str();
+    std::string state_file_path =
+        mysql_harness::Path(default_paths.at("data_folder"s))
+            .join("state.json"s)
+            .str();
+    std::string master_key_path =
+        mysql_harness::Path(default_paths.at("config_folder"s))
+            .join("mysqlrouter.key"s)
+            .str();
+    std::string default_keyring_file = default_paths.at("data_folder"s);
     mysql_harness::Path keyring_dir(default_keyring_file);
     if (!keyring_dir.exists()) {
       if (mysql_harness::mkdir(default_keyring_file,

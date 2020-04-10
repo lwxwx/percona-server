@@ -37,18 +37,21 @@
 
 #include "dim.h"
 #include "mock_server_rest_client.h"
+#include "mock_server_testutils.h"
 #include "mysql_session.h"
+#include "mysqlrouter/cluster_metadata.h"
+#include "mysqlrouter/rest_client.h"
 #include "random_generator.h"
+#include "rest_metadata_client.h"
 #include "router_component_test.h"
 #include "tcp_port_pool.h"
-
-#include "mysqlrouter/rest_client.h"
-#include "rest_metadata_client.h"
 
 #define ASSERT_NO_ERROR(expr) \
   ASSERT_THAT(expr, ::testing::Eq(std::error_code{}))
 
+using mysqlrouter::ClusterType;
 using mysqlrouter::MySQLSession;
+using namespace std::chrono_literals;
 static constexpr const char kMockServerConnectionsUri[] =
     "/api/v1/mock_server/connections/";
 
@@ -64,10 +67,10 @@ class ConfigGenerator {
   std::string routing_secondary_section_;
   std::string monitoring_section_;
 
-  std::vector<unsigned> metadata_server_ports_;
-  unsigned router_rw_port_;
-  unsigned router_ro_port_;
-  unsigned monitoring_port_;
+  std::vector<uint16_t> metadata_server_ports_;
+  uint16_t router_rw_port_;
+  uint16_t router_ro_port_;
+  uint16_t monitoring_port_;
   std::string disconnect_on_metadata_unavailable_ =
       "&disconnect_on_metadata_unavailable=no";
   std::string disconnect_on_promoted_to_primary_ =
@@ -78,9 +81,9 @@ class ConfigGenerator {
  public:
   ConfigGenerator(const std::map<std::string, std::string> &defaults,
                   const std::string &config_dir,
-                  const std::vector<unsigned> metadata_server_ports,
-                  unsigned router_rw_port, unsigned router_ro_port,
-                  unsigned monitoring_port,
+                  const std::vector<uint16_t> metadata_server_ports,
+                  uint16_t router_rw_port, uint16_t router_ro_port,
+                  uint16_t monitoring_port,
                   std::chrono::milliseconds metadata_refresh_ttl)
       : defaults_(defaults),
         config_dir_(config_dir),
@@ -100,7 +103,9 @@ class ConfigGenerator {
 
   // void metadata_refresh_ttl(unsigned ttl) { metadata_refresh_ttl_ = ttl; }
 
-  void add_metadata_cache_section(std::chrono::milliseconds ttl) {
+  void add_metadata_cache_section(
+      std::chrono::milliseconds ttl,
+      ClusterType cluster_type = ClusterType::GR_V2) {
     // NOT: Those tests are using bootstrap_server_addresses in the static
     // configuration which is now moved to the dynamic state file. This way we
     // are testing the backward compatibility of the old
@@ -108,15 +113,20 @@ class ConfigGenerator {
     // use
     // dynamic state file,  a new test should be added to test that
     // bootstrap_server_addresses is still handled properly.
+    const std::string cluster_type_str =
+        (cluster_type == ClusterType::RS_V2) ? "ar" : "gr";
     metadata_cache_section_ =
         "[logger]\n"
         "level = INFO\n\n"
 
         "[metadata_cache:test]\n"
+        "cluster_type=" +
+        cluster_type_str +
+        "\n"
         "router_id=1\n"
         "bootstrap_server_addresses=";
-    unsigned i = 0;
-    for (unsigned port : metadata_server_ports_) {
+    size_t i = 0;
+    for (uint16_t port : metadata_server_ports_) {
       metadata_cache_section_ += "mysql://127.0.0.1:" + std::to_string(port);
       if (i < metadata_server_ports_.size() - 1) metadata_cache_section_ += ",";
     }
@@ -129,7 +139,7 @@ class ConfigGenerator {
         std::to_string(ttl.count() / 1000.0) + "\n\n";
   }
 
-  std::string get_metadata_cache_routing_section(unsigned router_port,
+  std::string get_metadata_cache_routing_section(uint16_t router_port,
                                                  const std::string &role,
                                                  const std::string &strategy,
                                                  bool is_rw = false) {
@@ -230,8 +240,9 @@ class ConfigGenerator {
   }
 
   std::string build_config_file(const std::string &temp_test_dir,
+                                ClusterType cluster_type,
                                 bool is_primary_and_secondary = false) {
-    add_metadata_cache_section(metadata_refresh_ttl_);
+    add_metadata_cache_section(metadata_refresh_ttl_, cluster_type);
     add_routing_primary_section();
     add_monitoring_section(temp_test_dir);
 
@@ -278,96 +289,121 @@ class RouterRoutingConnectionCommonTest : public RouterComponentTest {
         port_pool_.get_next_available(), port_pool_.get_next_available(),
         port_pool_.get_next_available(), port_pool_.get_next_available()};
 
+    cluster_nodes_http_ports_ = {
+        port_pool_.get_next_available(), port_pool_.get_next_available(),
+        port_pool_.get_next_available(), port_pool_.get_next_available(),
+        port_pool_.get_next_available()};
+
     router_rw_port_ = port_pool_.get_next_available();
     router_ro_port_ = port_pool_.get_next_available();
     monitoring_port_ = port_pool_.get_next_available();
-
-    primary_json_env_vars_ = {
-        {"PRIMARY_HOST",
-         "127.0.0.1:" + std::to_string(cluster_nodes_ports_[0])},
-        {"SECONDARY_1_HOST",
-         "127.0.0.1:" + std::to_string(cluster_nodes_ports_[1])},
-        {"SECONDARY_2_HOST",
-         "127.0.0.1:" + std::to_string(cluster_nodes_ports_[2])},
-        {"SECONDARY_3_HOST",
-         "127.0.0.1:" + std::to_string(cluster_nodes_ports_[3])},
-        {"SECONDARY_4_HOST",
-         "127.0.0.1:" + std::to_string(cluster_nodes_ports_[4])},
-
-        {"PRIMARY_PORT", std::to_string(cluster_nodes_ports_[0])},
-        {"SECONDARY_1_PORT", std::to_string(cluster_nodes_ports_[1])},
-        {"SECONDARY_2_PORT", std::to_string(cluster_nodes_ports_[2])},
-        {"SECONDARY_3_PORT", std::to_string(cluster_nodes_ports_[3])},
-        {"SECONDARY_4_PORT", std::to_string(cluster_nodes_ports_[4])},
-
-    };
 
     config_generator_.reset(new ConfigGenerator(
         get_DEFAULT_defaults(), temp_conf_dir_.name(),
         {cluster_nodes_ports_[0]}, router_rw_port_, router_ro_port_,
         monitoring_port_, metadata_refresh_ttl_));
 
-    mock_http_port_ = port_pool_.get_next_available();
     mock_http_hostname_ = "127.0.0.1";
     mock_http_uri_ = kMockServerGlobalsRestUri;
   }
 
-  auto &launch_router(unsigned /* router_port */,
+  auto &launch_router(uint16_t /* router_port */,
                       const std::string &config_file) {
     return ProcessManager::launch_router({"-c", config_file});
   }
 
-  auto &launch_server(unsigned cluster_port, const std::string &json_file,
-                      unsigned http_port = 0) {
+  auto &launch_server(uint16_t cluster_port, const std::string &json_file,
+                      uint16_t http_port, size_t number_of_servers = 5) {
     auto &cluster_node = ProcessManager::launch_mysql_server_mock(
-        json_file, cluster_port, EXIT_SUCCESS, false, http_port);
+        get_data_dir().join(json_file).str(), cluster_port, EXIT_SUCCESS, false,
+        http_port);
+
+    std::vector<uint16_t> nodes_ports;
+    nodes_ports.resize(number_of_servers);
+    std::copy_n(cluster_nodes_ports_.begin(), number_of_servers,
+                nodes_ports.begin());
+
+    EXPECT_TRUE(MockServerRestClient(http_port).wait_for_rest_endpoint_ready());
+    set_mock_metadata(http_port, "", nodes_ports);
     return cluster_node;
   }
 
-  std::string get_json_for_secondary(unsigned /* cluster_port*/) {
-    const std::string json_my_port_template =
-        get_data_dir().join("rest_server_mock.js").str();
-    return json_my_port_template;
-  }
-
-  std::string replace_env_variables(
-      const std::string &js_file_name,
-      const std::map<std::string, std::string> &primary_json_env_vars,
-      unsigned /* my_port*/) {
-    const std::string json_primary_node_template =
-        get_data_dir().join(js_file_name).str();
-    const std::string json_primary_node =
-        Path(temp_test_dir_.name()).join(js_file_name).str();
-    std::map<std::string, std::string> env_vars = primary_json_env_vars;
-
-    rewrite_js_to_tracefile(json_primary_node_template, json_primary_node,
-                            env_vars);
-    return json_primary_node;
-  }
-
   void setup_cluster(const std::string &js_for_primary,
-                     unsigned number_of_servers, unsigned my_port = 0) {
-    // launch the primary node working also as metadata server
-    const std::string json_for_primary =
-        replace_env_variables(js_for_primary, primary_json_env_vars_, my_port);
-
-    cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_[0],
-                                            json_for_primary, mock_http_port_));
-
-    // launch the secondary cluster nodes
-    for (unsigned port = 1; port < number_of_servers; ++port) {
-      std::string secondary_json_file =
-          get_json_for_secondary(cluster_nodes_ports_[port]);
+                     unsigned number_of_servers, uint16_t /*my_port*/ = 0) {
+    // launch cluster nodes
+    for (unsigned port = 0; port < number_of_servers; ++port) {
+      const std::string js_file =
+          port == 0 ? js_for_primary : "rest_server_mock.js";
       cluster_nodes_.push_back(
-          &launch_server(cluster_nodes_ports_[port], secondary_json_file));
+          &launch_server(cluster_nodes_ports_[port], js_file,
+                         cluster_nodes_http_ports_[port], number_of_servers));
+      ASSERT_NO_FATAL_FAILURE(
+          check_port_ready(*cluster_nodes_[port], cluster_nodes_ports_[port]));
     }
+  }
 
-    for (unsigned ndx = 0; ndx < number_of_servers; ++ndx) {
-      ASSERT_TRUE(wait_for_port_ready(cluster_nodes_ports_[ndx]))
-          << cluster_nodes_.at(ndx)->get_full_output();
+  struct server_globals {
+    bool primary_removed{false};
+    bool primary_failover{false};
+    bool secondary_failover{false};
+    bool secondary_removed{false};
+    bool cluster_partition{false};
+    bool MD_failed{false};
+    bool GR_primary_failed{false};
+    bool GR_health_failed{false};
+
+    server_globals &set_primary_removed() {
+      primary_removed = true;
+      return *this;
     }
-    ASSERT_TRUE(
-        MockServerRestClient(mock_http_port_).wait_for_rest_endpoint_ready());
+    server_globals &set_primary_failover() {
+      primary_failover = true;
+      return *this;
+    }
+    server_globals &set_secondary_failover() {
+      secondary_failover = true;
+      return *this;
+    }
+    server_globals &set_secondary_removed() {
+      secondary_removed = true;
+      return *this;
+    }
+    server_globals &set_cluster_partition() {
+      cluster_partition = true;
+      return *this;
+    }
+    server_globals &set_MD_failed() {
+      MD_failed = true;
+      return *this;
+    }
+    server_globals &set_GR_primary_failed() {
+      GR_primary_failed = true;
+      return *this;
+    }
+    server_globals &set_GR_health_failed() {
+      GR_health_failed = true;
+      return *this;
+    }
+  };
+
+  void set_additional_globals(uint16_t http_port,
+                              const server_globals &globals) {
+    auto json_doc = mock_GR_metadata_as_json("", cluster_nodes_ports_);
+    JsonAllocator allocator;
+    json_doc.AddMember("primary_removed", globals.primary_removed, allocator);
+    json_doc.AddMember("primary_failover", globals.primary_failover, allocator);
+    json_doc.AddMember("secondary_failover", globals.secondary_failover,
+                       allocator);
+    json_doc.AddMember("secondary_removed", globals.secondary_removed,
+                       allocator);
+    json_doc.AddMember("cluster_partition", globals.cluster_partition,
+                       allocator);
+    json_doc.AddMember("MD_failed", globals.MD_failed, allocator);
+    json_doc.AddMember("GR_primary_failed", globals.GR_primary_failed,
+                       allocator);
+    json_doc.AddMember("GR_health_failed", globals.GR_health_failed, allocator);
+    const auto json_str = json_to_string(json_doc);
+    EXPECT_NO_THROW(MockServerRestClient(http_port).set_globals(json_str));
   }
 
   TcpPortPool port_pool_;
@@ -380,14 +416,13 @@ class RouterRoutingConnectionCommonTest : public RouterComponentTest {
   TempDirectory temp_test_dir_;
   TempDirectory temp_conf_dir_;
   std::vector<uint16_t> cluster_nodes_ports_;
-  std::map<std::string, std::string> primary_json_env_vars_;
+  std::vector<uint16_t> cluster_nodes_http_ports_;
   std::vector<ProcessWrapper *> cluster_nodes_;
   uint16_t router_rw_port_;
   uint16_t router_ro_port_;
   uint16_t monitoring_port_;
 
   // http properties
-  uint16_t mock_http_port_;
   std::string mock_http_hostname_;
   std::string mock_http_uri_;
 };
@@ -420,26 +455,23 @@ TEST_F(RouterRoutingConnectionTest, OldSchemaVersion) {
       router_rw_port_, router_ro_port_, monitoring_port_,
       metadata_refresh_ttl_));
 
-  uint16_t http_port_primary = port_pool_.get_next_available();
-
   SCOPED_TRACE("// [prep] launch the primary node on port " +
                std::to_string(cluster_nodes_ports_.at(0)) +
                " working also as metadata server");
-  const std::string json_for_primary =
-      replace_env_variables("metadata_old_schema.js", primary_json_env_vars_,
-                            cluster_nodes_ports_[0]);
+
   cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_.at(0),
-                                          json_for_primary, http_port_primary));
+                                          "metadata_old_schema.js",
+                                          cluster_nodes_http_ports_[0]));
 
   SCOPED_TRACE("// [prep] wait until mock-servers are started");
-  ASSERT_TRUE(wait_for_port_ready(cluster_nodes_ports_.at(0)))
-      << cluster_nodes_.at(0)->get_full_output();
+  ASSERT_NO_FATAL_FAILURE(
+      check_port_ready(*cluster_nodes_[0], cluster_nodes_ports_[0]));
 
   SCOPED_TRACE("// [prep] launching router");
-  auto &router = launch_router(
-      router_rw_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
+  auto &router = launch_router(router_rw_port_,
+                               config_generator_->build_config_file(
+                                   temp_test_dir_.name(), ClusterType::GR_V2));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
 
   SCOPED_TRACE("// [prep] waiting " +
                std::to_string(wait_for_cache_ready_timeout.count()) +
@@ -449,7 +481,7 @@ TEST_F(RouterRoutingConnectionTest, OldSchemaVersion) {
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_fetched(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout), metadata_status,
+      wait_for_cache_ready_timeout, metadata_status,
       [](const RestMetadataClient::MetadataStatus &cur) {
         return cur.refresh_failed > 0;
       }))
@@ -471,10 +503,11 @@ TEST_F(RouterRoutingConnectionTest, OldSchemaVersion) {
   constexpr const char log_msg_re[]{
 #ifdef GTEST_USES_POSIX_RE
       "Unsupported metadata schema on .*\\. Expected Metadata Schema version "
-      "compatible to [0-9]\\.[0-9]\\.[0-9], got 0\\.0\\.0"
+      "compatible to [0-9]\\.[0-9]\\.[0-9], [0-9]\\.[0-9]\\.[0-9], got "
+      "0\\.0\\.1"
 #else
       "Unsupported metadata schema on .*\\. Expected Metadata Schema version "
-      "compatible to \\d\\.\\d\\.\\d, got 0\\.0\\.0"
+      "compatible to \\d\\.\\d\\.\\d, \\d\\.\\d\\.\\d, got 0\\.0\\.1"
 #endif
   };
 
@@ -489,15 +522,13 @@ TEST_F(RouterRoutingConnectionTest, OldSchemaVersion) {
  */
 TEST_F(RouterRoutingConnectionTest,
        IsRouterFailToStartWhen_disconnect_on_promoted_to_primary_invalid) {
-  ASSERT_NO_FATAL_FAILURE(setup_cluster(
-      "metadata_3_secondaries_server_removed_from_cluster.js", 4));
   config_generator_->disconnect_on_promoted_to_primary(
       "&disconnect_on_promoted_to_primary=bogus");
   auto &router = ProcessManager::launch_router(
-      {"-c", config_generator_->build_config_file(temp_test_dir_.name())},
+      {"-c", config_generator_->build_config_file(temp_test_dir_.name(),
+                                                  ClusterType::GR_V2)},
       EXIT_FAILURE);
-  ASSERT_FALSE(wait_for_port_ready(router_ro_port_))
-      << router.get_full_output();
+  check_port_not_ready(router, router_ro_port_);
 }
 
 /**
@@ -507,71 +538,75 @@ TEST_F(RouterRoutingConnectionTest,
  */
 TEST_F(RouterRoutingConnectionTest,
        IsRouterFailToStartWhen_disconnect_on_metadata_unavailable_invalid) {
-  ASSERT_NO_FATAL_FAILURE(setup_cluster(
-      "metadata_3_secondaries_server_removed_from_cluster.js", 4));
   config_generator_->disconnect_on_metadata_unavailable(
       "&disconnect_on_metadata_unavailable=bogus");
   auto &router = ProcessManager::launch_router(
-      {"-c", config_generator_->build_config_file(temp_test_dir_.name())},
+      {"-c", config_generator_->build_config_file(temp_test_dir_.name(),
+                                                  ClusterType::GR_V2)},
       EXIT_FAILURE);
-  ASSERT_FALSE(wait_for_port_ready(router_ro_port_))
-      << router.get_full_output();
+  check_port_not_ready(router, router_ro_port_);
 }
+
+struct TracefileTestParam {
+  std::string tracefile;
+  ClusterType cluster_type;
+  std::string param{};
+
+  TracefileTestParam(const std::string tracefile_,
+                     const ClusterType cluster_type_,
+                     const std::string param_ = "")
+      : tracefile(tracefile_), cluster_type(cluster_type_), param(param_) {}
+};
+
+class IsConnectionsClosedWhenPrimaryRemovedFromClusterTest
+    : public RouterRoutingConnectionTest,
+      public ::testing::WithParamInterface<TracefileTestParam> {};
 
 /**
  * @test
  *      Verify that all connections to Primary are closed when Primary is
- * removed from GR;
+ * removed from Cluster
  */
-TEST_F(RouterRoutingConnectionTest,
-       IsConnectionsClosedWhenPrimaryRemovedFromGR) {
+TEST_P(IsConnectionsClosedWhenPrimaryRemovedFromClusterTest,
+       IsConnectionsClosedWhenPrimaryRemovedFromCluster) {
   TempDirectory tmp_dir("conf");
+  const std::string tracefile = GetParam().tracefile;
+
   config_generator_.reset(new ConfigGenerator(
       get_DEFAULT_defaults(), tmp_dir.name(),
       {cluster_nodes_ports_[0], cluster_nodes_ports_[1]}, router_rw_port_,
       router_ro_port_, monitoring_port_, metadata_refresh_ttl_));
 
-  uint16_t http_port_primary = port_pool_.get_next_available();
-
   SCOPED_TRACE("// launch the primary node on port " +
                std::to_string(cluster_nodes_ports_.at(0)) +
                " working also as metadata server");
-  const std::string json_for_primary = replace_env_variables(
-      "metadata_3_secondaries_server_removed_from_cluster.js",
-      primary_json_env_vars_, cluster_nodes_ports_[0]);
-  cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_[0],
-                                          json_for_primary, http_port_primary));
+  cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_[0], tracefile,
+                                          cluster_nodes_http_ports_[0], 4));
 
   SCOPED_TRACE("// launch the secondary node on port " +
                std::to_string(cluster_nodes_ports_.at(1)) +
                " working also as metadata server");
-  const std::string json_for_secondary = replace_env_variables(
-      "metadata_3_secondaries_server_removed_from_cluster.js",
-      primary_json_env_vars_, cluster_nodes_ports_[1]);
-  cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_[1],
-                                          json_for_secondary, mock_http_port_));
+  cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_[1], tracefile,
+                                          cluster_nodes_http_ports_[1], 4));
 
   SCOPED_TRACE("// launch the rest of secondary cluster nodes");
   for (unsigned port = 2; port < 4; ++port) {
-    std::string secondary_json_file =
-        get_json_for_secondary(cluster_nodes_ports_[port]);
     cluster_nodes_.push_back(
-        &launch_server(cluster_nodes_ports_[port], secondary_json_file));
+        &launch_server(cluster_nodes_ports_[port], tracefile,
+                       cluster_nodes_http_ports_[port], 4));
   }
 
   SCOPED_TRACE("// wait until mock-servers are started");
   for (unsigned ndx = 0; ndx < 4; ndx++) {
-    ASSERT_TRUE(wait_for_port_ready(cluster_nodes_ports_[ndx]))
-        << cluster_nodes_.at(ndx)->get_full_output();
+    ASSERT_NO_FATAL_FAILURE(
+        check_port_ready(*cluster_nodes_.at(ndx), cluster_nodes_ports_[ndx]));
   }
-  ASSERT_TRUE(
-      MockServerRestClient(http_port_primary).wait_for_rest_endpoint_ready());
 
   SCOPED_TRACE("// launching router");
   auto &router = launch_router(
-      router_rw_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
+      router_rw_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
 
   SCOPED_TRACE("// waiting " +
                std::to_string(wait_for_cache_ready_timeout.count()) +
@@ -581,11 +616,11 @@ TEST_F(RouterRoutingConnectionTest,
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status))
+      << router.get_full_logfile();
 
   SCOPED_TRACE("// connecting clients");
-  std::vector<std::pair<MySQLSession, unsigned>> clients(2);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(2);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
@@ -606,19 +641,15 @@ TEST_F(RouterRoutingConnectionTest,
     }
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  // set primary_removed variable in javascript for cluster_nodes_[0]
-  // which acts as primary node in cluster
-  ASSERT_TRUE(
-      MockServerRestClient(http_port_primary).wait_for_rest_endpoint_ready());
-  MockServerRestClient(http_port_primary)
-      .set_globals("{\"primary_removed\": true}");
+  set_additional_globals(cluster_nodes_http_ports_[0],
+                         server_globals().set_primary_removed());
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify that connections to PRIMARY are broken
   for (auto &client_and_port : clients) {
@@ -628,22 +659,37 @@ TEST_F(RouterRoutingConnectionTest,
   }
 }
 
+INSTANTIATE_TEST_CASE_P(
+    IsConnectionsClosedWhenPrimaryRemovedFromCluster,
+    IsConnectionsClosedWhenPrimaryRemovedFromClusterTest,
+    ::testing::Values(
+        TracefileTestParam(
+            "metadata_3_secondaries_server_removed_from_cluster_v2_gr.js",
+            ClusterType::GR_V2),
+        TracefileTestParam(
+            "metadata_3_secondaries_server_removed_from_cluster.js",
+            ClusterType::GR_V1)));
+
+class IsConnectionsClosedWhenSecondaryRemovedFromClusterTest
+    : public RouterRoutingConnectionTest,
+      public ::testing::WithParamInterface<TracefileTestParam> {};
+
 /**
  * @test
  *      Verify that all connections to Secondary are closed when Secondary is
- *      removed from GR.
+ *      removed from Cluster.
  *
  */
-TEST_F(RouterRoutingConnectionTest,
-       IsConnectionsClosedWhenSecondaryRemovedFromGR) {
-  ASSERT_NO_FATAL_FAILURE(setup_cluster(
-      "metadata_3_secondaries_server_removed_from_cluster.js", 4));
+TEST_P(IsConnectionsClosedWhenSecondaryRemovedFromClusterTest,
+       IsConnectionsClosedWhenSecondaryRemovedFromCluster) {
+  const std::string tracefile = GetParam().tracefile;
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 4));
 
   auto &router = launch_router(
-      router_rw_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+      router_rw_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -653,56 +699,73 @@ TEST_F(RouterRoutingConnectionTest,
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status));
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(6);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(6);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
     ASSERT_NO_THROW(client.connect("127.0.0.1", router_ro_port_, "username",
                                    "password", "", ""))
-        << router.get_full_output();
+        << router.get_full_logfile() << "\n"
+        << cluster_nodes_[0]->get_full_output();
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  MockServerRestClient(mock_http_port_)
-      .set_globals("{\"secondary_removed\": true}");
+  set_additional_globals(cluster_nodes_http_ports_[0],
+                         server_globals().set_secondary_removed());
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify that connections to SECONDARY_1 are broken
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
-    unsigned port = client_and_port.second;
+    uint16_t port = client_and_port.second;
 
     if (port == cluster_nodes_ports_[1])
       ASSERT_ANY_THROW(client.query_one("select @@port"))
-          << router.get_full_output();
+          << router.get_full_logfile();
     else
       ASSERT_NO_THROW(std::unique_ptr<MySQLSession::ResultRow> result{
           client.query_one("select @@port")})
-          << router.get_full_output();
+          << router.get_full_logfile();
   }
 }
+
+INSTANTIATE_TEST_CASE_P(
+    IsConnectionsClosedWhenSecondaryRemovedFromCluster,
+    IsConnectionsClosedWhenSecondaryRemovedFromClusterTest,
+    ::testing::Values(
+        TracefileTestParam(
+            "metadata_3_secondaries_server_removed_from_cluster_v2_gr.js",
+            ClusterType::GR_V2),
+        TracefileTestParam(
+            "metadata_3_secondaries_server_removed_from_cluster.js",
+            ClusterType::GR_V1)));
+
+class IsRWConnectionsClosedWhenPrimaryFailoverTest
+    : public RouterRoutingConnectionTest,
+      public ::testing::WithParamInterface<TracefileTestParam> {};
 
 /**
  * @test
  *       Verify that when Primary is demoted, then all RW connections
  *       to that server are closed.
  */
-TEST_F(RouterRoutingConnectionTest, IsRWConnectionsClosedWhenPrimaryFailover) {
-  ASSERT_NO_FATAL_FAILURE(
-      setup_cluster("metadata_3_secondaries_primary_failover.js", 4));
+TEST_P(IsRWConnectionsClosedWhenPrimaryFailoverTest,
+       IsRWConnectionsClosedWhenPrimaryFailover) {
+  const std::string tracefile = GetParam().tracefile;
+
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 4));
   auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
+      router_ro_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
 
   /*
    * wait until metadata is initialized
@@ -712,11 +775,11 @@ TEST_F(RouterRoutingConnectionTest, IsRWConnectionsClosedWhenPrimaryFailover) {
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status))
+      << router.get_full_logfile();
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(2);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(2);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
@@ -724,15 +787,16 @@ TEST_F(RouterRoutingConnectionTest, IsRWConnectionsClosedWhenPrimaryFailover) {
                                    "password", "", ""));
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  MockServerRestClient(mock_http_port_)
-      .set_globals("{\"primary_failover\": true}");
+  set_additional_globals(cluster_nodes_http_ports_[0],
+                         server_globals().set_primary_failover());
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status))
+      << router.get_full_logfile();
 
   // verify if RW connections to PRIMARY are closed
   for (auto &client_and_port : clients) {
@@ -742,22 +806,38 @@ TEST_F(RouterRoutingConnectionTest, IsRWConnectionsClosedWhenPrimaryFailover) {
   }
 }
 
+INSTANTIATE_TEST_CASE_P(
+    IsRWConnectionsClosedWhenPrimaryFailover,
+    IsRWConnectionsClosedWhenPrimaryFailoverTest,
+    ::testing::Values(
+        TracefileTestParam("metadata_3_secondaries_primary_failover_v2_gr.js",
+                           ClusterType::GR_V2),
+        TracefileTestParam("metadata_3_secondaries_primary_failover.js",
+                           ClusterType::GR_V1)));
+
+class IsROConnectionsKeptWhenPrimaryFailoverTest
+    : public RouterRoutingConnectionTest,
+      public ::testing::WithParamInterface<TracefileTestParam> {};
+
 /**
  * @test
  *       Verify that when Primary is demoted, then RO connections
  *       to that server are kept.
  */
-TEST_F(RouterRoutingConnectionTest, IsROConnectionsKeptWhenPrimaryFailover) {
-  ASSERT_NO_FATAL_FAILURE(
-      setup_cluster("metadata_3_secondaries_primary_failover.js", 4));
+TEST_P(IsROConnectionsKeptWhenPrimaryFailoverTest,
+       IsROConnectionsKeptWhenPrimaryFailover) {
+  const std::string tracefile = GetParam().tracefile;
+
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 4));
 
   config_generator_->disconnect_on_promoted_to_primary("");
 
-  auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name(), true));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+  auto &router =
+      launch_router(router_ro_port_,
+                    config_generator_->build_config_file(
+                        temp_test_dir_.name(), GetParam().cluster_type, true));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -767,11 +847,10 @@ TEST_F(RouterRoutingConnectionTest, IsROConnectionsKeptWhenPrimaryFailover) {
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status));
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(4);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(4);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
@@ -779,14 +858,15 @@ TEST_F(RouterRoutingConnectionTest, IsROConnectionsKeptWhenPrimaryFailover) {
                                    "password", "", ""));
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  MockServerRestClient(mock_http_port_)
-      .set_globals("{\"primary_failover\": true}");
+  set_additional_globals(cluster_nodes_http_ports_[0],
+                         server_globals().set_primary_failover());
+
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify that RO connections to PRIMARY are kept
   for (auto &client_and_port : clients) {
@@ -797,9 +877,18 @@ TEST_F(RouterRoutingConnectionTest, IsROConnectionsKeptWhenPrimaryFailover) {
   }
 }
 
+INSTANTIATE_TEST_CASE_P(
+    IsROConnectionsKeptWhenPrimaryFailover,
+    IsROConnectionsKeptWhenPrimaryFailoverTest,
+    ::testing::Values(
+        TracefileTestParam("metadata_3_secondaries_primary_failover_v2_gr.js",
+                           ClusterType::GR_V2),
+        TracefileTestParam("metadata_3_secondaries_primary_failover.js",
+                           ClusterType::GR_V1)));
+
 class RouterRoutingConnectionPromotedTest
     : public RouterRoutingConnectionCommonTest,
-      public testing::WithParamInterface<std::string> {};
+      public testing::WithParamInterface<TracefileTestParam> {};
 
 /**
  * @test
@@ -809,16 +898,18 @@ class RouterRoutingConnectionPromotedTest
  */
 TEST_P(RouterRoutingConnectionPromotedTest,
        IsConnectionsToSecondaryKeptWhenPromotedToPrimary) {
-  ASSERT_NO_FATAL_FAILURE(
-      setup_cluster("metadata_3_secondaries_primary_failover.js", 4));
+  const std::string tracefile = GetParam().tracefile;
+  const std::string param = GetParam().param;
 
-  config_generator_->disconnect_on_promoted_to_primary(GetParam());
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 4));
+
+  config_generator_->disconnect_on_promoted_to_primary(param);
 
   auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+      router_ro_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -828,11 +919,10 @@ TEST_P(RouterRoutingConnectionPromotedTest,
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status));
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(6);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(6);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
@@ -841,14 +931,15 @@ TEST_P(RouterRoutingConnectionPromotedTest,
         << router.get_full_output();
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  MockServerRestClient(mock_http_port_)
-      .set_globals("{\"primary_failover\": true}");
+  server_globals globals;
+  globals.primary_failover = true;
+  set_additional_globals(cluster_nodes_http_ports_[0], globals);
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify that connections to SECONDARY_1 are kept (all RO connections
   // should NOT be closed)
@@ -860,14 +951,24 @@ TEST_P(RouterRoutingConnectionPromotedTest,
   }
 }
 
-std::string promoted_flags[] = {
-    "&disconnect_on_promoted_to_primary=no",
-    "",
-};
+INSTANTIATE_TEST_CASE_P(
+    RouterRoutingIsConnectionNotClosedWhenPromoted,
+    RouterRoutingConnectionPromotedTest,
+    ::testing::Values(
+        TracefileTestParam("metadata_3_secondaries_primary_failover_v2_gr.js",
+                           ClusterType::GR_V2,
+                           "&disconnect_on_promoted_to_primary=no"),
+        TracefileTestParam("metadata_3_secondaries_primary_failover.js",
+                           ClusterType::GR_V1,
+                           "&disconnect_on_promoted_to_primary=no"),
+        TracefileTestParam("metadata_3_secondaries_primary_failover_v2_gr.js",
+                           ClusterType::GR_V2, ""),
+        TracefileTestParam("metadata_3_secondaries_primary_failover.js",
+                           ClusterType::GR_V1, "")));
 
-INSTANTIATE_TEST_CASE_P(RouterRoutingIsConnectionNotClosedWhenPromoted,
-                        RouterRoutingConnectionPromotedTest,
-                        testing::ValuesIn(promoted_flags));
+class IsConnectionToSecondaryClosedWhenPromotedToPrimaryTest
+    : public RouterRoutingConnectionTest,
+      public ::testing::WithParamInterface<TracefileTestParam> {};
 
 /**
  * @test
@@ -875,18 +976,19 @@ INSTANTIATE_TEST_CASE_P(RouterRoutingIsConnectionNotClosedWhenPromoted,
  *       disconnect_on_promoted_to_primary is set to 'yes' then connections
  *       to that server are closed.
  */
-TEST_F(RouterRoutingConnectionTest,
+TEST_P(IsConnectionToSecondaryClosedWhenPromotedToPrimaryTest,
        IsConnectionToSecondaryClosedWhenPromotedToPrimary) {
-  ASSERT_NO_FATAL_FAILURE(
-      setup_cluster("metadata_3_secondaries_primary_failover.js", 4));
+  const std::string tracefile = GetParam().tracefile;
+
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 4));
 
   config_generator_->disconnect_on_promoted_to_primary(
       "&disconnect_on_promoted_to_primary=yes");
 
   auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+      router_ro_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -896,11 +998,10 @@ TEST_F(RouterRoutingConnectionTest,
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status));
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(6);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(6);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
@@ -908,19 +1009,19 @@ TEST_F(RouterRoutingConnectionTest,
                                    "password", "", ""));
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  MockServerRestClient(mock_http_port_)
-      .set_globals("{\"primary_failover\": true}");
+  set_additional_globals(cluster_nodes_http_ports_[0],
+                         server_globals().set_primary_failover());
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify that connections to SECONDARY_1 are closed
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
-    unsigned port = client_and_port.second;
+    uint16_t port = client_and_port.second;
 
     if (port == cluster_nodes_ports_[1])
       ASSERT_ANY_THROW(client.query_one("select @@port"))
@@ -932,23 +1033,37 @@ TEST_F(RouterRoutingConnectionTest,
   }
 }
 
+INSTANTIATE_TEST_CASE_P(
+    IsConnectionToSecondaryClosedWhenPromotedToPrimary,
+    IsConnectionToSecondaryClosedWhenPromotedToPrimaryTest,
+    ::testing::Values(
+        TracefileTestParam("metadata_3_secondaries_primary_failover_v2_gr.js",
+                           ClusterType::GR_V2),
+        TracefileTestParam("metadata_3_secondaries_primary_failover.js",
+                           ClusterType::GR_V1)));
+
+class IsConnectionToMinorityClosedWhenClusterPartitionTest
+    : public RouterRoutingConnectionTest,
+      public ::testing::WithParamInterface<TracefileTestParam> {};
+
 /**
  * @test
  *       Verify that when GR is partitioned, then connections to servers that
  *       are not in majority are closed.
  */
-TEST_F(RouterRoutingConnectionTest,
+TEST_P(IsConnectionToMinorityClosedWhenClusterPartitionTest,
        IsConnectionToMinorityClosedWhenClusterPartition) {
+  const std::string tracefile = GetParam().tracefile;
+
   /*
    * create cluster with 5 servers
    */
-  ASSERT_NO_FATAL_FAILURE(
-      setup_cluster("metadata_4_secondaries_partitioning.js", 5));
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 5));
 
   auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+      router_ro_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -958,14 +1073,14 @@ TEST_F(RouterRoutingConnectionTest,
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status))
+      << router.get_full_logfile();
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(10);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(10);
 
   // connect clients to Primary
-  for (int i = 0; i < 2; ++i) {
+  for (size_t i = 0; i < 2; ++i) {
     auto &client = clients[i].first;
     try {
       client.connect("127.0.0.1", router_rw_port_, "username", "password", "",
@@ -987,17 +1102,19 @@ TEST_F(RouterRoutingConnectionTest,
     }
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    clients[i].second = std::stoul(std::string((*result)[0]));
+    clients[i].second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
   // connect clients to Secondaries
-  for (int i = 2; i < 10; ++i) {
+  for (size_t i = 2; i < 10; ++i) {
     auto &client = clients[i].first;
     ASSERT_NO_THROW(client.connect("127.0.0.1", router_ro_port_, "username",
                                    "password", "", ""));
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    clients[i].second = std::stoul(std::string((*result)[0]));
+    clients[i].second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
   /*
@@ -1009,11 +1126,11 @@ TEST_F(RouterRoutingConnectionTest,
    * Since only 2 servers are ONLINE (minority) connections to them should be
    * closed as well.
    */
-  MockServerRestClient(mock_http_port_)
-      .set_globals("{\"cluster_partition\": true}");
-  ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+  set_additional_globals(cluster_nodes_http_ports_[0],
+                         server_globals().set_cluster_partition());
+
+  ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_changed(
+      wait_for_cache_update_timeout, metadata_status));
 
   /*
    * Connections to servers that are offline should be closed
@@ -1022,13 +1139,22 @@ TEST_F(RouterRoutingConnectionTest,
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
     ASSERT_ANY_THROW(client.query_one("select @@port"))
-        << router.get_full_output();
+        << router.get_full_logfile();
   }
 }
 
-class RouterRoutingConnectionClusterOverloadTest
+INSTANTIATE_TEST_CASE_P(
+    IsConnectionToMinorityClosedWhenClusterPartition,
+    IsConnectionToMinorityClosedWhenClusterPartitionTest,
+    ::testing::Values(
+        TracefileTestParam("metadata_4_secondaries_partitioning_v2_gr.js",
+                           ClusterType::GR_V2),
+        TracefileTestParam("metadata_4_secondaries_partitioning.js",
+                           ClusterType::GR_V1)));
+
+class IsConnectionClosedWhenClusterOverloadedTest
     : public RouterRoutingConnectionCommonTest,
-      public testing::WithParamInterface<std::string> {};
+      public testing::WithParamInterface<TracefileTestParam> {};
 
 /**
  * @test
@@ -1036,16 +1162,19 @@ class RouterRoutingConnectionClusterOverloadTest
  * disconnect_on_metadata_unavailable is set to 'yes' then all connection to
  * GR are closed
  */
-TEST_F(RouterRoutingConnectionTest, IsConnectionClosedWhenClusterOverloaded) {
-  ASSERT_NO_FATAL_FAILURE(setup_cluster("metadata_3_secondaries_pass.js", 4));
+TEST_P(IsConnectionClosedWhenClusterOverloadedTest,
+       IsConnectionClosedWhenClusterOverloaded) {
+  const std::string tracefile = GetParam().tracefile;
+
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 4));
 
   config_generator_->disconnect_on_metadata_unavailable(
       "&disconnect_on_metadata_unavailable=yes");
 
   auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+      router_ro_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -1055,11 +1184,10 @@ TEST_F(RouterRoutingConnectionTest, IsConnectionClosedWhenClusterOverloaded) {
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status));
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(6);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(6);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
@@ -1080,18 +1208,19 @@ TEST_F(RouterRoutingConnectionTest, IsConnectionClosedWhenClusterOverloaded) {
     }
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
   /*
    * There is only 1 metadata server, so then primary
    * goes away, metadata is unavailable.
    */
-  MockServerRestClient(mock_http_port_).send_delete(kMockServerConnectionsUri);
+  MockServerRestClient(cluster_nodes_http_ports_[0])
+      .send_delete(kMockServerConnectionsUri);
   cluster_nodes_[0]->kill();
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_changed(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify that all connections are closed
   for (auto &client_and_port : clients) {
@@ -1101,9 +1230,17 @@ TEST_F(RouterRoutingConnectionTest, IsConnectionClosedWhenClusterOverloaded) {
   }
 }
 
+INSTANTIATE_TEST_CASE_P(
+    IsConnectionClosedWhenClusterOverloaded,
+    IsConnectionClosedWhenClusterOverloadedTest,
+    ::testing::Values(TracefileTestParam("metadata_3_secondaries_pass_v2_gr.js",
+                                         ClusterType::GR_V2),
+                      TracefileTestParam("metadata_3_secondaries_pass.js",
+                                         ClusterType::GR_V1)));
+
 class RouterRoutingConnectionMDUnavailableTest
     : public RouterRoutingConnectionCommonTest,
-      public testing::WithParamInterface<std::string> {};
+      public testing::WithParamInterface<TracefileTestParam> {};
 
 /**
  * @test
@@ -1113,14 +1250,17 @@ class RouterRoutingConnectionMDUnavailableTest
  */
 TEST_P(RouterRoutingConnectionMDUnavailableTest,
        IsConnectionKeptWhenClusterOverloaded) {
-  ASSERT_NO_FATAL_FAILURE(setup_cluster("metadata_3_secondaries_pass.js", 4));
+  const std::string tracefile = GetParam().tracefile;
+  const std::string param = GetParam().param;
 
-  config_generator_->disconnect_on_promoted_to_primary(GetParam());
+  ASSERT_NO_FATAL_FAILURE(setup_cluster(tracefile, 4));
+
+  config_generator_->disconnect_on_promoted_to_primary(param);
   auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+      router_ro_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -1130,30 +1270,32 @@ TEST_P(RouterRoutingConnectionMDUnavailableTest,
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status))
+      << router.get_full_logfile();
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(6);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(6);
 
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
     ASSERT_NO_THROW(client.connect("127.0.0.1", router_ro_port_, "username",
-                                   "password", "", ""));
+                                   "password", "", ""))
+        << router.get_full_logfile();
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    client_and_port.second = std::stoul(std::string((*result)[0]));
+    client_and_port.second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
   /*
    * There is only 1 metadata server, so then primary
    * goes away, metadata is unavailable.
    */
-  MockServerRestClient(mock_http_port_).send_delete(kMockServerConnectionsUri);
+  MockServerRestClient(cluster_nodes_http_ports_[0])
+      .send_delete(kMockServerConnectionsUri);
   cluster_nodes_[0]->kill();
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_changed(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify if all connections are NOT closed
   for (auto &client_and_port : clients) {
@@ -1164,18 +1306,39 @@ TEST_P(RouterRoutingConnectionMDUnavailableTest,
   }
 }
 
-std::string metadata_unavailable_flags[] = {
-    "&disconnect_on_metadata_unavailable=no",
-    "",
-};
+INSTANTIATE_TEST_CASE_P(
+    RouterRoutingIsConnectionNotClosedWhenMDUnavailable,
+    RouterRoutingConnectionMDUnavailableTest,
+    ::testing::Values(
+        TracefileTestParam("metadata_3_secondaries_pass_v2_gr.js",
+                           ClusterType::GR_V2,
+                           "&disconnect_on_metadata_unavailable=no"),
+        TracefileTestParam("metadata_3_secondaries_pass.js", ClusterType::GR_V1,
+                           "&disconnect_on_metadata_unavailable=no"),
+        TracefileTestParam("metadata_3_secondaries_pass_v2_gr.js",
+                           ClusterType::GR_V2, ""),
+        TracefileTestParam("metadata_3_secondaries_pass.js", ClusterType::GR_V1,
+                           "")));
 
-INSTANTIATE_TEST_CASE_P(RouterRoutingIsConnectionNotClosedWhenMDUnavailable,
-                        RouterRoutingConnectionMDUnavailableTest,
-                        testing::ValuesIn(metadata_unavailable_flags));
+using server_globals = RouterRoutingConnectionCommonTest::server_globals;
+
+struct MDRefreshTestParam {
+  ClusterType cluster_type;
+  std::string tracefile1;
+  std::string tracefile2;
+  server_globals globals;
+
+  MDRefreshTestParam(ClusterType cluster_type_, std::string tracefile1_,
+                     std::string tracefile2_, server_globals globals_)
+      : cluster_type(cluster_type_),
+        tracefile1(tracefile1_),
+        tracefile2(tracefile2_),
+        globals(globals_) {}
+};
 
 class RouterRoutingConnectionMDRefreshTest
     : public RouterRoutingConnectionCommonTest,
-      public testing::WithParamInterface<std::string> {};
+      public testing::WithParamInterface<MDRefreshTestParam> {};
 
 /**
  * @test
@@ -1200,37 +1363,30 @@ TEST_P(RouterRoutingConnectionMDRefreshTest,
       {cluster_nodes_ports_[0], cluster_nodes_ports_[1]}, router_rw_port_,
       router_ro_port_, monitoring_port_, metadata_refresh_ttl_));
 
-  uint16_t http_port_primary = port_pool_.get_next_available();
-
   // launch the primary node working also as metadata server
-  const std::string json_for_primary =
-      replace_env_variables("metadata_3_secondaries_failed_to_update.js",
-                            primary_json_env_vars_, cluster_nodes_ports_[0]);
   cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_[0],
-                                          json_for_primary, http_port_primary));
+                                          GetParam().tracefile1,
+                                          cluster_nodes_http_ports_[0], 4));
 
   // launch the secondary node working also as metadata server
-  const std::string json_for_secondary =
-      replace_env_variables("metadata_3_secondaries_pass.js",
-                            primary_json_env_vars_, cluster_nodes_ports_[1]);
   cluster_nodes_.push_back(&launch_server(cluster_nodes_ports_[1],
-                                          json_for_secondary, mock_http_port_));
+                                          GetParam().tracefile2,
+                                          cluster_nodes_http_ports_[1], 4));
 
   // launch the rest of secondary cluster nodes
   for (unsigned port = 2; port < 4; ++port) {
-    std::string secondary_json_file =
-        get_json_for_secondary(cluster_nodes_ports_[port]);
     cluster_nodes_.push_back(
-        &launch_server(cluster_nodes_ports_[port], secondary_json_file));
+        &launch_server(cluster_nodes_ports_[port], "rest_server_mock.js",
+                       cluster_nodes_http_ports_[port], 4));
   }
 
   config_generator_->disconnect_on_metadata_unavailable(
       "&disconnect_on_metadata_unavailable=yes");
   auto &router = launch_router(
-      router_ro_port_,
-      config_generator_->build_config_file(temp_test_dir_.name()));
-  ASSERT_TRUE(wait_for_port_ready(router_rw_port_)) << router.get_full_output();
-  ASSERT_TRUE(wait_for_port_ready(router_ro_port_)) << router.get_full_output();
+      router_ro_port_, config_generator_->build_config_file(
+                           temp_test_dir_.name(), GetParam().cluster_type));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_rw_port_));
+  ASSERT_NO_FATAL_FAILURE(check_port_ready(router, router_ro_port_));
 
   /*
    * wait until metadata is initialized
@@ -1240,48 +1396,77 @@ TEST_P(RouterRoutingConnectionMDRefreshTest,
                                           kRestApiUsername, kRestApiPassword);
 
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_ready(
-      std::chrono::milliseconds(wait_for_cache_ready_timeout),
-      metadata_status));
+      wait_for_cache_ready_timeout, metadata_status))
+      << router.get_full_logfile();
 
   // connect clients
-  std::vector<std::pair<MySQLSession, unsigned>> clients(10);
+  std::vector<std::pair<MySQLSession, uint16_t>> clients(10);
 
-  for (int i = 0; i < 2; ++i) {
+  for (size_t i = 0; i < 2; ++i) {
     auto &client = clients[i].first;
     ASSERT_NO_THROW(client.connect("127.0.0.1", router_rw_port_, "username",
                                    "password", "", ""));
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    clients[i].second = std::stoul(std::string((*result)[0]));
+    clients[i].second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  for (int i = 2; i < 10; ++i) {
+  for (size_t i = 2; i < 10; ++i) {
     auto &client = clients[i].first;
     ASSERT_NO_THROW(client.connect("127.0.0.1", router_ro_port_, "username",
-                                   "password", "", ""));
+                                   "password", "", ""))
+        << router.get_full_logfile();
     std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")};
-    clients[i].second = std::stoul(std::string((*result)[0]));
+    clients[i].second =
+        static_cast<uint16_t>(std::stoul(std::string((*result)[0])));
   }
 
-  ASSERT_TRUE(
-      MockServerRestClient(http_port_primary).wait_for_rest_endpoint_ready());
-  MockServerRestClient(http_port_primary).set_globals(GetParam());
+  ASSERT_TRUE(MockServerRestClient(cluster_nodes_http_ports_[0])
+                  .wait_for_rest_endpoint_ready());
+  set_additional_globals(cluster_nodes_http_ports_[0], GetParam().globals);
   ASSERT_NO_ERROR(rest_metadata_client.wait_for_cache_updated(
-      std::chrono::milliseconds(wait_for_cache_update_timeout),
-      metadata_status));
+      wait_for_cache_update_timeout, metadata_status));
 
   // verify if all connections are NOT closed
   for (auto &client_and_port : clients) {
     auto &client = client_and_port.first;
     ASSERT_NO_THROW(std::unique_ptr<MySQLSession::ResultRow> result{
         client.query_one("select @@port")})
-        << router.get_full_output();
+        << router.get_full_logfile();
   }
 }
 
-std::string steps[] = {"{\"MD_failed\": true}", "{\"GR_primary_failed\": true}",
-                       "{\"GR_health_failed\": true}"};
+MDRefreshTestParam steps[] = {
+    MDRefreshTestParam(ClusterType::GR_V2,
+                       "metadata_3_secondaries_failed_to_update_v2_gr.js",
+                       "metadata_3_secondaries_pass_v2_gr.js",
+                       server_globals().set_MD_failed()),
+
+    MDRefreshTestParam(
+        ClusterType::GR_V1, "metadata_3_secondaries_failed_to_update.js",
+        "metadata_3_secondaries_pass.js", server_globals().set_MD_failed()),
+
+    MDRefreshTestParam(ClusterType::GR_V2,
+                       "metadata_3_secondaries_failed_to_update_v2_gr.js",
+                       "metadata_3_secondaries_pass_v2_gr.js",
+                       server_globals().set_GR_primary_failed()),
+
+    MDRefreshTestParam(ClusterType::GR_V1,
+                       "metadata_3_secondaries_failed_to_update.js",
+                       "metadata_3_secondaries_pass.js",
+                       server_globals().set_GR_primary_failed()),
+
+    MDRefreshTestParam(ClusterType::GR_V2,
+                       "metadata_3_secondaries_failed_to_update_v2_gr.js",
+                       "metadata_3_secondaries_pass_v2_gr.js",
+                       server_globals().set_GR_health_failed()),
+
+    MDRefreshTestParam(ClusterType::GR_V1,
+                       "metadata_3_secondaries_failed_to_update.js",
+                       "metadata_3_secondaries_pass.js",
+                       server_globals().set_GR_health_failed())};
 
 INSTANTIATE_TEST_CASE_P(RouterRoutingIsConnectionNotDisabledWhenMDRefresh,
                         RouterRoutingConnectionMDRefreshTest,

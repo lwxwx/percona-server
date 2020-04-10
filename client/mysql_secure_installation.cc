@@ -160,7 +160,7 @@ static bool my_arguments_get_one_option(
 #endif
       break;
   }
-  return 0;
+  return false;
 }
 }
 
@@ -761,7 +761,7 @@ int main(int argc, char *argv[]) {
   int hadpass, component_set = 0;
 
   MY_INIT(argv[0]);
-  DBUG_ENTER("main");
+  DBUG_TRACE;
   DBUG_PROCESS(argv[0]);
   if (mysql_init(&mysql) == NULL) {
     printf("... Failed to initialize the MySQL client framework.\n");

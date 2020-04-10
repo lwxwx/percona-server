@@ -54,7 +54,8 @@ FUNCTION(ADD_DYNAMIC_STATE_SCHEMA_COMMAND SHARED_OR_STATIC)
     "StateFileJsonSchema"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${SUBDIR}
     COMMENT "Generating sources for ${SHARED_OR_STATIC} harness library"
-    DEPENDS json_schema_embedder)
+    DEPENDS dynamic_state_schema.js
+    )
 ENDFUNCTION()
 
 ADD_DYNAMIC_STATE_SCHEMA_COMMAND(SHARED)
@@ -92,18 +93,12 @@ SET(harness_source
   keyring/keyring_manager.cc
   keyring/keyring_memory.cc
   keyring/keyring_file.cc
+  keyring/master_key_file.cc
   networking/ip_address.cc
   networking/ipv4_address.cc
   networking/ipv6_address.cc
-  networking/resolver.cc)
-
-IF(WITH_SSL STREQUAL "wolfssl")
-  LIST(APPEND harness_source
-    my_aes_wolfssl.cc)
-ELSE()
-  LIST(APPEND harness_source
-    my_aes_openssl.cc)
-ENDIF()
+  networking/resolver.cc
+  my_aes_openssl.cc)
 
 IF(WIN32)
   LIST(APPEND harness_source
@@ -198,19 +193,15 @@ IF(WIN32)
    )
 ENDIF()
 
+ADD_INSTALL_RPATH_FOR_OPENSSL(harness-library)
 SET_PATH_TO_SSL(harness-library ${CMAKE_BINARY_DIR}/library_output_directory)
 
-# don't install headers until a) a final destination is found and b) API is stable
-# SET(HARNESS_NAME "harness" CACHE STRING "Name of Harness")
-# SET(HARNESS_INSTALL_INCLUDE_PREFIX "include/mysql")
-# FILE(GLOB harness_headers include/*.h)
-# INSTALL(FILES ${harness_headers}
-#   DESTINATION ${HARNESS_INSTALL_INCLUDE_PREFIX}/${HARNESS_NAME})
 IF(NOT WIN32)
-  INSTALL(TARGETS harness-archive harness-library
-    LIBRARY DESTINATION ${ROUTER_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${ROUTER_INSTALL_LIBDIR}
-    COMPONENT Router)
+  INSTALL(TARGETS harness-library
+    LIBRARY
+    DESTINATION ${ROUTER_INSTALL_LIBDIR} COMPONENT Router
+    NAMELINK_SKIP
+    )
 ELSE()
   INSTALL(TARGETS harness-library
     RUNTIME DESTINATION "${ROUTER_INSTALL_BINDIR}"

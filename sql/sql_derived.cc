@@ -29,6 +29,7 @@
 #include <sys/types.h>
 
 #include "lex_string.h"
+#include "my_alloc.h"
 #include "my_base.h"
 #include "my_bitmap.h"
 #include "my_dbug.h"
@@ -55,10 +56,9 @@
 #include "sql/sql_tmp_table.h"  // Tmp tables
 #include "sql/sql_union.h"      // Query_result_union
 #include "sql/sql_view.h"       // check_duplicate_names
-#include "sql/system_variables.h"
 #include "sql/table.h"
 #include "sql/table_function.h"
-#include "sql/temp_table_param.h"
+#include "sql/thd_raii.h"
 #include "thr_lock.h"
 
 class Opt_trace_context;
@@ -179,12 +179,6 @@ TABLE *Common_table_expr::clone_tmp_table(THD *thd, TABLE_LIST *tl) {
   // Allocate clone on the memory root of the TABLE_SHARE.
   TABLE *t = static_cast<TABLE *>(first->s->mem_root.Alloc(sizeof(TABLE)));
   if (!t) return nullptr; /* purecov: inspected */
-  /*
-    Share's of derived tables has key descriptions that can't be properly
-    processed by open_table_from_share(). Luckily we never get such tables
-    with keys here.
-  */
-  DBUG_ASSERT(first->s->keys == 0);
   if (open_table_from_share(thd, first->s, tl->alias,
                             /*
                               Pass db_stat == 0 to delay opening of table in SE,
@@ -209,7 +203,7 @@ TABLE *Common_table_expr::clone_tmp_table(THD *thd, TABLE_LIST *tl) {
   // In case this clone is used to fill the materialized table:
   bitmap_set_all(t->write_set);
   t->reginfo.lock_type = TL_WRITE;
-  t->copy_blobs = 1;
+  t->copy_blobs = true;
 
   tl->table = t;
   t->pos_in_table_list = tl;
@@ -254,7 +248,7 @@ bool Common_table_expr::substitute_recursive_reference(THD *thd,
 */
 
 bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
-  DBUG_ENTER("TABLE_LIST::resolve_derived");
+  DBUG_TRACE;
 
   /*
     Helper class which takes care of restoration of members like
@@ -291,8 +285,7 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
     bool m_derived_tables_processing_saved;
   };
 
-  if (!is_view_or_derived() || is_merged() || is_table_function())
-    DBUG_RETURN(false);
+  if (!is_view_or_derived() || is_merged() || is_table_function()) return false;
 
   // Dummy derived tables for recursive references disappear before this stage
   DBUG_ASSERT(this != select_lex->recursive_reference);
@@ -303,7 +296,7 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
   Context_handler ctx_handler(thd);
 
   if (derived->prepare_limit(thd, derived->global_parameters()))
-    DBUG_RETURN(true); /* purecov: inspected */
+    return true; /* purecov: inspected */
 
 #ifndef DBUG_OFF  // CTEs, derived tables can have outer references
   if (is_view())  // but views cannot.
@@ -319,10 +312,9 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
     // Ensure it's UNION.
     if (!derived->is_union()) {
       my_error(ER_CTE_RECURSIVE_REQUIRES_UNION, MYF(0), alias);
-      DBUG_RETURN(true);
+      return true;
     }
-    if (derived->global_parameters()->is_ordered() ||
-        derived->global_parameters()->has_limit()) {
+    if (derived->global_parameters()->is_ordered()) {
       /*
         ORDER BY applied to the UNION causes the use of the union tmp
         table. The fake_select_lex would want to sort that table, which isn't
@@ -331,18 +323,18 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
         Another reason: allowing
         ORDER BY <condition using fulltext> would make the UNION tmp table be
         of MyISAM engine which recursive CTEs don't support.
-        LIMIT will mislead people; they'll possibly add it to an infinite
-        recursive query and think it will stop it, but it won't, as LIMIT
-        isn't quite pushed down to UNION parts (see Bug #79340). Moreover,
-        without ORDER BY the LIMIT theoretically returns unpredictable rows.
-        Instead of LIMIT, the user can have a counter column and use a WHERE
+        LIMIT is allowed and will stop the row generation after N rows.
+        However, without ORDER BY the CTE's content is ordered in an
+        unpredictable way, so LIMIT theoretically returns an unpredictable
+        subset of rows. Users are on their own.
+        Instead of LIMIT, users can have a counter column and use a WHERE
         on it, to control depth level, which sounds more intelligent than a
         limit.
       */
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "ORDER BY / LIMIT over UNION "
+               "ORDER BY over UNION "
                "in recursive Common Table Expression");
-      DBUG_RETURN(true);
+      return true;
     }
     /*
       Should be:
@@ -368,7 +360,7 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
           my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                    "ORDER BY / LIMIT / SELECT DISTINCT"
                    " in recursive query block of Common Table Expression");
-          DBUG_RETURN(true);
+          return true;
         }
         if (sl == derived->union_distinct && sl->next_select()) {
           /*
@@ -386,12 +378,12 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
                    "recursive query blocks with"
                    " UNION DISTINCT then UNION ALL, in recursive "
                    "Common Table Expression");
-          DBUG_RETURN(true);
+          return true;
         }
       } else {
         if (previous_is_recursive) {
           my_error(ER_CTE_RECURSIVE_REQUIRES_NONRECURSIVE_FIRST, MYF(0), alias);
-          DBUG_RETURN(true);
+          return true;
         }
         last_non_recursive = sl;
       }
@@ -399,7 +391,7 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
     }
     if (last_non_recursive == nullptr) {
       my_error(ER_CTE_RECURSIVE_REQUIRES_NONRECURSIVE_FIRST, MYF(0), alias);
-      DBUG_RETURN(true);
+      return true;
     }
     derived->first_recursive = last_non_recursive->next_select();
     DBUG_ASSERT(derived->is_recursive());
@@ -410,7 +402,10 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
   derived->derived_table = this;
 
   if (!(derived_result = new (thd->mem_root) Query_result_union()))
-    DBUG_RETURN(true); /* purecov: inspected */
+    return true; /* purecov: inspected */
+
+  /// Give the unit to the result (the other fields are ignored).
+  if (derived_result->prepare(thd, derived->types, derived_unit())) return true;
 
   /*
     Prepare the underlying query expression of the derived table.
@@ -418,10 +413,10 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
   */
   if (derived->prepare(thd, derived_result,
                        !apply_semijoin ? SELECT_STRAIGHT_JOIN : 0, 0))
-    DBUG_RETURN(true);
+    return true;
 
-  if (check_duplicate_names(m_derived_column_names, derived->types, 0))
-    DBUG_RETURN(true);
+  if (check_duplicate_names(m_derived_column_names, derived->types, false))
+    return true;
 
   if (is_derived()) {
     // The underlying tables of a derived table are all readonly:
@@ -448,12 +443,12 @@ bool TABLE_LIST::resolve_derived(THD *thd, bool apply_semijoin) {
       } else {
         propagate_table_maps(0);
         if (check_right_lateral_join(this, derived->m_lateral_deps))
-          DBUG_RETURN(true);
+          return true;
       }
     }
   }
 
-  DBUG_RETURN(false);
+  return false;
 }
 
 /// Helper function for TABLE_LIST::setup_materialized_derived()
@@ -499,7 +494,7 @@ bool TABLE_LIST::setup_materialized_derived(THD *thd)
 bool TABLE_LIST::setup_materialized_derived_tmp_table(THD *thd)
 
 {
-  DBUG_ENTER("TABLE_LIST::setup_materialized_derived_tmp_table");
+  DBUG_TRACE;
 
   DBUG_ASSERT(is_view_or_derived() && !is_merged() && table == NULL);
 
@@ -520,7 +515,7 @@ bool TABLE_LIST::setup_materialized_derived_tmp_table(THD *thd)
   if (m_common_table_expr && m_common_table_expr->tmp_tables.size() > 0) {
     trace_derived.add("reusing_tmp_table", true);
     table = m_common_table_expr->clone_tmp_table(thd, this);
-    if (table == nullptr) DBUG_RETURN(true); /* purecov: inspected */
+    if (table == nullptr) return true; /* purecov: inspected */
     derived_result->table = table;
   }
 
@@ -541,24 +536,29 @@ bool TABLE_LIST::setup_materialized_derived_tmp_table(THD *thd)
                                               *m_derived_column_names);
     }
 
+    // If we're materializing directly into the result and we have a UNION
+    // DISTINCT query, we're going to need a unique index for deduplication.
+    // (If we're materializing into a temporary table instead, the deduplication
+    // will happen on that table, and is not set here.) create_result_table()
+    // will figure out whether it wants to create it as the primary key or just
+    // a regular index.
+    bool is_distinct = derived->can_materialize_directly_into_result() &&
+                       derived->union_distinct != nullptr;
+
     bool rc = derived_result->create_result_table(
-        thd, &derived->types, false, create_options, alias, false, false);
+        thd, &derived->types, is_distinct, create_options, alias, false, false);
 
     if (m_derived_column_names)  // Restore names
       swap_column_names_of_unit_and_tmp_table(derived->types,
                                               *m_derived_column_names);
 
-    if (rc) DBUG_RETURN(true); /* purecov: inspected */
+    if (rc) return true; /* purecov: inspected */
 
     table = derived_result->table;
     table->pos_in_table_list = this;
     if (m_common_table_expr && m_common_table_expr->tmp_tables.push_back(this))
-      DBUG_RETURN(true); /* purecov: inspected */
+      return true; /* purecov: inspected */
   }
-
-  // Detect cases which common_table_expr::clone_tmp_table() couldn't clone:
-  DBUG_ASSERT(!table->s->keys && !table->s->key_info && !table->hash_field &&
-              !table->group && !table->is_distinct);
 
   // Make table's name same as the underlying materialized table
   set_name_temporary();
@@ -570,7 +570,7 @@ bool TABLE_LIST::setup_materialized_derived_tmp_table(THD *thd)
 
   dep_tables |= derived->m_lateral_deps;
 
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -598,11 +598,10 @@ bool SELECT_LEX_UNIT::check_materialized_derived_query_blocks(THD *thd_arg) {
 
     // Set all selected fields to be read:
     // @todo Do not set fields that are not referenced from outer query
-    DBUG_ASSERT(thd_arg->mark_used_columns == MARK_COLUMNS_READ);
     List_iterator<Item> it(sl->all_fields);
     Item *item;
     Column_privilege_tracker tracker(thd_arg, SELECT_ACL);
-    Mark_field mf(thd_arg->mark_used_columns);
+    Mark_field mf(MARK_COLUMNS_READ);
     while ((item = it++)) {
       if (item->walk(&Item::check_column_privileges, enum_walk::PREFIX,
                      (uchar *)thd_arg))
@@ -621,7 +620,7 @@ bool SELECT_LEX_UNIT::check_materialized_derived_query_blocks(THD *thd_arg) {
   @return false if successful, true if error
 */
 bool TABLE_LIST::setup_table_function(THD *thd) {
-  DBUG_ENTER("TABLE_LIST::setup_table_function");
+  DBUG_TRACE;
 
   DBUG_ASSERT(is_table_function());
 
@@ -645,11 +644,11 @@ bool TABLE_LIST::setup_table_function(THD *thd) {
   */
   select_lex->end_lateral_table = this;
 
-  if (table_function->init()) DBUG_RETURN(true);
+  if (table_function->init()) return true;
 
   // Create the result table for the materialization
   if (table_function->create_result_table(0LL, alias))
-    DBUG_RETURN(true); /* purecov: inspected */
+    return true; /* purecov: inspected */
   table = table_function->table;
   table->pos_in_table_list = this;
 
@@ -664,7 +663,7 @@ bool TABLE_LIST::setup_table_function(THD *thd) {
   thd->mark_used_columns = MARK_COLUMNS_READ;
   if (table_function->init_args()) {
     thd->mark_used_columns = saved_mark;
-    DBUG_RETURN(true);
+    return true;
   }
   thd->mark_used_columns = saved_mark;
   set_privileges(SELECT_ACL);
@@ -680,11 +679,11 @@ bool TABLE_LIST::setup_table_function(THD *thd) {
 
   propagate_table_maps(0);
   if (check_right_lateral_join(this, table_function->used_tables()))
-    DBUG_RETURN(true);
+    return true;
 
   thd->where = saved_where;
 
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -700,19 +699,19 @@ bool TABLE_LIST::setup_table_function(THD *thd) {
 */
 
 bool TABLE_LIST::optimize_derived(THD *thd) {
-  DBUG_ENTER("TABLE_LIST::optimize_derived");
+  DBUG_TRACE;
 
   SELECT_LEX_UNIT *const unit = derived_unit();
 
   DBUG_ASSERT(unit && !unit->is_optimized());
 
-  if (unit->optimize(thd) || thd->is_error()) DBUG_RETURN(true);
+  if (unit->optimize(thd, table) || thd->is_error()) return true;
 
   if (materializable_is_const() &&
       (create_materialized_table(thd) || materialize_derived(thd)))
-    DBUG_RETURN(true);
+    return true;
 
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -727,7 +726,7 @@ bool TABLE_LIST::optimize_derived(THD *thd) {
 */
 
 bool TABLE_LIST::create_materialized_table(THD *thd) {
-  DBUG_ENTER("TABLE_LIST::create_materialized_table");
+  DBUG_TRACE;
 
   // @todo: Be able to assert !table->is_created() as well
   DBUG_ASSERT((is_table_function() || derived_unit()) &&
@@ -737,7 +736,7 @@ bool TABLE_LIST::create_materialized_table(THD *thd) {
     Derived_refs_iterator it(this);
     while (TABLE *t = it.get_next())
       if (t->is_created()) {
-        if (open_tmp_table(table)) DBUG_RETURN(true); /* purecov: inspected */
+        if (open_tmp_table(table)) return true; /* purecov: inspected */
         break;
       }
   }
@@ -762,15 +761,14 @@ bool TABLE_LIST::create_materialized_table(THD *thd) {
                   table->has_null_row());
     }
 #endif
-    DBUG_RETURN(false);
+    return false;
   }
   /* create tmp table */
-  if (instantiate_tmp_table(thd, table))
-    DBUG_RETURN(true); /* purecov: inspected */
+  if (instantiate_tmp_table(thd, table)) return true; /* purecov: inspected */
 
   table->file->ha_extra(HA_EXTRA_IGNORE_DUP_KEY);
 
-  DBUG_RETURN(false);
+  return false;
 }
 
 /**
@@ -789,7 +787,7 @@ bool TABLE_LIST::create_materialized_table(THD *thd) {
 */
 
 bool TABLE_LIST::materialize_derived(THD *thd) {
-  DBUG_ENTER("TABLE_LIST::materialize_derived");
+  DBUG_TRACE;
   DBUG_ASSERT(is_view_or_derived() && uses_materialization());
   DBUG_ASSERT(table && table->is_created() && !table->materialized);
 
@@ -797,7 +795,7 @@ bool TABLE_LIST::materialize_derived(THD *thd) {
   while (TABLE *t = it.get_next())
     if (t->materialized) {
       table->materialized = true;
-      DBUG_RETURN(false);
+      return false;
     }
 
   /*
@@ -809,12 +807,21 @@ bool TABLE_LIST::materialize_derived(THD *thd) {
     be the same as insertion order.
     So let's verify that the table has no MySQL-created PK.
   */
-  DBUG_ASSERT(table->s->primary_key == MAX_KEY);
-
   SELECT_LEX_UNIT *const unit = derived_unit();
+  if (unit->is_recursive()) {
+    DBUG_ASSERT(table->s->primary_key == MAX_KEY);
+  }
+
+  if (table->hash_field) {
+    table->file->ha_index_init(0, false);
+  }
 
   // execute unit without cleaning up
   bool res = unit->execute(thd);
+
+  if (table->hash_field) {
+    table->file->ha_index_or_rnd_end();
+  }
 
   if (!res) {
     /*
@@ -825,7 +832,7 @@ bool TABLE_LIST::materialize_derived(THD *thd) {
   }
 
   table->materialized = true;
-  DBUG_RETURN(res);
+  return res;
 }
 
 /**
