@@ -2,12 +2,13 @@
  * @Author: wei
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-16 09:47:59
+ * @LastEditTime: 2020-06-17 18:38:57
  * @Description: plugin main source file
- * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/plugin.cc
+ * @FilePath: /multi_master_log_plugin/src/plugin.cc
  */
 #include <mysql/plugin.h>
 #include "trx_info.h"
+#include "plugin_interface.h"
 
 /*SYS_VAR*/
 struct st_mysql_daemon multi_master_descriptor=
@@ -27,8 +28,10 @@ static SHOW_VAR multi_master_status_vars[] = {
 /*plugin global var*/
 
 /*plugin main functions*/
-int plugin_multi_master_init(MYSQL_PLUGIN plugin_info)
+int plugin_multi_master_log_init(MYSQL_PLUGIN plugin_info)
 {
+    mml_plugin_interface_active = 1;
+
     plugin_trx_info_ptr = new TrxInfo;
 
     //register function ptr
@@ -36,13 +39,13 @@ int plugin_multi_master_init(MYSQL_PLUGIN plugin_info)
     return 0;
 }
 
-int plugin_multi_master_check_uninstall(MYSQL_PLUGIN plugin_info)
+int plugin_multi_master_log_check_uninstall(MYSQL_PLUGIN plugin_info)
 {
 
     return 0;
 }
 
-int  plugin_multi_master_deinit(MYSQL_PLUGIN plugin_info)
+int  plugin_multi_master_log_deinit(MYSQL_PLUGIN plugin_info)
 {
     delete plugin_trx_info_ptr;
     return 0;
