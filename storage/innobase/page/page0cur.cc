@@ -41,6 +41,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <algorithm>
 #include "page0zip.h"
 
+#include "../../../plugin/multi_master_log_plugin/mml_plugin_functions.h"
+
 #ifndef UNIV_HOTBACKUP
 #include "gis0rtree.h"
 #include "rem0cmp.h"
@@ -955,6 +957,10 @@ static void page_cur_insert_rec_write_log(
         return;
       }
 
+      if(mml_plugin_interface_active > 0)
+      {
+        (*mml_plugin_mtr_redo_record_new_ptr)(11 + 2 + 5 + 1 + 5 + 5 + MLOG_BUF_MARGIN);
+      }
       log_ptr = mlog_write_initial_log_record_fast(insert_rec, MLOG_REC_INSERT,
                                                    log_ptr, mtr);
     }

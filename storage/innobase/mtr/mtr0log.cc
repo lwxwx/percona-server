@@ -74,6 +74,10 @@ void mlog_write_initial_log_record(
 
   log_ptr = mlog_open(mtr, 11);
 
+  if(mml_plugin_interface_active > 0)
+  {
+    (*mml_plugin_mtr_redo_record_new_ptr)(11);
+  }
   /* If no logging is requested, we may return now */
   if (log_ptr == NULL) {
     return;
@@ -269,6 +273,10 @@ void mlog_write_ulint(
   if (mtr != 0) {
     byte *log_ptr = mlog_open(mtr, 11 + 2 + 5);
 
+    if(mml_plugin_interface_active > 0)
+    {
+      (*mml_plugin_mtr_redo_record_new_ptr)(11 + 2 + 5);
+    }
     /* If no logging is requested, we may return now */
 
     if (log_ptr != 0) {
@@ -295,6 +303,10 @@ void mlog_write_ull(byte *ptr,       /*!< in: pointer where to write */
   if (mtr != 0) {
     byte *log_ptr = mlog_open(mtr, 11 + 2 + 9);
 
+    if(mml_plugin_interface_active > 0)
+    {
+      (*mml_plugin_mtr_redo_record_new_ptr)(11 + 2 + 9);
+    }
     /* If no logging is requested, we may return now */
     if (log_ptr != 0) {
       log_ptr =
@@ -339,6 +351,10 @@ void mlog_log_string(byte *ptr,  /*!< in: pointer written to */
 
   log_ptr = mlog_open(mtr, 30);
 
+  if(mml_plugin_interface_active > 0)
+  {
+    (*mml_plugin_mtr_redo_record_new_ptr)(11 + 2 + 2 + len + 1);
+  }
   /* If no logging is requested, we may return now */
   if (log_ptr == NULL) {
     return;
@@ -423,6 +439,12 @@ byte *mlog_open_and_write_index(
 
   if (!page_rec_is_comp(rec)) {
     log_start = log_ptr = mlog_open(mtr, 11 + size);
+
+    if(mml_plugin_interface_active > 0)
+    {
+      (*mml_plugin_mtr_redo_record_new_ptr)(11 + size);
+    }
+
     if (!log_ptr) {
       return (NULL); /* logging is disabled */
     }
@@ -446,6 +468,11 @@ byte *mlog_open_and_write_index(
     }
 
     log_start = log_ptr = mlog_open(mtr, alloc);
+
+    if(mml_plugin_interface_active > 0)
+    {
+      (*mml_plugin_mtr_redo_record_new_ptr)(11 + alloc);
+    }
 
     if (!log_ptr) {
       return (NULL); /* logging is disabled */

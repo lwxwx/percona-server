@@ -2,6 +2,7 @@
 
 ## include
 include_directories(include)
+include_directories(.)
 include_directories(../../storage/innobase)
 include_directories(../../storage/innobase/include)
 include_directories(lib/easylogger/)
@@ -15,7 +16,6 @@ aux_source_directory(src MULTI_MASTER_LOG_SOURCE)
 MYSQL_ADD_PLUGIN(multi_master_log_plugin
     ${MULTI_MASTER_LOG_SOURCE}
     DEFAULT MODULE_OUTPUT_NAME "multi_master_log"
-    MODULE_ONLY
     LINK_LIBRARIES ${LINK_LIB}
 )
 

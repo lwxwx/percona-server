@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-15 09:59:12
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-17 18:20:05
+ * @LastEditTime: 2020-06-20 09:11:35
  * @Description: trx_info、trx_redolog
- * @FilePath: /multi_master_log_plugin/include/trx_info.h
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/trx_info.h
  */
 
 #ifndef TRX_INFO_HEADER
@@ -38,6 +38,8 @@ using TrxID = uint64_t;
 using plugin_mlog_id_t = int;
 using plugin_space_id_t = uint32_t;
 using plugin_page_no_t = uint32_t;
+using plugin_page_offset_t = unsigned long;
+
 /* Return Value : Int
 	1 : success
 	0 : none
@@ -53,15 +55,16 @@ struct RedoLogRec
 	plugin_mlog_id_t type;
 	plugin_space_id_t space_id;
 	plugin_page_no_t page_no;
+	plugin_page_offset_t offset;
 
-	void * rec;
+	char * rec;
 	uint32_t rec_size;
 };
 
 #define RedoLogBufferSize(s,e) e-s+1
 
 RedoLogRec * allocate_redolog_record(uint32_t size);
-// int copy_log_buffer(RedoLogRec * redo,void * log_buffer);  //copy (end_lsn-start_lsn) bytes
+RedoLogRec * allocate_redolog_record();
 int destory_redolog_record(RedoLogRec * redo);
 
 using PageRedoMap = std::map<plugin_space_id_t, std::map<plugin_page_no_t, std::list<RedoLogRec*> > >;
@@ -73,8 +76,8 @@ class TrxLog
 		bool trx_is_started;
 		bool trx_is_commited;
 		std::list<RedoLogRec *> uncompleted_rec_list;
-		PageRedoMap page_record_map;
-
+		std::list<RedoLogRec *> completed_rec_list;
+		RedoLogRec * now_rec;
 
 	public:
 		TrxLog()
@@ -82,12 +85,14 @@ class TrxLog
 			trx_no = 0;
 			trx_is_started = false;
 			trx_is_commited = false;
+			now_rec = NULL;
 		}
 		~TrxLog();
-		int trx_started();
-		int trx_commiting(TrxID id);
-		int add_redolog_record(plugin_mlog_id_t type,plugin_space_id_t space_id,plugin_page_no_t page_no,uint32_t size);
-		//RedoLogRec * get_redolog_section_from_no(int i);
+		int trx_started(); // clear and start
+		int wr_trx_commiting(TrxID id);
+		int add_redolog_record(plugin_mlog_id_t type,plugin_space_id_t space_id,plugin_page_no_t page_no,plugin_page_offset_t offset);
+		int new_redolog_record(size_t size);
+		int log_clear();
 };
 
 
@@ -96,14 +101,15 @@ class TrxInfo
 	private:
 		// Redo Log
 		std::map<ThreadID,TrxLog * > working_thread_map;
-		std::map<TrxID,TrxLog *> complete_trx_redo_map;
+		std::map<TrxID,TrxLog *> global_trx_redo_map;
 
 	public:
 		// Redo Log
 		// call in one thread
 		int trx_started();
-		int trx_commiting(TrxID id);
-		int mtr_redolog_record_add(plugin_mlog_id_t type,plugin_space_id_t space_id,plugin_page_no_t page_no,uint32_t size);
+		int wr_trx_commiting(TrxID id);
+		int mtr_redolog_record_add(plugin_mlog_id_t type,plugin_space_id_t space_id,plugin_page_no_t page_no,plugin_page_offset_t offset);
+		int mtr_redolog_record_new(size_t size);
 };
 
 extern TrxInfo * plugin_trx_info_ptr;

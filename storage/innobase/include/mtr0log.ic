@@ -38,7 +38,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "mysqld_error.h"
 
-#include "../../../plugin/multi_master_log_plugin/include/plugin_interface.h"
+#include "../../../plugin/multi_master_log_plugin/mml_plugin_functions.h"
 /** Opens a buffer to mlog. It must be closed with mlog_close.
 @param[in,out]	mtr	mtr
 @param[in]	size	buffer size in bytes; MUST be smaller than
@@ -255,7 +255,7 @@ byte *mlog_write_initial_log_record_fast(
 
   if(mml_plugin_interface_active > 0)
   {
-    mml_plugin_mtr_redo_record_add(type,space,offset,1);
+    (*mml_plugin_mtr_redo_record_add_ptr)(type,space,offset,ut_align_offset(ptr, UNIV_PAGE_SIZE));
   }
   return (mlog_write_initial_log_record_low(type, space, offset, log_ptr, mtr));
 }

@@ -214,7 +214,8 @@ SET(INNOBASE_SOURCES
 	ut/ut0rnd.cc
 	ut/ut0ut.cc
 	ut/ut0vec.cc
-	ut/ut0wqueue.cc)
+	ut/ut0wqueue.cc
+	../../plugin/multi_master_log_plugin/mml_plugin_functions.cc)
 
 ADD_LIBRARY(innodb_zipdecompress STATIC ${INNOBASE_ZIP_DECOMPRESS_SOURCES})
 TARGET_COMPILE_DEFINITIONS(
