@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-16 15:25:53
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-16 15:36:37
+ * @LastEditTime: 2020-06-23 10:49:04
  * @Description: Marco for debug
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/debug.h
  */
@@ -14,6 +14,10 @@
 #define LOG_FILE_SUFFIX ".log"
 #define REDO_LOG_FILE_NAME "redo_collect_log"
 
-#define DEBUG_REDO_LOG_COLLECT 1
+#define XCOM_LOG_DIR "xcom/"
+#define XCOM_LOG_FILE_NAME "xcom_debug"
+
+#define DEBUG_REDO_LOG_COLLECT 0
+#define DEBUG_XCOM_TEST 1
 
 #endif /* DEBUG_HEADER */

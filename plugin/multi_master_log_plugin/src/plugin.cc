@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-20 09:46:03
+ * @LastEditTime: 2020-06-23 10:56:37
  * @Description: plugin main source file
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/plugin.cc
  */

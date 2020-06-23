@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-15 10:41:24
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-20 10:29:25
+ * @LastEditTime: 2020-06-23 13:49:50
  * @Description: trx_info and redo log functions
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
@@ -215,6 +215,10 @@ int TrxInfo::wr_trx_commiting(TrxID id)
         trx_redo = working_thread_map[tid];
         trx_redo->wr_trx_commiting(id);
         working_thread_map[tid] = NULL;
+
+        std::string id_str = std::to_string(id);
+        xcom_gcs.send_test_message(id_str.c_str(), id_str.length() + 1);
+
         // rollback : delete trx_redo
        // TODO：多线程添加保护 global_trx_redo_map[id] = trx_redo;
         return 1;

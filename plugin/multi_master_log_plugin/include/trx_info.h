@@ -2,24 +2,13 @@
  * @Author: wei
  * @Date: 2020-06-15 09:59:12
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-20 09:11:35
+ * @LastEditTime: 2020-06-23 13:31:05
  * @Description: trx_info、trx_redolog
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/trx_info.h
  */
 
 #ifndef TRX_INFO_HEADER
 #define TRX_INFO_HEADER
-
-// #include "../../../storage/innobase/include/api0api.h"
-// #include "../../../storage/innobase/include/log0types.h"
-// #include "../../../storage/innobase/include/trx0types.h"
-// #include "../../../storage/innobase/include/mtr0types.h"
-
-// #include "api0api.h"
-// #include "log0types.h"
-// #include "trx0types.h"
-// #include "mtr0types.h"
-
 
 #include<map>
 #include<vector>
@@ -28,6 +17,8 @@
 #include<string.h>
 #include<thread>
 #include<string>
+
+#include "xcom_gcs.h"
 
 //#define GET_INFO_PTR(x) (int*)(x)
 
@@ -103,7 +94,15 @@ class TrxInfo
 		std::map<ThreadID,TrxLog * > working_thread_map;
 		std::map<TrxID,TrxLog *> global_trx_redo_map;
 
+		//xcom
+		XcomGcs xcom_gcs;
+
 	public:
+		TrxInfo()
+		{
+			xcom_gcs.init();
+		};
+
 		// Redo Log
 		// call in one thread
 		int trx_started();
