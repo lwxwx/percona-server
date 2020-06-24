@@ -23,7 +23,7 @@
 SET (XCOM_BASEDIR
      ${CMAKE_CURRENT_SOURCE_DIR}/src/bindings/xcom/xcom/)
 
-INCLUDE_DIRECTORIES(.)
+INCLUDE_DIRECTORIES(./)
 ### DEFINITIONS ###
 
 INCLUDE(configure.cmake)

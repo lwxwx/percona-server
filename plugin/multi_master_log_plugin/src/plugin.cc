@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-23 10:56:37
+ * @LastEditTime: 2020-06-24 19:09:56
  * @Description: plugin main source file
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/plugin.cc
  */
@@ -17,7 +17,42 @@ struct st_mysql_daemon multi_master_log_descriptor=
     MYSQL_DAEMON_INTERFACE_VERSION
 };
 
+char * local_node_ptr = NULL;
+char * group_name_ptr = NULL;
+char * peer_nodes_ptr = NULL;
+
+MYSQL_SYSVAR_STR(local_node,
+    local_node_ptr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "local ip and port",
+    NULL,
+    NULL,
+    NULL
+);
+
+MYSQL_SYSVAR_STR(group_name,
+    group_name_ptr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "xcom group name",
+    NULL,
+    NULL,
+    NULL
+);
+
+MYSQL_SYSVAR_STR(peer_nodes,
+    peer_nodes_ptr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "peer nodes ip and port",
+    NULL,
+    NULL,
+    NULL
+);
+
+
 static SYS_VAR * multi_master_system_vars[] = {
+    MYSQL_SYSVAR(group_name),
+    MYSQL_SYSVAR(local_node),
+    MYSQL_SYSVAR(peer_nodes),
     NULL
 };
 
@@ -34,7 +69,9 @@ int plugin_multi_master_log_init(MYSQL_PLUGIN plugin_info)
     mml_plugin_interface_active = 1;
 
     plugin_trx_info_ptr = new TrxInfo;
+    plugin_trx_info_ptr->init(group_name_ptr,local_node_ptr,peer_nodes_ptr);
 
+    //std::cout << std::endl << "Get Group Name From Plugin Var : " << group_name_ptr << std::endl;
     //register function ptr
     mml_plugin_mtr_redo_record_add_ptr = mml_plugin_mtr_redo_record_add;
     mml_plugin_mtr_redo_record_new_ptr = mml_plugin_mtr_redo_record_new;

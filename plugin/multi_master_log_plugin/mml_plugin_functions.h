@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-18 09:52:33
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-20 09:45:01
+ * @LastEditTime: 2020-06-24 09:40:41
  * @Description: file content
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/mml_plugin_functions.h
  */
@@ -10,7 +10,7 @@
 #ifndef MML_PLUGIN_FUNCTIONS_H
 #define MML_PLUGIN_FUNCTIONS_H
 
-#include "include/trx_info.h"
+#include "include/mmlp_type.h"
 
 extern int mml_plugin_interface_active;
 

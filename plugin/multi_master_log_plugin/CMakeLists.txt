@@ -10,7 +10,8 @@ include_directories(lib/easylogger/)
 
 ## lib
 ## {LINK_LIB}
-include_directories(./lib/libmysqlgcs/include)
+include_directories(lib/libmysqlgcs/include/mysql/gcs)
+include_directories(lib/libmysqlgcs/)
 add_subdirectory(./lib/libmysqlgcs)
 
 SET(LINK_LIB

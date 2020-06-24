@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-15 09:59:12
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-23 13:31:05
+ * @LastEditTime: 2020-06-24 19:00:55
  * @Description: trx_info、trx_redolog
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/trx_info.h
  */
@@ -14,22 +14,12 @@
 #include<vector>
 #include<set>
 #include<list>
-#include<string.h>
-#include<thread>
-#include<string>
+
 
 #include "xcom_gcs.h"
 
+#include "mmlp_type.h"
 //#define GET_INFO_PTR(x) (int*)(x)
-
-using ThreadID =  std::thread::id;
-using redolog_lsn_t =  uint64_t;
-using TrxID = uint64_t;
-
-using plugin_mlog_id_t = int;
-using plugin_space_id_t = uint32_t;
-using plugin_page_no_t = uint32_t;
-using plugin_page_offset_t = unsigned long;
 
 /* Return Value : Int
 	1 : success
@@ -98,11 +88,12 @@ class TrxInfo
 		XcomGcs xcom_gcs;
 
 	public:
-		TrxInfo()
-		{
-			xcom_gcs.init();
-		};
+		// TrxInfo()
+		// {
+		// 	xcom_gcs.init();  // TODO 择时init
+		// };
 
+		int init(const char * g_name,const char * local,const char * peers);
 		// Redo Log
 		// call in one thread
 		int trx_started();

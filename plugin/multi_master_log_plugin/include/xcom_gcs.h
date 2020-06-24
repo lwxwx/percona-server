@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-23 09:25:20
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-23 13:34:56
+ * @LastEditTime: 2020-06-24 23:14:41
  * @Description: file content
- * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/xcom_gcs.h
+ * @FilePath: /Percona-Share-Storage/percona-server/plugin/multi_master_log_plugin/include/xcom_gcs.h
  */
 
 #ifndef MMLP_XCOM_GCS_HEADER
@@ -28,7 +28,7 @@ public:
     XcomGcs(/* args */);
     ~XcomGcs();
 
-    int init();
+    int init(const char * g_name,const char * local,const char * peers);
 
     /*Test code*/
     int send_test_message(const char * data,int len);
@@ -45,7 +45,7 @@ public:
 
             #if DEBUG_XCOM_TEST
                 std::stringstream ss;
-                ss << LOG_DIR << XCOM_LOG_DIR << XCOM_LOG_FILE_NAME << LOG_FILE_SUFFIX;
+                ss << LOG_DIR << XCOM_LOG_DIR << XCOM_LOG_FILE_NAME << "_" << destin_id << LOG_FILE_SUFFIX;
                 std::stringstream mess;
                 mess<<  "@Message from " << origin_id << " to " << destin_id <<" : " << std::string(data,len) << std::endl;
                 EasyStringLog(ss.str(), origin_id,
@@ -54,7 +54,7 @@ public:
 
 
         }
-    }
+    };
 };
 
 #endif

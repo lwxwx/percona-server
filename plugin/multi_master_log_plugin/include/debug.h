@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-16 15:25:53
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-23 10:49:04
+ * @LastEditTime: 2020-06-24 19:14:26
  * @Description: Marco for debug
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/debug.h
  */
@@ -19,5 +19,7 @@
 
 #define DEBUG_REDO_LOG_COLLECT 0
 #define DEBUG_XCOM_TEST 1
+
+#define XCOM_ERROR_LOG 1
 
 #endif /* DEBUG_HEADER */

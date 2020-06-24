@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-15 10:41:24
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-23 13:49:50
+ * @LastEditTime: 2020-06-24 19:11:35
  * @Description: trx_info and redo log functions
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
@@ -146,6 +146,12 @@ int TrxLog::new_redolog_record(size_t size)
 /***
  * TrxInfo
  */
+int TrxInfo::init(const char * g_name,const char * local,const char * peers)
+{
+    xcom_gcs.init(g_name,local,peers);
+}
+
+
 int TrxInfo::trx_started()
 {
     ThreadID tid = std::this_thread::get_id();
