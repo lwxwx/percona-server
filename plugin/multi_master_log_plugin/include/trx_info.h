@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-15 09:59:12
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-24 19:00:55
+ * @LastEditTime: 2020-06-26 08:48:30
  * @Description: trx_info、trx_redolog
- * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/trx_info.h
+ * @FilePath: /multi_master_log_plugin/include/trx_info.h
  */
 
 #ifndef TRX_INFO_HEADER
@@ -15,8 +15,8 @@
 #include<set>
 #include<list>
 
-
-#include "xcom_gcs.h"
+#include "phxpaxos_api.h"
+//#include "xcom_gcs.h"
 
 #include "mmlp_type.h"
 //#define GET_INFO_PTR(x) (int*)(x)
@@ -85,13 +85,12 @@ class TrxInfo
 		std::map<TrxID,TrxLog *> global_trx_redo_map;
 
 		//xcom
-		XcomGcs xcom_gcs;
+		//XcomGcs xcom_gcs;
+
+		//phxpaxos
+		PhxAPIServer m_paxos;
 
 	public:
-		// TrxInfo()
-		// {
-		// 	xcom_gcs.init();  // TODO 择时init
-		// };
 
 		int init(const char * g_name,const char * local,const char * peers);
 		// Redo Log

@@ -2,14 +2,15 @@
  * @Author: wei
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-24 19:09:56
+ * @LastEditTime: 2020-06-29 23:36:22
  * @Description: plugin main source file
- * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/plugin.cc
+ * @FilePath: /Percona-Share-Storage/percona-server/plugin/multi_master_log_plugin/src/plugin.cc
  */
 #include <mysql/plugin.h>
 #include "trx_info.h"
 #include "plugin_interface.h"
 #include "../mml_plugin_functions.h"
+#include <climits>
 
 /*SYS_VAR*/
 struct st_mysql_daemon multi_master_log_descriptor=
@@ -20,6 +21,8 @@ struct st_mysql_daemon multi_master_log_descriptor=
 char * local_node_ptr = NULL;
 char * group_name_ptr = NULL;
 char * peer_nodes_ptr = NULL;
+unsigned long long  phxpaxos_conflict_count = 0;
+unsigned long long  phxpaxos_propose_count = 0;
 
 MYSQL_SYSVAR_STR(local_node,
     local_node_ptr,
@@ -48,11 +51,37 @@ MYSQL_SYSVAR_STR(peer_nodes,
     NULL
 );
 
+MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict,
+    phxpaxos_conflict_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "CONFLICT COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
 
+MYSQL_SYSVAR_ULONGLONG(phxpaxos_propose,
+    phxpaxos_propose_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "PROPOSE COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+/*plugin global var*/
 static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(group_name),
     MYSQL_SYSVAR(local_node),
     MYSQL_SYSVAR(peer_nodes),
+    MYSQL_SYSVAR(phxpaxos_conflict),
+    MYSQL_SYSVAR(phxpaxos_propose),
     NULL
 };
 
@@ -60,8 +89,6 @@ static SHOW_VAR multi_master_status_vars[] = {
      {NULL, NULL, SHOW_LONG, SHOW_SCOPE_GLOBAL}
 };
 
-
-/*plugin global var*/
 
 /*plugin main functions*/
 int plugin_multi_master_log_init(MYSQL_PLUGIN plugin_info)

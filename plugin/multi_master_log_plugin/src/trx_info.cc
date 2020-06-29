@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-15 10:41:24
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-24 19:11:35
+ * @LastEditTime: 2020-06-29 23:38:13
  * @Description: trx_info and redo log functions
- * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
+ * @FilePath: /Percona-Share-Storage/percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
 #include "trx_info.h"
 #include "debug.h"
@@ -148,7 +148,12 @@ int TrxLog::new_redolog_record(size_t size)
  */
 int TrxInfo::init(const char * g_name,const char * local,const char * peers)
 {
-    xcom_gcs.init(g_name,local,peers);
+    //xcom_gcs.init(g_name,local,peers);
+    std::string local_str = std::string(local);
+    std::string peers_str = std::string(peers);
+    m_paxos.init(local_str,peers_str);
+    m_paxos.RunPaxos();
+    return 1;
 }
 
 
@@ -223,8 +228,13 @@ int TrxInfo::wr_trx_commiting(TrxID id)
         working_thread_map[tid] = NULL;
 
         std::string id_str = std::to_string(id);
-        xcom_gcs.send_test_message(id_str.c_str(), id_str.length() + 1);
-
+       // xcom_gcs.send_test_message(id_str.c_str(), id_str.length() + 1);
+       int ret = m_paxos.propose(id_str);
+       if(ret == 14)
+       {
+            phxpaxos_conflict_count++;
+       }
+       phxpaxos_propose_count++;
         // rollback : delete trx_redo
        // TODO：多线程添加保护 global_trx_redo_map[id] = trx_redo;
         return 1;
