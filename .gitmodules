@@ -10,3 +10,6 @@
 [submodule "storage/rocksdb/third_party/lz4"]
 	path = storage/rocksdb/third_party/lz4
 	url = https://github.com/lz4/lz4
+[submodule "plugin/multi_master_log_plugin/lib/phxpaxos"]
+	path =  plugin/multi_master_log_plugin/lib/phxpaxos
+	url = https://github.com/Tencent/phxpaxos.git
