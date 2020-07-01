@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-16 15:25:53
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-26 22:03:21
+ * @LastEditTime: 2020-06-30 15:20:05
  * @Description: Marco for debug
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/debug.h
  */
@@ -20,5 +20,6 @@
 #define DEBUG_REDO_LOG_COLLECT 0
 
 #define DEBUG_PHXPAXOS_PRINT 0
+#define DEBUG_PHXPAXOS_CONFLICT 1
 
 #endif /* DEBUG_HEADER */

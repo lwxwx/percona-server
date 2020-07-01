@@ -2,15 +2,16 @@
  * @Author: wei
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-29 23:36:22
+ * @LastEditTime: 2020-07-01 16:23:37
  * @Description: plugin main source file
- * @FilePath: /Percona-Share-Storage/percona-server/plugin/multi_master_log_plugin/src/plugin.cc
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/plugin.cc
  */
 #include <mysql/plugin.h>
 #include "trx_info.h"
 #include "plugin_interface.h"
 #include "../mml_plugin_functions.h"
 #include <climits>
+#include "debug.h"
 
 /*SYS_VAR*/
 struct st_mysql_daemon multi_master_log_descriptor=
@@ -23,6 +24,9 @@ char * group_name_ptr = NULL;
 char * peer_nodes_ptr = NULL;
 unsigned long long  phxpaxos_conflict_count = 0;
 unsigned long long  phxpaxos_propose_count = 0;
+unsigned long long  phxpaxos_conflict_time = 0;
+unsigned long long  phxpaxos_propose_time = 0;
+unsigned long long  phxpaxos_other_count = 0;
 
 MYSQL_SYSVAR_STR(local_node,
     local_node_ptr,
@@ -51,7 +55,9 @@ MYSQL_SYSVAR_STR(peer_nodes,
     NULL
 );
 
-MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict,
+#if DEBUG_PHXPAXOS_CONFLICT
+
+MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict_count,
     phxpaxos_conflict_count,
     PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
     "CONFLICT COUNT",
@@ -63,7 +69,7 @@ MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict,
     0
 );
 
-MYSQL_SYSVAR_ULONGLONG(phxpaxos_propose,
+MYSQL_SYSVAR_ULONGLONG(phxpaxos_propose_count,
     phxpaxos_propose_count,
     PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
     "PROPOSE COUNT",
@@ -75,13 +81,56 @@ MYSQL_SYSVAR_ULONGLONG(phxpaxos_propose,
     0
 );
 
+MYSQL_SYSVAR_ULONGLONG(phxpaxos_other_count,
+    phxpaxos_other_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "PROPOSE COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(phxpaxos_propose_time,
+    phxpaxos_propose_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "PROPOSE COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict_time,
+    phxpaxos_propose_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "PROPOSE COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+#endif
+
 /*plugin global var*/
 static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(group_name),
     MYSQL_SYSVAR(local_node),
     MYSQL_SYSVAR(peer_nodes),
-    MYSQL_SYSVAR(phxpaxos_conflict),
-    MYSQL_SYSVAR(phxpaxos_propose),
+#if DEBUG_PHXPAXOS_CONFLICT
+    MYSQL_SYSVAR(phxpaxos_conflict_count),
+    MYSQL_SYSVAR(phxpaxos_propose_count),
+    MYSQL_SYSVAR(phxpaxos_other_count),
+    MYSQL_SYSVAR(phxpaxos_conflict_time),
+    MYSQL_SYSVAR(phxpaxos_propose_time),
+#endif
     NULL
 };
 

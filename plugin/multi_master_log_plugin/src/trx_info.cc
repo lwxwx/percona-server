@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-15 10:41:24
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-29 23:38:13
+ * @LastEditTime: 2020-07-01 16:25:17
  * @Description: trx_info and redo log functions
- * @FilePath: /Percona-Share-Storage/percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
 #include "trx_info.h"
 #include "debug.h"
@@ -13,6 +13,8 @@
 #include <iostream>
 #endif
 TrxInfo * plugin_trx_info_ptr = NULL;
+
+#include<chrono>
 
 /***
  * Redo Log Section
@@ -229,12 +231,27 @@ int TrxInfo::wr_trx_commiting(TrxID id)
 
         std::string id_str = std::to_string(id);
        // xcom_gcs.send_test_message(id_str.c_str(), id_str.length() + 1);
+#if DEBUG_PHXPAXOS_CONFLICT
+        auto before_propose = std::chrono::steady_clock::now();
+#endif
        int ret = m_paxos.propose(id_str);
-       if(ret == 14)
+#if DEBUG_PHXPAXOS_CONFLICT
+       if(ret == phxpaxos::PaxosTryCommitRet_Conflict)
        {
+            phxpaxos_conflict_time += (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - before_propose)).count();
             phxpaxos_conflict_count++;
+
        }
-       phxpaxos_propose_count++;
+       else if(ret == phxpaxos::PaxosTryCommitRet_OK)
+       {
+            phxpaxos_propose_count++;
+            phxpaxos_propose_time += (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - before_propose)).count();
+       }
+       else
+       {
+            phxpaxos_other_count++;
+       }
+#endif
         // rollback : delete trx_redo
        // TODO：多线程添加保护 global_trx_redo_map[id] = trx_redo;
         return 1;

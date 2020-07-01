@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-24 09:38:32
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-29 23:37:13
+ * @LastEditTime: 2020-07-01 16:24:06
  * @Description: file content
- * @FilePath: /Percona-Share-Storage/percona-server/plugin/multi_master_log_plugin/include/mmlp_type.h
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/mmlp_type.h
  */
 
 #ifndef MMLP_TYPE_HEADER
@@ -25,5 +25,9 @@ using plugin_page_offset_t = unsigned long;
 
 extern unsigned long long  phxpaxos_conflict_count;
 extern unsigned long long  phxpaxos_propose_count;
+extern unsigned long long  phxpaxos_conflict_time;
+extern unsigned long long  phxpaxos_propose_time;
+extern unsigned long long  phxpaxos_other_count;
+
 
 #endif
