@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-25 20:31:35
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-06-26 16:03:11
+ * @LastEditTime: 2020-07-02 16:39:07
  * @Description: file content
- * @FilePath: /multi_master_log_plugin/src/phxpaxos_api.cc
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/phxpaxos_api.cc
  */
 
 #include "phxpaxos_api.h"
@@ -15,6 +15,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "debug.h"
+
+#include "mmlp_type.h"
 
 using namespace phxpaxos;
 
@@ -79,7 +81,7 @@ PhxAPIServer::~PhxAPIServer()
 int PhxAPIServer::makeLogPath(std::string & path)
 {
     char sTmp[128] = {0};
-    snprintf(sTmp, sizeof(sTmp), "/tmp/mmlp_paxos_logpath_%s_%d", local_info.GetIP().c_str(), local_info.GetPort());
+    snprintf(sTmp, sizeof(sTmp), "%s/mmlp_paxos_log_%s_%d", phxpaxos_log_path ,local_info.GetIP().c_str(), local_info.GetPort());
 
     path = std::string(sTmp);
 

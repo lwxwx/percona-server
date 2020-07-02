@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-01 16:23:37
+ * @LastEditTime: 2020-07-02 19:20:43
  * @Description: plugin main source file
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/plugin.cc
  */
@@ -22,6 +22,8 @@ struct st_mysql_daemon multi_master_log_descriptor=
 char * local_node_ptr = NULL;
 char * group_name_ptr = NULL;
 char * peer_nodes_ptr = NULL;
+char * phxpaxos_log_path = NULL;
+
 unsigned long long  phxpaxos_conflict_count = 0;
 unsigned long long  phxpaxos_propose_count = 0;
 unsigned long long  phxpaxos_conflict_time = 0;
@@ -48,6 +50,16 @@ MYSQL_SYSVAR_STR(group_name,
 
 MYSQL_SYSVAR_STR(peer_nodes,
     peer_nodes_ptr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "peer nodes ip and port",
+    NULL,
+    NULL,
+    NULL
+);
+
+
+MYSQL_SYSVAR_STR(phxpaxos_log_path,
+    phxpaxos_log_path,
     PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
     "peer nodes ip and port",
     NULL,
@@ -96,7 +108,7 @@ MYSQL_SYSVAR_ULONGLONG(phxpaxos_other_count,
 MYSQL_SYSVAR_ULONGLONG(phxpaxos_propose_time,
     phxpaxos_propose_time,
     PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
-    "PROPOSE COUNT",
+    "PROPOSE TIME",
     NULL,
     NULL,
     0,
@@ -106,9 +118,9 @@ MYSQL_SYSVAR_ULONGLONG(phxpaxos_propose_time,
 );
 
 MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict_time,
-    phxpaxos_propose_time,
+    phxpaxos_conflict_time,
     PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
-    "PROPOSE COUNT",
+    "CONFLICT TIME",
     NULL,
     NULL,
     0,
@@ -124,6 +136,7 @@ static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(group_name),
     MYSQL_SYSVAR(local_node),
     MYSQL_SYSVAR(peer_nodes),
+    MYSQL_SYSVAR(phxpaxos_log_path),
 #if DEBUG_PHXPAXOS_CONFLICT
     MYSQL_SYSVAR(phxpaxos_conflict_count),
     MYSQL_SYSVAR(phxpaxos_propose_count),

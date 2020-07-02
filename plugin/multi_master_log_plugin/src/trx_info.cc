@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-06-15 10:41:24
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-01 16:25:17
+ * @LastEditTime: 2020-07-02 19:22:58
  * @Description: trx_info and redo log functions
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
@@ -15,6 +15,11 @@
 TrxInfo * plugin_trx_info_ptr = NULL;
 
 #include<chrono>
+
+#include<mutex>
+
+std::mutex phxpaxos_propose_mutex;
+//std::mutex phxpaxos_count_mutex;
 
 /***
  * Redo Log Section
@@ -225,32 +230,44 @@ int TrxInfo::wr_trx_commiting(TrxID id)
         "【trx commit】 : " + std::to_string(id),EasyLogger::LOG_LEVEL::debug);
 #endif
 
-        trx_redo = working_thread_map[tid];
-        trx_redo->wr_trx_commiting(id);
-        working_thread_map[tid] = NULL;
+       trx_redo = working_thread_map[tid];
+       trx_redo->wr_trx_commiting(id);
+       working_thread_map[tid] = NULL;
 
-        std::string id_str = std::to_string(id);
+       std::string id_str = std::to_string(id);
        // xcom_gcs.send_test_message(id_str.c_str(), id_str.length() + 1);
 #if DEBUG_PHXPAXOS_CONFLICT
-        auto before_propose = std::chrono::steady_clock::now();
+       auto before_propose = std::chrono::steady_clock::now();
+#endif
+re_propose:
+#if PHXPAXOS_MUTEX_PROPOSE
+        phxpaxos_propose_mutex.lock();
 #endif
        int ret = m_paxos.propose(id_str);
+#if PHXPAXOS_MUTEX_PROPOSE
+        phxpaxos_propose_mutex.unlock();
+#endif
+
 #if DEBUG_PHXPAXOS_CONFLICT
+       //phxpaxos_count_mutex.lock();
        if(ret == phxpaxos::PaxosTryCommitRet_Conflict)
        {
-            phxpaxos_conflict_time += (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - before_propose)).count();
-            phxpaxos_conflict_count++;
-
+           phxpaxos_conflict_count++;
+           phxpaxos_conflict_time += (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - before_propose)).count();
+           goto re_propose;
+           //std::cout << "Conflict_Time : " << phxpaxos_conflict_time <<std::endl;
        }
        else if(ret == phxpaxos::PaxosTryCommitRet_OK)
        {
-            phxpaxos_propose_count++;
-            phxpaxos_propose_time += (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - before_propose)).count();
+           phxpaxos_propose_count++;
+           phxpaxos_propose_time +=  (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - before_propose)).count();
+           //std::cout << "Propose_Time : " << phxpaxos_propose_time << std::endl;
        }
        else
        {
             phxpaxos_other_count++;
        }
+      // phxpaxos_count_mutex.unlock();
 #endif
         // rollback : delete trx_redo
        // TODO：多线程添加保护 global_trx_redo_map[id] = trx_redo;
