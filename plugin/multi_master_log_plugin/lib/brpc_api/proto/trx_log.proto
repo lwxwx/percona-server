@@ -1,0 +1,32 @@
+syntax = "proto2";
+package MMLP_BRPC;
+option cc_generic_services = true;
+
+message LogSendRequest
+{
+    required uint64 trxID = 1;
+    required bool is_valid = 2;
+    required bytes trxLogMsg = 3;
+};
+
+message LogSendResponse
+{
+    required sint32 send_reply =  1;
+};
+
+message LogRequireRequest
+{
+    required uint64 trxID = 1;
+};
+
+message LogRequireResponse
+{
+    required sint32 require_reply = 1;
+    required bool is_valid = 2;
+    required bytes trxLogMsg = 3;
+};
+
+service TrxLogService {
+    rpc sendLog(LogSendRequest) returns (LogSendResponse);
+    rpc requireLog(LogRequireRequest) returns (LogRequireResponse);
+};

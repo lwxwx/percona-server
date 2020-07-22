@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-02 19:20:43
+ * @LastEditTime: 2020-07-16 10:44:34
  * @Description: plugin main source file
- * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/plugin.cc
+ * @FilePath: /multi_master_log_plugin/src/plugin.cc
  */
 #include <mysql/plugin.h>
 #include "trx_info.h"
@@ -19,21 +19,58 @@ struct st_mysql_daemon multi_master_log_descriptor=
     MYSQL_DAEMON_INTERFACE_VERSION
 };
 
-char * local_node_ptr = NULL;
+//nodes string
 char * group_name_ptr = NULL;
-char * peer_nodes_ptr = NULL;
-char * phxpaxos_log_path = NULL;
+char * phxpaxos_local_node_ptr = NULL;
+char * phxpaxos_peer_nodes_ptr = NULL;
+char * brpc_local_node_ptr = NULL;
+char * brpc_peer_nodes_ptr = NULL;
 
+//debug flag
+int DEBUG_REDO_LOG_COLLECT = 0;
+int DEBUG_PHXPAXOS_PRINT = 0;
+int DEBUG_PHXPAXOS_TIME = 0;
+int DEBUG_SLICE_TIME = 0;
+int DEBUG_LOG_SEND_TIME = 0;
+int DEBUG_TRX_TIME = 0;
+
+//select flag
+int SELECT_LOG_ASYNC_TYPE = 0;
+int SELECT_TRX_ID_ALLOCATE_TYPE = 0;
+int SELECT_CONFLICT_HANDLE_TYPE = 0;
+
+//slice id arg
+unsigned long slice_node_no;
+unsigned long long slice_gen_time;
+unsigned long long slice_gen_count;
+
+//phxpaxos time
+char * phxpaxos_log_path = NULL;
 unsigned long long  phxpaxos_conflict_count = 0;
 unsigned long long  phxpaxos_propose_count = 0;
 unsigned long long  phxpaxos_conflict_time = 0;
 unsigned long long  phxpaxos_propose_time = 0;
 unsigned long long  phxpaxos_other_count = 0;
 
-MYSQL_SYSVAR_STR(local_node,
-    local_node_ptr,
+//log send time
+unsigned long long log_send_succeed_count = 0;
+unsigned long long log_send_succeed_sum_time = 0;
+unsigned long long log_send_failed_count = 0;
+unsigned long long log_send_failed_sum_time = 0;
+unsigned long long log_send_async_rpc_count = 0;
+unsigned long long log_send_async_rpc_time = 0;
+unsigned long long log_send_async_rpc_failed_count = 0;
+unsigned long long log_send_async_rpc_failed_time = 0;
+
+//trx time
+unsigned long long trx_count = 0;
+unsigned long long trx_sum_time = 0;
+
+/* node sysvar */
+MYSQL_SYSVAR_STR(phxpaxos_local_node,
+    phxpaxos_local_node_ptr,
     PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
-    "local ip and port",
+    "phxpaxos local ip and port",
     NULL,
     NULL,
     NULL
@@ -48,16 +85,171 @@ MYSQL_SYSVAR_STR(group_name,
     NULL
 );
 
-MYSQL_SYSVAR_STR(peer_nodes,
-    peer_nodes_ptr,
+MYSQL_SYSVAR_STR(phxpaxos_peer_nodes,
+    phxpaxos_peer_nodes_ptr,
     PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
-    "peer nodes ip and port",
+    "phxpaxos peer nodes ip and port",
     NULL,
     NULL,
     NULL
 );
 
+MYSQL_SYSVAR_STR(brpc_local_node,
+    brpc_local_node_ptr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "brpc nodes ip and port",
+    NULL,
+    NULL,
+    NULL
+);
 
+MYSQL_SYSVAR_STR(brpc_peer_nodes,
+    brpc_peer_nodes_ptr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "brpc peer nodes ip and port",
+    NULL,
+    NULL,
+    NULL
+);
+
+/* debug sysvar */
+MYSQL_SYSVAR_INT(debug_redo_log_collect,
+    DEBUG_REDO_LOG_COLLECT,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "redo log collect debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(debug_phxpaxos_print,
+    DEBUG_PHXPAXOS_PRINT,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "phxpaxos print debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+
+MYSQL_SYSVAR_INT(debug_phxpaxos_time,
+    DEBUG_PHXPAXOS_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "phxpaxos time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(debug_slice_time,
+    DEBUG_SLICE_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "slice time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(debug_log_send_time,
+    DEBUG_LOG_SEND_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "log send time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(debug_trx_time,
+    DEBUG_TRX_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "trx time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+/* select sysvar */
+MYSQL_SYSVAR_INT(select_log_async_type,
+    SELECT_LOG_ASYNC_TYPE,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "log async type",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(select_trx_id_allocate_type,
+    SELECT_TRX_ID_ALLOCATE_TYPE,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "trx id allocate type",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+/*slice id sysvar*/
+MYSQL_SYSVAR_ULONG(slice_node_no,
+    slice_node_no,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Slice Node No",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(slice_gen_time,
+    slice_gen_time,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Slice Gen Time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(slice_gen_count,
+    slice_gen_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Slice Gen Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+
+/* phxpaxos sysvar */
 MYSQL_SYSVAR_STR(phxpaxos_log_path,
     phxpaxos_log_path,
     PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
@@ -66,8 +258,6 @@ MYSQL_SYSVAR_STR(phxpaxos_log_path,
     NULL,
     NULL
 );
-
-#if DEBUG_PHXPAXOS_CONFLICT
 
 MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict_count,
     phxpaxos_conflict_count,
@@ -129,21 +319,171 @@ MYSQL_SYSVAR_ULONGLONG(phxpaxos_conflict_time,
     0
 );
 
-#endif
+/* log send sysvar */
+MYSQL_SYSVAR_ULONGLONG(log_send_succeed_count,
+    log_send_succeed_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send succeed count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_send_succeed_sum_time,
+    log_send_succeed_sum_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send succeed sum time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_send_failed_count,
+    log_send_failed_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send failed count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_send_failed_sum_time,
+    log_send_failed_sum_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send failed sum time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_send_async_rpc_count,
+    log_send_async_rpc_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send failed sum time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_send_async_rpc_time,
+    log_send_async_rpc_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send failed sum time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_send_async_rpc_failed_count,
+    log_send_async_rpc_failed_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send failed sum time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_send_async_rpc_failed_time,
+    log_send_async_rpc_failed_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "Log send failed sum time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+/* trx sysvar */
+MYSQL_SYSVAR_ULONGLONG(trx_count,
+    trx_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "trx count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(trx_sum_time,
+    trx_sum_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "trx count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
 
 /*plugin global var*/
 static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(group_name),
-    MYSQL_SYSVAR(local_node),
-    MYSQL_SYSVAR(peer_nodes),
+    MYSQL_SYSVAR(phxpaxos_local_node),
+    MYSQL_SYSVAR(phxpaxos_peer_nodes),
+    MYSQL_SYSVAR(brpc_local_node),
+    MYSQL_SYSVAR(brpc_peer_nodes),
+
+    MYSQL_SYSVAR(debug_redo_log_collect),
+    MYSQL_SYSVAR(debug_phxpaxos_print),
+    MYSQL_SYSVAR(debug_phxpaxos_time),
+
+    MYSQL_SYSVAR(debug_slice_time),
+    MYSQL_SYSVAR(debug_log_send_time),
+    MYSQL_SYSVAR(debug_trx_time),
+
+    MYSQL_SYSVAR(select_log_async_type),
+    MYSQL_SYSVAR(select_trx_id_allocate_type),
+
+    MYSQL_SYSVAR(slice_node_no),
+    MYSQL_SYSVAR(slice_gen_time),
+    MYSQL_SYSVAR(slice_gen_count),
+
     MYSQL_SYSVAR(phxpaxos_log_path),
-#if DEBUG_PHXPAXOS_CONFLICT
+#if PHXPAXOS_ID_COMPLIE
     MYSQL_SYSVAR(phxpaxos_conflict_count),
     MYSQL_SYSVAR(phxpaxos_propose_count),
     MYSQL_SYSVAR(phxpaxos_other_count),
     MYSQL_SYSVAR(phxpaxos_conflict_time),
     MYSQL_SYSVAR(phxpaxos_propose_time),
 #endif
+    MYSQL_SYSVAR(log_send_succeed_count),
+    MYSQL_SYSVAR(log_send_succeed_sum_time),
+    MYSQL_SYSVAR(log_send_failed_count),
+    MYSQL_SYSVAR(log_send_failed_sum_time),
+    MYSQL_SYSVAR(log_send_async_rpc_count),
+    MYSQL_SYSVAR(log_send_async_rpc_time),
+    MYSQL_SYSVAR(log_send_async_rpc_failed_count),
+    MYSQL_SYSVAR(log_send_async_rpc_failed_time),
+
+    MYSQL_SYSVAR(trx_count),
+    MYSQL_SYSVAR(trx_sum_time),
+
     NULL
 };
 
@@ -158,7 +498,7 @@ int plugin_multi_master_log_init(MYSQL_PLUGIN plugin_info)
     mml_plugin_interface_active = 1;
 
     plugin_trx_info_ptr = new TrxInfo;
-    plugin_trx_info_ptr->init(group_name_ptr,local_node_ptr,peer_nodes_ptr);
+    plugin_trx_info_ptr->init();
 
     //std::cout << std::endl << "Get Group Name From Plugin Var : " << group_name_ptr << std::endl;
     //register function ptr
