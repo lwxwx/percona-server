@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-24 09:38:32
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-16 10:35:52
+ * @LastEditTime: 2020-07-28 14:31:22
  * @Description: file content
- * @FilePath: /multi_master_log_plugin/include/mmlp_type.h
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/mmlp_type.h
  */
 
 #ifndef MMLP_TYPE_HEADER
@@ -13,6 +13,9 @@
 #include<string.h>
 #include<thread>
 #include<string>
+
+// #include "trx_log.pb.h"
+
 
 #define LOG_DIR "/tmp/mmlp/"
 #define LOG_FILE_SUFFIX ".log"
@@ -65,9 +68,7 @@ extern unsigned long long log_send_async_rpc_time;
 extern unsigned long long log_send_async_rpc_failed_count;
 extern unsigned long long log_send_async_rpc_failed_time;
 
-
 extern unsigned long long trx_count;
 extern unsigned long long trx_sum_time;
-
 
 #endif

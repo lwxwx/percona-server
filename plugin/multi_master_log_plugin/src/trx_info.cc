@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-06-15 10:41:24
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-16 09:58:48
+ * @LastEditTime: 2020-07-28 16:04:10
  * @Description: trx_info and redo log functions
- * @FilePath: /multi_master_log_plugin/src/trx_info.cc
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
 #include "trx_info.h"
 #include "debug.h"
@@ -20,140 +20,31 @@ TrxInfo *plugin_trx_info_ptr = NULL;
 // std::mutex phxpaxos_propose_mutex;
 // std::mutex phxpaxos_count_mutex;
 
-/***
- * Redo Log Section
- */
-
-RedoLogRec *allocate_redolog_record(uint32_t size) {
-  RedoLogRec *result = new RedoLogRec;
-  // result->no_header = true;
-  // result->no_rec = true;
-  result->rec = new char[size];
-  result->rec_size = size;
-  return result;
-}
-
-RedoLogRec *allocate_redolog_record() {
-  RedoLogRec *result = new RedoLogRec;
-  // result->no_header = true;
-  // result->no_rec = true;
-  result->rec = NULL;
-  result->rec_size = 0;
-  return result;
-}
-
-int destory_redolog_record(RedoLogRec *redo) {
-  if (redo == NULL) return -2;
-
-  if (redo->rec != NULL) {
-    delete[] redo->rec;
-    return 1;
-  } else {
-    return -1;
-  }
-}
-
-/***
- * TrxLog
- */
-TrxLog::~TrxLog() {
-  // for(auto it = uncompleted_rec_list.begin(); it !=
-  // uncompleted_rec_list.end(); it++)
-  // {
-  //     destory_redolog_record(*it);
-  // }
-  for (auto it = completed_rec_list.begin(); it != completed_rec_list.end();
-       it++) {
-    destory_redolog_record(*it);
-  }
-}
-
-int TrxLog::log_clear() {
-  // for(auto it = uncompleted_rec_list.begin(); it !=
-  // uncompleted_rec_list.end(); it++)
-  // {
-  //     destory_redolog_record(*it);
-  // }
-  // uncompleted_rec_list.clear();
-  for (auto it = completed_rec_list.begin(); it != completed_rec_list.end();
-       it++) {
-    destory_redolog_record(*it);
-  }
-  completed_rec_list.clear();
-  trx_is_started = false;
-  trx_is_commited = false;
-  trx_no = 0;
-  if (now_rec != NULL) {
-    destory_redolog_record(now_rec);
-    now_rec = NULL;
-  }
-  return 1;
-}
-
-int TrxLog::trx_started() {
-  log_clear();
-  trx_is_started = true;
-  if (DEBUG_TRX_TIME != 0)
-    us_latency = (std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::steady_clock::now().time_since_epoch()))
-                     .count();
-  return 1;
-}
-
-int TrxLog::wr_trx_commiting(TrxID id) {
-  trx_no = id;
-  trx_is_commited = true;
-  if (DEBUG_TRX_TIME != 0)
-    us_latency = (std::chrono::duration_cast<std::chrono::microseconds>(
-                      std::chrono::steady_clock::now().time_since_epoch()))
-                     .count() -
-                 us_latency;
-  return 1;
-}
-
-int TrxLog::add_redolog_record(plugin_mlog_id_t type,
-                               plugin_space_id_t space_id,
-                               plugin_page_no_t page_no,
-                               plugin_page_offset_t offset) {
-  // RedoLogRec * rec = allocate_redolog_record();
-  if (now_rec == NULL) {
-    return -1;
-  }
-  now_rec->type = type;
-  now_rec->space_id = space_id;
-  now_rec->page_no = page_no;
-  now_rec->offset = offset;
-  // now_rec->no_header = false;
-  // now_rec->no_rec = true;
-  // rec->rec_size = size;
-  completed_rec_list.push_back(now_rec);
-  now_rec = NULL;
-
-  return 1;
-}
-
-int TrxLog::new_redolog_record(size_t size) {
-  if (now_rec != NULL) {
-    destory_redolog_record(now_rec);
-    now_rec = NULL;
-    return -1;
-  }
-  now_rec = allocate_redolog_record(size);
-
-  return 1;
-}
 
 /***
  * TrxInfo
  */
+TrxInfo::~TrxInfo()
+{
+  for(auto it = working_thread_map.begin(); it!= working_thread_map.end(); it++)
+  {
+    delete it->second;
+  }
+  for(auto it2 = global_trx_log_map.begin(); it2!= global_trx_log_map.end(); it2++)
+  {
+    delete it2->second;
+  }
+  delete send_service_handle_ptr;
+}
+
 int TrxInfo::init() {
   global_reply_status = 0;
 
   id_factory.init((ID_FACTORY_TYPE)SELECT_TRX_ID_ALLOCATE_TYPE);
 
-  log_transfer.init();
-  // m_paxos.init(local_str,peers_str);
-  // m_paxos.RunPaxos();
+  send_service_handle_ptr = new TrxLogServiceMessageHandle(this);
+  log_transfer.init(send_service_handle_ptr,NULL);
+
   return 1;
 }
 
@@ -239,9 +130,9 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
     uint64_t latency = 0;
     int send_ret = 1;
     if (SELECT_LOG_ASYNC_TYPE == 0) {
-      send_ret = log_transfer.sync_send_log(global_id, true , msg, &latency);
+      send_ret = log_transfer.sync_send_log(global_id, true , *trx_redo, &latency);
     } else if (SELECT_LOG_ASYNC_TYPE == 1) {
-      send_ret = log_transfer.async_send_log(global_id, true, msg, &latency);
+      send_ret = log_transfer.async_send_log(global_id, true, *trx_redo, &latency);
     }
 
     if (DEBUG_LOG_SEND_TIME != 0) {
@@ -261,7 +152,7 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
     working_thread_map[tid] = NULL;
 
     // rollback : delete trx_redo
-    // TODO：多线程添加保护 global_trx_redo_map[id] = trx_redo;
+    // TODO：多线程添加保护 global_trx_log_map[id] = trx_redo;
     return 1;
   }
 }
@@ -370,4 +261,56 @@ int TrxInfo::mtr_redolog_record_new(size_t size) {
     }
     return 1;
   }
+}
+
+int TrxInfo::check_global_trx_id(TrxID id)
+{
+  int result = 0;
+  global_trx_log_map_mutex.lock_shared();
+
+  if(global_trx_log_map.find(id) != global_trx_log_map.end())
+  {
+    result = 1;
+  }
+
+  global_trx_log_map_mutex.unlock_shared();
+  return result;
+}
+
+int TrxInfo::insert_global_trx_log(TrxLog * log)
+{
+  int result = 0;
+  TrxID id = log->get_trxID();
+  global_trx_log_map_mutex.lock();
+
+  if(global_trx_log_map.find(id) == global_trx_log_map.end())
+  {
+    global_trx_log_map[id] = log;
+    result = 1;
+  }
+  else
+  {
+    result = -1;
+  }
+
+  global_trx_log_map_mutex.unlock();
+  return result;
+}
+
+int TrxInfo::handle_trxlog_message(MMLP_BRPC::LogSendRequest & request)
+{
+  if(check_global_trx_id(request.trxid()) > 0)
+  {
+    return 0;
+  }
+
+  TrxLog * log = new TrxLog();
+  log->trx_log_decode_from_msg(request);
+
+  if(insert_global_trx_log(log) <= 0)
+  {
+    return -1;
+  }
+
+  return 1;
 }

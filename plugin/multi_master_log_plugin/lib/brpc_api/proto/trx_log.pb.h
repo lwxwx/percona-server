@@ -48,7 +48,7 @@ struct TableStruct_trx_5flog_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxillaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[4]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[5]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -68,16 +68,248 @@ extern LogSendRequestDefaultTypeInternal _LogSendRequest_default_instance_;
 class LogSendResponse;
 class LogSendResponseDefaultTypeInternal;
 extern LogSendResponseDefaultTypeInternal _LogSendResponse_default_instance_;
+class TrxLogMsg;
+class TrxLogMsgDefaultTypeInternal;
+extern TrxLogMsgDefaultTypeInternal _TrxLogMsg_default_instance_;
 }  // namespace MMLP_BRPC
 PROTOBUF_NAMESPACE_OPEN
 template<> ::MMLP_BRPC::LogRequireRequest* Arena::CreateMaybeMessage<::MMLP_BRPC::LogRequireRequest>(Arena*);
 template<> ::MMLP_BRPC::LogRequireResponse* Arena::CreateMaybeMessage<::MMLP_BRPC::LogRequireResponse>(Arena*);
 template<> ::MMLP_BRPC::LogSendRequest* Arena::CreateMaybeMessage<::MMLP_BRPC::LogSendRequest>(Arena*);
 template<> ::MMLP_BRPC::LogSendResponse* Arena::CreateMaybeMessage<::MMLP_BRPC::LogSendResponse>(Arena*);
+template<> ::MMLP_BRPC::TrxLogMsg* Arena::CreateMaybeMessage<::MMLP_BRPC::TrxLogMsg>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
 namespace MMLP_BRPC {
 
 // ===================================================================
+
+class TrxLogMsg PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:MMLP_BRPC.TrxLogMsg) */ {
+ public:
+  inline TrxLogMsg() : TrxLogMsg(nullptr) {};
+  virtual ~TrxLogMsg();
+
+  TrxLogMsg(const TrxLogMsg& from);
+  TrxLogMsg(TrxLogMsg&& from) noexcept
+    : TrxLogMsg() {
+    *this = ::std::move(from);
+  }
+
+  inline TrxLogMsg& operator=(const TrxLogMsg& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline TrxLogMsg& operator=(TrxLogMsg&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const TrxLogMsg& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const TrxLogMsg* internal_default_instance() {
+    return reinterpret_cast<const TrxLogMsg*>(
+               &_TrxLogMsg_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    0;
+
+  friend void swap(TrxLogMsg& a, TrxLogMsg& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(TrxLogMsg* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(TrxLogMsg* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline TrxLogMsg* New() const final {
+    return CreateMaybeMessage<TrxLogMsg>(nullptr);
+  }
+
+  TrxLogMsg* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<TrxLogMsg>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const TrxLogMsg& from);
+  void MergeFrom(const TrxLogMsg& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(TrxLogMsg* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "MMLP_BRPC.TrxLogMsg";
+  }
+  protected:
+  explicit TrxLogMsg(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_trx_5flog_2eproto);
+    return ::descriptor_table_trx_5flog_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kRecFieldNumber = 5,
+    kTypeFieldNumber = 1,
+    kSpaceIdFieldNumber = 2,
+    kPageNoFieldNumber = 3,
+    kOffsetFieldNumber = 4,
+  };
+  // required bytes rec = 5;
+  bool has_rec() const;
+  private:
+  bool _internal_has_rec() const;
+  public:
+  void clear_rec();
+  const std::string& rec() const;
+  void set_rec(const std::string& value);
+  void set_rec(std::string&& value);
+  void set_rec(const char* value);
+  void set_rec(const void* value, size_t size);
+  std::string* mutable_rec();
+  std::string* release_rec();
+  void set_allocated_rec(std::string* rec);
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  std::string* unsafe_arena_release_rec();
+  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
+  "    string fields are deprecated and will be removed in a"
+  "    future release.")
+  void unsafe_arena_set_allocated_rec(
+      std::string* rec);
+  private:
+  const std::string& _internal_rec() const;
+  void _internal_set_rec(const std::string& value);
+  std::string* _internal_mutable_rec();
+  public:
+
+  // required sint32 type = 1;
+  bool has_type() const;
+  private:
+  bool _internal_has_type() const;
+  public:
+  void clear_type();
+  ::PROTOBUF_NAMESPACE_ID::int32 type() const;
+  void set_type(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_type() const;
+  void _internal_set_type(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // required uint32 space_id = 2;
+  bool has_space_id() const;
+  private:
+  bool _internal_has_space_id() const;
+  public:
+  void clear_space_id();
+  ::PROTOBUF_NAMESPACE_ID::uint32 space_id() const;
+  void set_space_id(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint32 _internal_space_id() const;
+  void _internal_set_space_id(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  public:
+
+  // required uint32 page_no = 3;
+  bool has_page_no() const;
+  private:
+  bool _internal_has_page_no() const;
+  public:
+  void clear_page_no();
+  ::PROTOBUF_NAMESPACE_ID::uint32 page_no() const;
+  void set_page_no(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint32 _internal_page_no() const;
+  void _internal_set_page_no(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  public:
+
+  // required uint32 offset = 4;
+  bool has_offset() const;
+  private:
+  bool _internal_has_offset() const;
+  public:
+  void clear_offset();
+  ::PROTOBUF_NAMESPACE_ID::uint32 offset() const;
+  void set_offset(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint32 _internal_offset() const;
+  void _internal_set_offset(::PROTOBUF_NAMESPACE_ID::uint32 value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:MMLP_BRPC.TrxLogMsg)
+ private:
+  class _Internal;
+
+  // helper for ByteSizeLong()
+  size_t RequiredFieldsByteSizeFallback() const;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr rec_;
+  ::PROTOBUF_NAMESPACE_ID::int32 type_;
+  ::PROTOBUF_NAMESPACE_ID::uint32 space_id_;
+  ::PROTOBUF_NAMESPACE_ID::uint32 page_no_;
+  ::PROTOBUF_NAMESPACE_ID::uint32 offset_;
+  friend struct ::TableStruct_trx_5flog_2eproto;
+};
+// -------------------------------------------------------------------
 
 class LogSendRequest PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:MMLP_BRPC.LogSendRequest) */ {
@@ -128,7 +360,7 @@ class LogSendRequest PROTOBUF_FINAL :
                &_LogSendRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    0;
+    1;
 
   friend void swap(LogSendRequest& a, LogSendRequest& b) {
     a.Swap(&b);
@@ -199,38 +431,27 @@ class LogSendRequest PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kTrxLogMsgFieldNumber = 3,
+    kLogMsgFieldNumber = 3,
     kTrxIDFieldNumber = 1,
     kIsValidFieldNumber = 2,
   };
-  // required bytes trxLogMsg = 3;
-  bool has_trxlogmsg() const;
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  int log_msg_size() const;
   private:
-  bool _internal_has_trxlogmsg() const;
+  int _internal_log_msg_size() const;
   public:
-  void clear_trxlogmsg();
-  const std::string& trxlogmsg() const;
-  void set_trxlogmsg(const std::string& value);
-  void set_trxlogmsg(std::string&& value);
-  void set_trxlogmsg(const char* value);
-  void set_trxlogmsg(const void* value, size_t size);
-  std::string* mutable_trxlogmsg();
-  std::string* release_trxlogmsg();
-  void set_allocated_trxlogmsg(std::string* trxlogmsg);
-  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
-  "    string fields are deprecated and will be removed in a"
-  "    future release.")
-  std::string* unsafe_arena_release_trxlogmsg();
-  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
-  "    string fields are deprecated and will be removed in a"
-  "    future release.")
-  void unsafe_arena_set_allocated_trxlogmsg(
-      std::string* trxlogmsg);
+  void clear_log_msg();
+  ::MMLP_BRPC::TrxLogMsg* mutable_log_msg(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >*
+      mutable_log_msg();
   private:
-  const std::string& _internal_trxlogmsg() const;
-  void _internal_set_trxlogmsg(const std::string& value);
-  std::string* _internal_mutable_trxlogmsg();
+  const ::MMLP_BRPC::TrxLogMsg& _internal_log_msg(int index) const;
+  ::MMLP_BRPC::TrxLogMsg* _internal_add_log_msg();
   public:
+  const ::MMLP_BRPC::TrxLogMsg& log_msg(int index) const;
+  ::MMLP_BRPC::TrxLogMsg* add_log_msg();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >&
+      log_msg() const;
 
   // required uint64 trxID = 1;
   bool has_trxid() const;
@@ -270,7 +491,7 @@ class LogSendRequest PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr trxlogmsg_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg > log_msg_;
   ::PROTOBUF_NAMESPACE_ID::uint64 trxid_;
   bool is_valid_;
   friend struct ::TableStruct_trx_5flog_2eproto;
@@ -326,7 +547,7 @@ class LogSendResponse PROTOBUF_FINAL :
                &_LogSendResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    1;
+    2;
 
   friend void swap(LogSendResponse& a, LogSendResponse& b) {
     a.Swap(&b);
@@ -475,7 +696,7 @@ class LogRequireRequest PROTOBUF_FINAL :
                &_LogRequireRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    2;
+    3;
 
   friend void swap(LogRequireRequest& a, LogRequireRequest& b) {
     a.Swap(&b);
@@ -624,7 +845,7 @@ class LogRequireResponse PROTOBUF_FINAL :
                &_LogRequireResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    3;
+    4;
 
   friend void swap(LogRequireResponse& a, LogRequireResponse& b) {
     a.Swap(&b);
@@ -695,38 +916,27 @@ class LogRequireResponse PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kTrxLogMsgFieldNumber = 3,
+    kLogMsgFieldNumber = 3,
     kRequireReplyFieldNumber = 1,
     kIsValidFieldNumber = 2,
   };
-  // required bytes trxLogMsg = 3;
-  bool has_trxlogmsg() const;
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  int log_msg_size() const;
   private:
-  bool _internal_has_trxlogmsg() const;
+  int _internal_log_msg_size() const;
   public:
-  void clear_trxlogmsg();
-  const std::string& trxlogmsg() const;
-  void set_trxlogmsg(const std::string& value);
-  void set_trxlogmsg(std::string&& value);
-  void set_trxlogmsg(const char* value);
-  void set_trxlogmsg(const void* value, size_t size);
-  std::string* mutable_trxlogmsg();
-  std::string* release_trxlogmsg();
-  void set_allocated_trxlogmsg(std::string* trxlogmsg);
-  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
-  "    string fields are deprecated and will be removed in a"
-  "    future release.")
-  std::string* unsafe_arena_release_trxlogmsg();
-  GOOGLE_PROTOBUF_RUNTIME_DEPRECATED("The unsafe_arena_ accessors for"
-  "    string fields are deprecated and will be removed in a"
-  "    future release.")
-  void unsafe_arena_set_allocated_trxlogmsg(
-      std::string* trxlogmsg);
+  void clear_log_msg();
+  ::MMLP_BRPC::TrxLogMsg* mutable_log_msg(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >*
+      mutable_log_msg();
   private:
-  const std::string& _internal_trxlogmsg() const;
-  void _internal_set_trxlogmsg(const std::string& value);
-  std::string* _internal_mutable_trxlogmsg();
+  const ::MMLP_BRPC::TrxLogMsg& _internal_log_msg(int index) const;
+  ::MMLP_BRPC::TrxLogMsg* _internal_add_log_msg();
   public:
+  const ::MMLP_BRPC::TrxLogMsg& log_msg(int index) const;
+  ::MMLP_BRPC::TrxLogMsg* add_log_msg();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >&
+      log_msg() const;
 
   // required sint32 require_reply = 1;
   bool has_require_reply() const;
@@ -766,7 +976,7 @@ class LogRequireResponse PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr trxlogmsg_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg > log_msg_;
   ::PROTOBUF_NAMESPACE_ID::int32 require_reply_;
   bool is_valid_;
   friend struct ::TableStruct_trx_5flog_2eproto;
@@ -847,11 +1057,220 @@ class TrxLogService_Stub : public TrxLogService {
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif  // __GNUC__
+// TrxLogMsg
+
+// required sint32 type = 1;
+inline bool TrxLogMsg::_internal_has_type() const {
+  bool value = (_has_bits_[0] & 0x00000002u) != 0;
+  return value;
+}
+inline bool TrxLogMsg::has_type() const {
+  return _internal_has_type();
+}
+inline void TrxLogMsg::clear_type() {
+  type_ = 0;
+  _has_bits_[0] &= ~0x00000002u;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 TrxLogMsg::_internal_type() const {
+  return type_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 TrxLogMsg::type() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.TrxLogMsg.type)
+  return _internal_type();
+}
+inline void TrxLogMsg::_internal_set_type(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _has_bits_[0] |= 0x00000002u;
+  type_ = value;
+}
+inline void TrxLogMsg::set_type(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_type(value);
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.TrxLogMsg.type)
+}
+
+// required uint32 space_id = 2;
+inline bool TrxLogMsg::_internal_has_space_id() const {
+  bool value = (_has_bits_[0] & 0x00000004u) != 0;
+  return value;
+}
+inline bool TrxLogMsg::has_space_id() const {
+  return _internal_has_space_id();
+}
+inline void TrxLogMsg::clear_space_id() {
+  space_id_ = 0u;
+  _has_bits_[0] &= ~0x00000004u;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 TrxLogMsg::_internal_space_id() const {
+  return space_id_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 TrxLogMsg::space_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.TrxLogMsg.space_id)
+  return _internal_space_id();
+}
+inline void TrxLogMsg::_internal_set_space_id(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _has_bits_[0] |= 0x00000004u;
+  space_id_ = value;
+}
+inline void TrxLogMsg::set_space_id(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _internal_set_space_id(value);
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.TrxLogMsg.space_id)
+}
+
+// required uint32 page_no = 3;
+inline bool TrxLogMsg::_internal_has_page_no() const {
+  bool value = (_has_bits_[0] & 0x00000008u) != 0;
+  return value;
+}
+inline bool TrxLogMsg::has_page_no() const {
+  return _internal_has_page_no();
+}
+inline void TrxLogMsg::clear_page_no() {
+  page_no_ = 0u;
+  _has_bits_[0] &= ~0x00000008u;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 TrxLogMsg::_internal_page_no() const {
+  return page_no_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 TrxLogMsg::page_no() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.TrxLogMsg.page_no)
+  return _internal_page_no();
+}
+inline void TrxLogMsg::_internal_set_page_no(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _has_bits_[0] |= 0x00000008u;
+  page_no_ = value;
+}
+inline void TrxLogMsg::set_page_no(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _internal_set_page_no(value);
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.TrxLogMsg.page_no)
+}
+
+// required uint32 offset = 4;
+inline bool TrxLogMsg::_internal_has_offset() const {
+  bool value = (_has_bits_[0] & 0x00000010u) != 0;
+  return value;
+}
+inline bool TrxLogMsg::has_offset() const {
+  return _internal_has_offset();
+}
+inline void TrxLogMsg::clear_offset() {
+  offset_ = 0u;
+  _has_bits_[0] &= ~0x00000010u;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 TrxLogMsg::_internal_offset() const {
+  return offset_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint32 TrxLogMsg::offset() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.TrxLogMsg.offset)
+  return _internal_offset();
+}
+inline void TrxLogMsg::_internal_set_offset(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _has_bits_[0] |= 0x00000010u;
+  offset_ = value;
+}
+inline void TrxLogMsg::set_offset(::PROTOBUF_NAMESPACE_ID::uint32 value) {
+  _internal_set_offset(value);
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.TrxLogMsg.offset)
+}
+
+// required bytes rec = 5;
+inline bool TrxLogMsg::_internal_has_rec() const {
+  bool value = (_has_bits_[0] & 0x00000001u) != 0;
+  return value;
+}
+inline bool TrxLogMsg::has_rec() const {
+  return _internal_has_rec();
+}
+inline void TrxLogMsg::clear_rec() {
+  rec_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  _has_bits_[0] &= ~0x00000001u;
+}
+inline const std::string& TrxLogMsg::rec() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.TrxLogMsg.rec)
+  return _internal_rec();
+}
+inline void TrxLogMsg::set_rec(const std::string& value) {
+  _internal_set_rec(value);
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.TrxLogMsg.rec)
+}
+inline std::string* TrxLogMsg::mutable_rec() {
+  // @@protoc_insertion_point(field_mutable:MMLP_BRPC.TrxLogMsg.rec)
+  return _internal_mutable_rec();
+}
+inline const std::string& TrxLogMsg::_internal_rec() const {
+  return rec_.Get();
+}
+inline void TrxLogMsg::_internal_set_rec(const std::string& value) {
+  _has_bits_[0] |= 0x00000001u;
+  rec_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void TrxLogMsg::set_rec(std::string&& value) {
+  _has_bits_[0] |= 0x00000001u;
+  rec_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:MMLP_BRPC.TrxLogMsg.rec)
+}
+inline void TrxLogMsg::set_rec(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  _has_bits_[0] |= 0x00000001u;
+  rec_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:MMLP_BRPC.TrxLogMsg.rec)
+}
+inline void TrxLogMsg::set_rec(const void* value,
+    size_t size) {
+  _has_bits_[0] |= 0x00000001u;
+  rec_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:MMLP_BRPC.TrxLogMsg.rec)
+}
+inline std::string* TrxLogMsg::_internal_mutable_rec() {
+  _has_bits_[0] |= 0x00000001u;
+  return rec_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* TrxLogMsg::release_rec() {
+  // @@protoc_insertion_point(field_release:MMLP_BRPC.TrxLogMsg.rec)
+  if (!_internal_has_rec()) {
+    return nullptr;
+  }
+  _has_bits_[0] &= ~0x00000001u;
+  return rec_.ReleaseNonDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void TrxLogMsg::set_allocated_rec(std::string* rec) {
+  if (rec != nullptr) {
+    _has_bits_[0] |= 0x00000001u;
+  } else {
+    _has_bits_[0] &= ~0x00000001u;
+  }
+  rec_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), rec,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:MMLP_BRPC.TrxLogMsg.rec)
+}
+inline std::string* TrxLogMsg::unsafe_arena_release_rec() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:MMLP_BRPC.TrxLogMsg.rec)
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  _has_bits_[0] &= ~0x00000001u;
+  return rec_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      GetArena());
+}
+inline void TrxLogMsg::unsafe_arena_set_allocated_rec(
+    std::string* rec) {
+  GOOGLE_DCHECK(GetArena() != nullptr);
+  if (rec != nullptr) {
+    _has_bits_[0] |= 0x00000001u;
+  } else {
+    _has_bits_[0] &= ~0x00000001u;
+  }
+  rec_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
+      rec, GetArena());
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:MMLP_BRPC.TrxLogMsg.rec)
+}
+
+// -------------------------------------------------------------------
+
 // LogSendRequest
 
 // required uint64 trxID = 1;
 inline bool LogSendRequest::_internal_has_trxid() const {
-  bool value = (_has_bits_[0] & 0x00000002u) != 0;
+  bool value = (_has_bits_[0] & 0x00000001u) != 0;
   return value;
 }
 inline bool LogSendRequest::has_trxid() const {
@@ -859,7 +1278,7 @@ inline bool LogSendRequest::has_trxid() const {
 }
 inline void LogSendRequest::clear_trxid() {
   trxid_ = PROTOBUF_ULONGLONG(0);
-  _has_bits_[0] &= ~0x00000002u;
+  _has_bits_[0] &= ~0x00000001u;
 }
 inline ::PROTOBUF_NAMESPACE_ID::uint64 LogSendRequest::_internal_trxid() const {
   return trxid_;
@@ -869,7 +1288,7 @@ inline ::PROTOBUF_NAMESPACE_ID::uint64 LogSendRequest::trxid() const {
   return _internal_trxid();
 }
 inline void LogSendRequest::_internal_set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value) {
-  _has_bits_[0] |= 0x00000002u;
+  _has_bits_[0] |= 0x00000001u;
   trxid_ = value;
 }
 inline void LogSendRequest::set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value) {
@@ -879,7 +1298,7 @@ inline void LogSendRequest::set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value) {
 
 // required bool is_valid = 2;
 inline bool LogSendRequest::_internal_has_is_valid() const {
-  bool value = (_has_bits_[0] & 0x00000004u) != 0;
+  bool value = (_has_bits_[0] & 0x00000002u) != 0;
   return value;
 }
 inline bool LogSendRequest::has_is_valid() const {
@@ -887,7 +1306,7 @@ inline bool LogSendRequest::has_is_valid() const {
 }
 inline void LogSendRequest::clear_is_valid() {
   is_valid_ = false;
-  _has_bits_[0] &= ~0x00000004u;
+  _has_bits_[0] &= ~0x00000002u;
 }
 inline bool LogSendRequest::_internal_is_valid() const {
   return is_valid_;
@@ -897,7 +1316,7 @@ inline bool LogSendRequest::is_valid() const {
   return _internal_is_valid();
 }
 inline void LogSendRequest::_internal_set_is_valid(bool value) {
-  _has_bits_[0] |= 0x00000004u;
+  _has_bits_[0] |= 0x00000002u;
   is_valid_ = value;
 }
 inline void LogSendRequest::set_is_valid(bool value) {
@@ -905,97 +1324,43 @@ inline void LogSendRequest::set_is_valid(bool value) {
   // @@protoc_insertion_point(field_set:MMLP_BRPC.LogSendRequest.is_valid)
 }
 
-// required bytes trxLogMsg = 3;
-inline bool LogSendRequest::_internal_has_trxlogmsg() const {
-  bool value = (_has_bits_[0] & 0x00000001u) != 0;
-  return value;
+// repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+inline int LogSendRequest::_internal_log_msg_size() const {
+  return log_msg_.size();
 }
-inline bool LogSendRequest::has_trxlogmsg() const {
-  return _internal_has_trxlogmsg();
+inline int LogSendRequest::log_msg_size() const {
+  return _internal_log_msg_size();
 }
-inline void LogSendRequest::clear_trxlogmsg() {
-  trxlogmsg_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  _has_bits_[0] &= ~0x00000001u;
+inline void LogSendRequest::clear_log_msg() {
+  log_msg_.Clear();
 }
-inline const std::string& LogSendRequest::trxlogmsg() const {
-  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogSendRequest.trxLogMsg)
-  return _internal_trxlogmsg();
+inline ::MMLP_BRPC::TrxLogMsg* LogSendRequest::mutable_log_msg(int index) {
+  // @@protoc_insertion_point(field_mutable:MMLP_BRPC.LogSendRequest.log_msg)
+  return log_msg_.Mutable(index);
 }
-inline void LogSendRequest::set_trxlogmsg(const std::string& value) {
-  _internal_set_trxlogmsg(value);
-  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogSendRequest.trxLogMsg)
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >*
+LogSendRequest::mutable_log_msg() {
+  // @@protoc_insertion_point(field_mutable_list:MMLP_BRPC.LogSendRequest.log_msg)
+  return &log_msg_;
 }
-inline std::string* LogSendRequest::mutable_trxlogmsg() {
-  // @@protoc_insertion_point(field_mutable:MMLP_BRPC.LogSendRequest.trxLogMsg)
-  return _internal_mutable_trxlogmsg();
+inline const ::MMLP_BRPC::TrxLogMsg& LogSendRequest::_internal_log_msg(int index) const {
+  return log_msg_.Get(index);
 }
-inline const std::string& LogSendRequest::_internal_trxlogmsg() const {
-  return trxlogmsg_.Get();
+inline const ::MMLP_BRPC::TrxLogMsg& LogSendRequest::log_msg(int index) const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogSendRequest.log_msg)
+  return _internal_log_msg(index);
 }
-inline void LogSendRequest::_internal_set_trxlogmsg(const std::string& value) {
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+inline ::MMLP_BRPC::TrxLogMsg* LogSendRequest::_internal_add_log_msg() {
+  return log_msg_.Add();
 }
-inline void LogSendRequest::set_trxlogmsg(std::string&& value) {
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:MMLP_BRPC.LogSendRequest.trxLogMsg)
+inline ::MMLP_BRPC::TrxLogMsg* LogSendRequest::add_log_msg() {
+  // @@protoc_insertion_point(field_add:MMLP_BRPC.LogSendRequest.log_msg)
+  return _internal_add_log_msg();
 }
-inline void LogSendRequest::set_trxlogmsg(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:MMLP_BRPC.LogSendRequest.trxLogMsg)
-}
-inline void LogSendRequest::set_trxlogmsg(const void* value,
-    size_t size) {
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:MMLP_BRPC.LogSendRequest.trxLogMsg)
-}
-inline std::string* LogSendRequest::_internal_mutable_trxlogmsg() {
-  _has_bits_[0] |= 0x00000001u;
-  return trxlogmsg_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* LogSendRequest::release_trxlogmsg() {
-  // @@protoc_insertion_point(field_release:MMLP_BRPC.LogSendRequest.trxLogMsg)
-  if (!_internal_has_trxlogmsg()) {
-    return nullptr;
-  }
-  _has_bits_[0] &= ~0x00000001u;
-  return trxlogmsg_.ReleaseNonDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void LogSendRequest::set_allocated_trxlogmsg(std::string* trxlogmsg) {
-  if (trxlogmsg != nullptr) {
-    _has_bits_[0] |= 0x00000001u;
-  } else {
-    _has_bits_[0] &= ~0x00000001u;
-  }
-  trxlogmsg_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), trxlogmsg,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:MMLP_BRPC.LogSendRequest.trxLogMsg)
-}
-inline std::string* LogSendRequest::unsafe_arena_release_trxlogmsg() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:MMLP_BRPC.LogSendRequest.trxLogMsg)
-  GOOGLE_DCHECK(GetArena() != nullptr);
-  _has_bits_[0] &= ~0x00000001u;
-  return trxlogmsg_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
-      GetArena());
-}
-inline void LogSendRequest::unsafe_arena_set_allocated_trxlogmsg(
-    std::string* trxlogmsg) {
-  GOOGLE_DCHECK(GetArena() != nullptr);
-  if (trxlogmsg != nullptr) {
-    _has_bits_[0] |= 0x00000001u;
-  } else {
-    _has_bits_[0] &= ~0x00000001u;
-  }
-  trxlogmsg_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
-      trxlogmsg, GetArena());
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:MMLP_BRPC.LogSendRequest.trxLogMsg)
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >&
+LogSendRequest::log_msg() const {
+  // @@protoc_insertion_point(field_list:MMLP_BRPC.LogSendRequest.log_msg)
+  return log_msg_;
 }
 
 // -------------------------------------------------------------------
@@ -1068,7 +1433,7 @@ inline void LogRequireRequest::set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value) 
 
 // required sint32 require_reply = 1;
 inline bool LogRequireResponse::_internal_has_require_reply() const {
-  bool value = (_has_bits_[0] & 0x00000002u) != 0;
+  bool value = (_has_bits_[0] & 0x00000001u) != 0;
   return value;
 }
 inline bool LogRequireResponse::has_require_reply() const {
@@ -1076,7 +1441,7 @@ inline bool LogRequireResponse::has_require_reply() const {
 }
 inline void LogRequireResponse::clear_require_reply() {
   require_reply_ = 0;
-  _has_bits_[0] &= ~0x00000002u;
+  _has_bits_[0] &= ~0x00000001u;
 }
 inline ::PROTOBUF_NAMESPACE_ID::int32 LogRequireResponse::_internal_require_reply() const {
   return require_reply_;
@@ -1086,7 +1451,7 @@ inline ::PROTOBUF_NAMESPACE_ID::int32 LogRequireResponse::require_reply() const 
   return _internal_require_reply();
 }
 inline void LogRequireResponse::_internal_set_require_reply(::PROTOBUF_NAMESPACE_ID::int32 value) {
-  _has_bits_[0] |= 0x00000002u;
+  _has_bits_[0] |= 0x00000001u;
   require_reply_ = value;
 }
 inline void LogRequireResponse::set_require_reply(::PROTOBUF_NAMESPACE_ID::int32 value) {
@@ -1096,7 +1461,7 @@ inline void LogRequireResponse::set_require_reply(::PROTOBUF_NAMESPACE_ID::int32
 
 // required bool is_valid = 2;
 inline bool LogRequireResponse::_internal_has_is_valid() const {
-  bool value = (_has_bits_[0] & 0x00000004u) != 0;
+  bool value = (_has_bits_[0] & 0x00000002u) != 0;
   return value;
 }
 inline bool LogRequireResponse::has_is_valid() const {
@@ -1104,7 +1469,7 @@ inline bool LogRequireResponse::has_is_valid() const {
 }
 inline void LogRequireResponse::clear_is_valid() {
   is_valid_ = false;
-  _has_bits_[0] &= ~0x00000004u;
+  _has_bits_[0] &= ~0x00000002u;
 }
 inline bool LogRequireResponse::_internal_is_valid() const {
   return is_valid_;
@@ -1114,7 +1479,7 @@ inline bool LogRequireResponse::is_valid() const {
   return _internal_is_valid();
 }
 inline void LogRequireResponse::_internal_set_is_valid(bool value) {
-  _has_bits_[0] |= 0x00000004u;
+  _has_bits_[0] |= 0x00000002u;
   is_valid_ = value;
 }
 inline void LogRequireResponse::set_is_valid(bool value) {
@@ -1122,102 +1487,50 @@ inline void LogRequireResponse::set_is_valid(bool value) {
   // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireResponse.is_valid)
 }
 
-// required bytes trxLogMsg = 3;
-inline bool LogRequireResponse::_internal_has_trxlogmsg() const {
-  bool value = (_has_bits_[0] & 0x00000001u) != 0;
-  return value;
+// repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+inline int LogRequireResponse::_internal_log_msg_size() const {
+  return log_msg_.size();
 }
-inline bool LogRequireResponse::has_trxlogmsg() const {
-  return _internal_has_trxlogmsg();
+inline int LogRequireResponse::log_msg_size() const {
+  return _internal_log_msg_size();
 }
-inline void LogRequireResponse::clear_trxlogmsg() {
-  trxlogmsg_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  _has_bits_[0] &= ~0x00000001u;
+inline void LogRequireResponse::clear_log_msg() {
+  log_msg_.Clear();
 }
-inline const std::string& LogRequireResponse::trxlogmsg() const {
-  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireResponse.trxLogMsg)
-  return _internal_trxlogmsg();
+inline ::MMLP_BRPC::TrxLogMsg* LogRequireResponse::mutable_log_msg(int index) {
+  // @@protoc_insertion_point(field_mutable:MMLP_BRPC.LogRequireResponse.log_msg)
+  return log_msg_.Mutable(index);
 }
-inline void LogRequireResponse::set_trxlogmsg(const std::string& value) {
-  _internal_set_trxlogmsg(value);
-  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireResponse.trxLogMsg)
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >*
+LogRequireResponse::mutable_log_msg() {
+  // @@protoc_insertion_point(field_mutable_list:MMLP_BRPC.LogRequireResponse.log_msg)
+  return &log_msg_;
 }
-inline std::string* LogRequireResponse::mutable_trxlogmsg() {
-  // @@protoc_insertion_point(field_mutable:MMLP_BRPC.LogRequireResponse.trxLogMsg)
-  return _internal_mutable_trxlogmsg();
+inline const ::MMLP_BRPC::TrxLogMsg& LogRequireResponse::_internal_log_msg(int index) const {
+  return log_msg_.Get(index);
 }
-inline const std::string& LogRequireResponse::_internal_trxlogmsg() const {
-  return trxlogmsg_.Get();
+inline const ::MMLP_BRPC::TrxLogMsg& LogRequireResponse::log_msg(int index) const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireResponse.log_msg)
+  return _internal_log_msg(index);
 }
-inline void LogRequireResponse::_internal_set_trxlogmsg(const std::string& value) {
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+inline ::MMLP_BRPC::TrxLogMsg* LogRequireResponse::_internal_add_log_msg() {
+  return log_msg_.Add();
 }
-inline void LogRequireResponse::set_trxlogmsg(std::string&& value) {
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:MMLP_BRPC.LogRequireResponse.trxLogMsg)
+inline ::MMLP_BRPC::TrxLogMsg* LogRequireResponse::add_log_msg() {
+  // @@protoc_insertion_point(field_add:MMLP_BRPC.LogRequireResponse.log_msg)
+  return _internal_add_log_msg();
 }
-inline void LogRequireResponse::set_trxlogmsg(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:MMLP_BRPC.LogRequireResponse.trxLogMsg)
-}
-inline void LogRequireResponse::set_trxlogmsg(const void* value,
-    size_t size) {
-  _has_bits_[0] |= 0x00000001u;
-  trxlogmsg_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:MMLP_BRPC.LogRequireResponse.trxLogMsg)
-}
-inline std::string* LogRequireResponse::_internal_mutable_trxlogmsg() {
-  _has_bits_[0] |= 0x00000001u;
-  return trxlogmsg_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* LogRequireResponse::release_trxlogmsg() {
-  // @@protoc_insertion_point(field_release:MMLP_BRPC.LogRequireResponse.trxLogMsg)
-  if (!_internal_has_trxlogmsg()) {
-    return nullptr;
-  }
-  _has_bits_[0] &= ~0x00000001u;
-  return trxlogmsg_.ReleaseNonDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void LogRequireResponse::set_allocated_trxlogmsg(std::string* trxlogmsg) {
-  if (trxlogmsg != nullptr) {
-    _has_bits_[0] |= 0x00000001u;
-  } else {
-    _has_bits_[0] &= ~0x00000001u;
-  }
-  trxlogmsg_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), trxlogmsg,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:MMLP_BRPC.LogRequireResponse.trxLogMsg)
-}
-inline std::string* LogRequireResponse::unsafe_arena_release_trxlogmsg() {
-  // @@protoc_insertion_point(field_unsafe_arena_release:MMLP_BRPC.LogRequireResponse.trxLogMsg)
-  GOOGLE_DCHECK(GetArena() != nullptr);
-  _has_bits_[0] &= ~0x00000001u;
-  return trxlogmsg_.UnsafeArenaRelease(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
-      GetArena());
-}
-inline void LogRequireResponse::unsafe_arena_set_allocated_trxlogmsg(
-    std::string* trxlogmsg) {
-  GOOGLE_DCHECK(GetArena() != nullptr);
-  if (trxlogmsg != nullptr) {
-    _has_bits_[0] |= 0x00000001u;
-  } else {
-    _has_bits_[0] &= ~0x00000001u;
-  }
-  trxlogmsg_.UnsafeArenaSetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(),
-      trxlogmsg, GetArena());
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:MMLP_BRPC.LogRequireResponse.trxLogMsg)
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >&
+LogRequireResponse::log_msg() const {
+  // @@protoc_insertion_point(field_list:MMLP_BRPC.LogRequireResponse.log_msg)
+  return log_msg_;
 }
 
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

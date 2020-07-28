@@ -2,7 +2,7 @@
  * @Author: wei
  * @Date: 2020-07-14 07:24:06
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-15 20:09:26
+ * @LastEditTime: 2020-07-23 09:38:58
  * @Description: file content
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/id_allocate.cc
  */
@@ -70,9 +70,11 @@ int SliceTrxIdGen_SYNC::init()
     std::string peers_str = std::string(brpc_peer_nodes_ptr);
     std::stringstream peers_ss(peers_str);
     std::string tmp;
+    //std::cout <<"Peer Nodes : " << peers_str << std::endl;
     while(!peers_ss.eof())
     {
         getline(peers_ss,tmp,',');
+     //   std::cout << "Line Node : " << tmp << std::endl;
         slice_len++;
     }
 

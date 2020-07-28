@@ -2,15 +2,15 @@
  * @Author: wei
  * @Date: 2020-07-07 16:24:29
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-16 10:49:59
+ * @LastEditTime: 2020-07-28 15:58:06
  * @Description: file content
- * @FilePath: /multi_master_log_plugin/lib/brpc_api/log_transfer.h
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/lib/brpc_api/log_transfer.h
  */
 
 #ifndef LOG_TRANSFER_HEADER
 #define LOG_TRANSFER_HEADER
 
-#include "mmlp_type.h"
+#include "trx_log.h"
 #include "trx_log.pb.h"
 #include <brpc/channel.h>
 #include <brpc/server.h>
@@ -21,13 +21,31 @@
 #include <queue>
 #include <mutex>
 
-#define BRPC_HANDLE_DEBUG 0
+#define BRPC_HANDLE_DEBUG 1
 
 // #define DEFAULT_ARG_POOL_SIZE 50;
 
-class TrxLogService_impl : public MMLP_BRPC::TrxLogService
+class MessageHandle
 {
     public:
+    virtual int handle(void * msg) =0;
+};
+
+class TrxLogService_impl : public MMLP_BRPC::TrxLogService
+{
+    private:
+
+    MessageHandle * send_service_message_handle_ptr;
+    MessageHandle * require_service_message_handle_ptr;
+
+    public:
+
+    void init(MessageHandle * send_service_handle,MessageHandle * require_service_handle)
+    {
+        send_service_message_handle_ptr = send_service_handle;
+        require_service_message_handle_ptr = require_service_handle;
+    }
+
     virtual void sendLog(::google::protobuf::RpcController* controller,
                        const ::MMLP_BRPC::LogSendRequest* request,
                        ::MMLP_BRPC::LogSendResponse* response,
@@ -66,6 +84,8 @@ class LogTransfer
 
     TrxLogService_impl trxlog_service;
     std::map<std::string,brpc::Channel*> connection_map;
+    std::map<std::string,brpc::Channel*> connection_failed_map;
+    brpc::ChannelOptions basic_options;
 
     brpc::ParallelChannel send_channels;
     brpc::ParallelChannel require_channels;
@@ -77,24 +97,38 @@ class LogTransfer
 
     int addr_init();
     int client_init(); // brpc client init
-    int server_init(); // brpc server init
+    int server_init(MessageHandle * send_service_handle,MessageHandle * require_service_handle); // brpc server init
+
+    int check_failed_connections_and_retry();
+
+
+
+    // int encode_trxlog_into_msg(TrxLog & log,MMLP_BRPC::LogSendRequest & res);
+    // int decode_msg_into_trxlog(TrxLog & log,MMLP_BRPC::LogSendRequest & res);
 
     public:
     ~LogTransfer();
-    int init();
-    int async_send_log(TrxID id , bool valid, std::string & msg,uint64_t * latency_ptr);
-    int sync_send_log(TrxID id,bool valid,std::string & msg,uint64_t * latency_ptr);
-    int async_require_log(TrxID id, uint64_t * latency_ptr);
+    // int set_arg(TransferInitArg key,void * val);
+    int init(MessageHandle * send_service_handle,MessageHandle * require_service_handle);
+    //TODO: 删除不必要的参数id、valid，融合于TrxLog中即可
+    int async_send_log(TrxID id , bool valid, TrxLog & log,uint64_t * latency_ptr);
+    int sync_send_log(TrxID id,bool valid,TrxLog & log,uint64_t * latency_ptr);
+
+    //TODO: int async_require_log(TrxID id, uint64_t * latency_ptr);
 
     int get_send_async_arg(MMLP_BRPC::LogSendResponse * & res,brpc::Controller * & cntrl);
-    int get_require_async_arg(MMLP_BRPC::LogRequireResponse * & res,brpc::Controller * & cntrl){return 1;};
+    //TODO: int get_require_async_arg(MMLP_BRPC::LogRequireResponse * & res,brpc::Controller * & cntrl){return 1;};
     int return_to_send_pool(brpc::Controller * cntrl,MMLP_BRPC::LogSendResponse * res);
-    int return_to_require_pool(brpc::Controller * cntrl,MMLP_BRPC::LogRequireResponse * res){return 1;};
+    //TODO: int return_to_require_pool(brpc::Controller * cntrl,MMLP_BRPC::LogRequireResponse * res){return 1;};
 };
 
 // extern LogTransfer global_log_transfer;
 
 void OnLogSendRPCDone(MMLP_BRPC::LogSendResponse * response, brpc::Controller* cntl,LogTransfer * transfer);
+
+
+
+void debug_print_SendRequest(const MMLP_BRPC::LogSendRequest & res);
 
 #endif
 

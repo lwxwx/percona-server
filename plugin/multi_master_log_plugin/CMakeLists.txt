@@ -1,5 +1,8 @@
 # Multi Master Redo Log Plugin
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 ## mmlp include
 include_directories(include)
 include_directories(.)

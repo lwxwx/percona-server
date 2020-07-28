@@ -2,9 +2,9 @@
  * @Author: wei
  * @Date: 2020-07-09 15:49:19
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-16 10:52:38
+ * @LastEditTime: 2020-07-28 16:09:26
  * @Description: file content
- * @FilePath: /multi_master_log_plugin/lib/brpc_api/log_transfer.cc
+ * @FilePath: /percona-server/plugin/multi_master_log_plugin/lib/brpc_api/log_transfer.cc
  */
 
 #include "log_transfer.h"
@@ -55,8 +55,17 @@ void TrxLogService_impl::sendLog(::google::protobuf::RpcController* controller,
     //brpc::Controller* cntl = static_cast<brpc::Controller*>(controller);
 
     //TODO: 函数对象或是函数指针完成一些处理
+#if BRPC_HANDLE_DEBUG
+    debug_print_SendRequest(*request);
+#endif
 
-    response->set_send_reply(1); // recive success
+    int result = send_service_message_handle_ptr->handle((void*)request);
+
+#if BRPC_HANDLE_DEBUG
+    std::cout << TRANSFER_DEBUG_HEADER <<"Send Request Handle Result: " << result <<std::endl;
+#endif
+
+    response->set_send_reply(result); // recive success
 }
 
 void TrxLogService_impl::requireLog(::google::protobuf::RpcController* controller,
@@ -71,42 +80,6 @@ void TrxLogService_impl::requireLog(::google::protobuf::RpcController* controlle
  * ============ LogTransfer
  * */
 
-// void LogTransfer::async_arg_init(uint32_t & pool_size)
-// {
-//     AsyncArg tmp_arg;
-//     tmp_arg.response_ptr = NULL;
-//     tmp_arg.cntrl_ptr = NULL;
-//     for(int i = 0; i < pool_size ; i++)
-//     {
-//         //send arg
-//         tmp_arg.cntrl_ptr = new brpc::Controller;
-//         tmp_arg.response_ptr = new ::MMLP_BRPC::LogSendResponse;
-//         async_send_pool.push_back(tmp_arg);
-//         //require arg
-//         tmp_arg.cntrl_ptr = new brpc::Controller;
-//         tmp_arg.response_ptr = new ::MMLP_BRPC::LogRequireResponse;
-//         async_require_pool.push_back(tmp_arg);
-//     }
-
-//     //TODO:初始化异步参数pool
-// }
-
-// int LogTransfer::move_send_from_pool(MMLP_BRPC::LogSendResponse * & res , brpc::Controller * & cntrl)
-// {
-//     //TODO:条件变量控制线程等待pool中有数据
-//     return 1;
-// }
-
-// int LogTransfer::move_require_from_pool(MMLP_BRPC::LogRequireResponse * & res, brpc::Controller * & cntrl)
-// {
-//     return 1;
-// }
-
-// int LogTransfer::move_from_using(TransferType type, brpc::Controller * cntrl)
-// {
-//     //TODO:通知条件变量pool中增加了数据
-//     return 1;
-// }
 LogTransfer::~LogTransfer()
 {
     for(auto it = connection_map.begin() ; it != connection_map.end() ; it++)
@@ -131,6 +104,16 @@ LogTransfer::~LogTransfer()
 
 }
 
+// int LogTransfer::encode_trxlog_into_msg(TrxLog & log,MMLP_BRPC::LogSendRequest & res)
+// {
+
+//     return 1;
+// }
+
+// int LogTransfer::decode_msg_into_trxlog(TrxLog & log,MMLP_BRPC::LogSendRequest & res)
+// {
+//     return 1;
+// }
 
 int LogTransfer::get_send_async_arg(MMLP_BRPC::LogSendResponse * & res,brpc::Controller * & cntrl)
 {
@@ -183,9 +166,8 @@ int LogTransfer::client_init()
     std::string peers_str = brpc_peer_nodes_ptr;
 
     //channel option
-    brpc::ChannelOptions option;
-    option.protocol = brpc::PROTOCOL_BAIDU_STD;
-    option.connection_type = brpc::CONNECTION_TYPE_SINGLE;
+    basic_options.protocol = brpc::PROTOCOL_BAIDU_STD;
+    basic_options.connection_type = brpc::CONNECTION_TYPE_SINGLE;
     // option.timeout_ms = 1000/*milliseconds*/;
     // option.max_retry = 5;
 
@@ -200,28 +182,54 @@ int LogTransfer::client_init()
 #if BRPC_HANDLE_DEBUG
         std::cout << TRANSFER_DEBUG_HEADER <<" one peer : " << peer_addr << std::endl;
 #endif
-#if !BRPC_HANDLE_DEBUG
+//#if !BRPC_HANDLE_DEBUG
         if(peer_addr != brpc_local_node_ptr)
         {
-#endif
+//#endif
             new_channel = new ::brpc::Channel;
             connection_map[peer_addr] = new_channel;
-            if(new_channel->Init(peer_addr.c_str(),&option) != 0)
+            if(new_channel->Init(peer_addr.c_str(),&basic_options) != 0)
             {
+                connection_failed_map[peer_addr] = new_channel;
                 std::cout << TRANSFER_ERROR_HEADER << peer_addr << " - connect failed" <<  std::endl;
                 //return -1;
             }
             send_channels.AddChannel(new_channel,::brpc::DOESNT_OWN_CHANNEL,NULL,NULL);
             require_channels.AddChannel(new_channel,::brpc::DOESNT_OWN_CHANNEL,NULL,NULL);
-#if !BRPC_HANDLE_DEBUG
+//#if !BRPC_HANDLE_DEBUG
         }
-#endif
+//#endif
     }
     return 1;
 }
 
-int LogTransfer::server_init()
+int LogTransfer::check_failed_connections_and_retry()
 {
+    if(connection_failed_map.empty())
+    {
+        return 0;
+    }
+    for(auto it  = connection_failed_map.begin() ; it != connection_failed_map.end(); it++)
+    {
+        if(it->second->Init(it->first.c_str(),&basic_options) !=0)
+        {
+            std::cout << TRANSFER_ERROR_HEADER << it->first << " - RETRY connect failed" <<  std::endl;
+        }
+        else
+        {
+            connection_failed_map.erase(it->first);
+        }
+    }
+    if(!connection_failed_map.empty())
+    {
+        return -1;
+    }
+    return 1;
+}
+
+int LogTransfer::server_init(MessageHandle * send_service_handle,MessageHandle * require_service_handle)
+{
+    trxlog_service.init(send_service_handle,require_service_handle);
     if(server.AddService(&trxlog_service,brpc::SERVER_OWNS_SERVICE) != 0)
     {
         std::cout << "Add Service Failed" << std::endl;
@@ -238,24 +246,31 @@ int LogTransfer::server_init()
     return 1;
 }
 
-int LogTransfer::init()
+int LogTransfer::init(MessageHandle * send_service_handle,MessageHandle * require_service_handle)
 {
     int ret = 1;
     ret = addr_init();
-    ret = server_init();
+    ret = server_init(send_service_handle,require_service_handle);
     ret = client_init();
     return ret;
 }
 
-int LogTransfer::sync_send_log(TrxID id,bool valid,std::string & msg,uint64_t * latency_ptr)
+int LogTransfer::sync_send_log(TrxID id,bool valid,TrxLog & trxlog,uint64_t * latency_ptr)
 {
+    if(check_failed_connections_and_retry() < 0)
+    {
+        std::cout << TRANSFER_ERROR_HEADER << " SYNC SEND LOG ERROR ! " << "Because failed connections" << std::endl;
+        return -1;
+    }
+
     ::brpc::Controller cntrl;
     ::MMLP_BRPC::LogSendRequest request;
     ::MMLP_BRPC::LogSendResponse response;
 
     request.set_trxid(id);
-    request.set_trxlogmsg(msg);
+    //request.set_trxlogmsg(msg);
     request.set_is_valid(valid);
+    trxlog.trx_log_encode_into_msg(request);
 
     ::MMLP_BRPC::TrxLogService_Stub stub(&send_channels);
     stub.sendLog(&cntrl,&request,&response,NULL);
@@ -283,12 +298,19 @@ int LogTransfer::sync_send_log(TrxID id,bool valid,std::string & msg,uint64_t * 
     }
 }
 
-int LogTransfer::async_send_log(TrxID id , bool valid,std::string & msg,uint64_t * latency_ptr)
+int LogTransfer::async_send_log(TrxID id , bool valid,TrxLog & trxlog,uint64_t * latency_ptr)
 {
+    if(check_failed_connections_and_retry() < 0)
+    {
+        std::cout << TRANSFER_ERROR_HEADER << " ASYNC SEND LOG ERROR ! " << "Because failed connections" << std::endl;
+        return -1;
+    }
+
     ::MMLP_BRPC::LogSendRequest request;
     request.set_trxid(id);
-    request.set_trxlogmsg(msg);
+   // request.set_trxlogmsg(msg);
     request.set_is_valid(valid);
+    trxlog.trx_log_encode_into_msg(request);
 
     brpc::Controller * cntrl_ptr = NULL;
     ::MMLP_BRPC::LogSendResponse * response_ptr = NULL;
@@ -314,9 +336,32 @@ int LogTransfer::async_send_log(TrxID id , bool valid,std::string & msg,uint64_t
         {
             *latency_ptr = cntrl_ptr->latency_us();
         }
-        std::cout << TRANSFER_ERROR_HEADER << " SYNC SEND LOG ERROR ! " << cntrl_ptr->ErrorText() << std::endl;
+        std::cout << TRANSFER_ERROR_HEADER << " ASYNC SEND LOG ERROR ! " << cntrl_ptr->ErrorText() << std::endl;
         return -1;
     }
 
     return 1;
+}
+
+
+
+/**
+ * Debug functions
+ * **/
+void debug_print_SendRequest(const MMLP_BRPC::LogSendRequest & res)
+{
+    std::cout << "MMLP_BPRC::LogSendRequest "<< std::endl << "{" << std::endl;
+    std::cout << "  TrxID : " << res.trxid() << std::endl;
+    std::cout << "  is_valid : " << res.is_valid() << std::endl;
+    std::cout << "  TrxLogMsg : " << std::endl <<"      [ " << std::endl;
+    for(int i = 0 ; i < res.log_msg_size() ; i++)
+    {
+       std::cout << "       ( type:" << res.log_msg(i).type() << "," ;
+       std::cout << " space_id:" <<  res.log_msg(i).space_id() << ",";
+       std::cout << " page_no:" << res.log_msg(i).page_no() << ",";
+       std::cout << " offset:" << res.log_msg(i).offset() << "," ;
+       std::cout << " rec_size:" << res.log_msg(i).rec().size() << " );" << std::endl;
+    }
+    std::cout << "      ]" << std::endl;
+    std::cout <<"}" << std::endl;
 }
