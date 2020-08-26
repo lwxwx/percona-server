@@ -10,6 +10,7 @@
 #ifndef LOG_TRANSFER_HEADER
 #define LOG_TRANSFER_HEADER
 
+//#include "trx_info.h"
 #include "trx_log.h"
 #include "trx_log.pb.h"
 #include <brpc/channel.h>
@@ -21,14 +22,14 @@
 #include <queue>
 #include <mutex>
 
-#define BRPC_HANDLE_DEBUG 1
+#define BRPC_HANDLE_DEBUG 0
 
 // #define DEFAULT_ARG_POOL_SIZE 50;
 
 class MessageHandle
 {
     public:
-    virtual int handle(void * msg) =0;
+    virtual int handle(void * request,void * response) =0;
 };
 
 class TrxLogService_impl : public MMLP_BRPC::TrxLogService
@@ -101,33 +102,31 @@ class LogTransfer
 
     int check_failed_connections_and_retry();
 
-
-
-    // int encode_trxlog_into_msg(TrxLog & log,MMLP_BRPC::LogSendRequest & res);
-    // int decode_msg_into_trxlog(TrxLog & log,MMLP_BRPC::LogSendRequest & res);
-
     public:
     ~LogTransfer();
     // int set_arg(TransferInitArg key,void * val);
     int init(MessageHandle * send_service_handle,MessageHandle * require_service_handle);
-    //TODO: 删除不必要的参数id、valid，融合于TrxLog中即可
-    int async_send_log(TrxID id , bool valid, TrxLog & log,uint64_t * latency_ptr);
-    int sync_send_log(TrxID id,bool valid,TrxLog & log,uint64_t * latency_ptr);
+   
+	//log send functions
+	int async_send_log(TrxLog & log,uint64_t * latency_ptr);
+    int sync_send_log(TrxLog & log,uint64_t * latency_ptr);
 
-    //TODO: int async_require_log(TrxID id, uint64_t * latency_ptr);
-
+	//log require function
+    int async_require_log(TrxID trx_id, uint64_t * latency_ptr,MessageHandle * handle_prt);
+	
+	//send or require arg pool
     int get_send_async_arg(MMLP_BRPC::LogSendResponse * & res,brpc::Controller * & cntrl);
-    //TODO: int get_require_async_arg(MMLP_BRPC::LogRequireResponse * & res,brpc::Controller * & cntrl){return 1;};
     int return_to_send_pool(brpc::Controller * cntrl,MMLP_BRPC::LogSendResponse * res);
-    //TODO: int return_to_require_pool(brpc::Controller * cntrl,MMLP_BRPC::LogRequireResponse * res){return 1;};
+	int get_require_async_arg(MMLP_BRPC::LogRequireResponse * & res,brpc::Controller * & cntrl);
+	int return_to_require_pool(brpc::Controller * cntrl,MMLP_BRPC::LogRequireResponse * res);
 };
 
 // extern LogTransfer global_log_transfer;
 
 void OnLogSendRPCDone(MMLP_BRPC::LogSendResponse * response, brpc::Controller* cntl,LogTransfer * transfer);
+void OnLogRequireRPCDone(MMLP_BRPC::LogRequireResponse * response, brpc::Controller* cntl,LogTransfer * transfer,MessageHandle * handle_prt);
 
-
-
+// debug functions
 void debug_print_SendRequest(const MMLP_BRPC::LogSendRequest & res);
 
 #endif

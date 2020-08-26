@@ -7,6 +7,7 @@
  * @FilePath: /multi_master_log_plugin/src/plugin.cc
  */
 #include <mysql/plugin.h>
+#include "mysql.h"
 #include "trx_info.h"
 #include "plugin_interface.h"
 #include "../mml_plugin_functions.h"
@@ -33,11 +34,16 @@ int DEBUG_PHXPAXOS_TIME = 0;
 int DEBUG_SLICE_TIME = 0;
 int DEBUG_LOG_SEND_TIME = 0;
 int DEBUG_TRX_TIME = 0;
+int DEBUG_LOG_REQUIRE_TIME = 0;
+int DEBUG_CONFLICT_TIME = 0;
 
 //select flag
 int SELECT_LOG_ASYNC_TYPE = 0;
 int SELECT_TRX_ID_ALLOCATE_TYPE = 0;
 int SELECT_CONFLICT_HANDLE_TYPE = 0;
+
+//remote id arg
+char * remote_id_server_addr = NULL;
 
 //slice id arg
 unsigned long slice_node_no;
@@ -61,6 +67,22 @@ unsigned long long log_send_async_rpc_count = 0;
 unsigned long long log_send_async_rpc_time = 0;
 unsigned long long log_send_async_rpc_failed_count = 0;
 unsigned long long log_send_async_rpc_failed_time = 0;
+
+//log require 
+unsigned long long log_require_succeed_count = 0;
+unsigned long long log_require_succeed_sum_time = 0;
+unsigned long long log_require_failed_count = 0;
+unsigned long long log_require_failed_sum_time = 0; 
+unsigned long long log_require_async_rpc_count = 0;
+unsigned long long log_require_async_rpc_time = 0;
+unsigned long long log_require_async_rpc_failed_count = 0;
+unsigned long long log_require_async_rpc_failed_time = 0;
+
+//conflict handle
+unsigned long long conflict_succeed_time = 0;
+unsigned long long conflict_succeed_count = 0;
+unsigned long long conflict_failed_count = 0;
+unsigned long long conflict_failed_time = 0;
 
 //trx time
 unsigned long long trx_count = 0;
@@ -186,6 +208,30 @@ MYSQL_SYSVAR_INT(debug_trx_time,
     0
 );
 
+MYSQL_SYSVAR_INT(debug_log_require_time,
+    DEBUG_LOG_REQUIRE_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "log require time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(debug_conflict_time,
+    DEBUG_CONFLICT_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "conflict time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
 /* select sysvar */
 MYSQL_SYSVAR_INT(select_log_async_type,
     SELECT_LOG_ASYNC_TYPE,
@@ -210,6 +256,17 @@ MYSQL_SYSVAR_INT(select_trx_id_allocate_type,
     INT_MAX,
     0
 );
+
+/*remote id sysvar */
+MYSQL_SYSVAR_STR(remote_id_server_addr,
+    remote_id_server_addr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "xcom group name",
+    NULL,
+    NULL,
+    NULL
+);
+
 
 /*slice id sysvar*/
 MYSQL_SYSVAR_ULONG(slice_node_no,
@@ -416,6 +473,153 @@ MYSQL_SYSVAR_ULONGLONG(log_send_async_rpc_failed_time,
     0
 );
 
+/* log require sysvar*/
+MYSQL_SYSVAR_ULONGLONG(log_require_succeed_count,
+    log_require_succeed_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require Succeed Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_require_succeed_sum_time,
+    log_require_succeed_sum_time,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require Succeed Time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_require_failed_count,
+    log_require_failed_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require Failed Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_require_failed_sum_time,
+    log_require_failed_sum_time,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require Failed Sum Time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_require_async_rpc_time,
+    log_require_async_rpc_time,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require ASYNC SUCCESS Sum Time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+
+MYSQL_SYSVAR_ULONGLONG(log_require_async_rpc_count,
+	log_require_async_rpc_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require ASYNC SUCCESS Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_require_async_rpc_failed_time,
+	log_require_async_rpc_failed_time,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require ASYNC Failed Time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(log_require_async_rpc_failed_count,
+	log_require_async_rpc_failed_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Log Require ASYNC Failed Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+/* conflict sysvar*/
+MYSQL_SYSVAR_ULONGLONG(conflict_succeed_time,
+    conflict_succeed_time,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "No Conflict Sum Time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_succeed_count,
+    conflict_succeed_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "No Conflict Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_failed_time,
+    conflict_failed_time,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Conflict Sum Time",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_failed_count,
+    conflict_failed_count,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "Conflict Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
 /* trx sysvar */
 MYSQL_SYSVAR_ULONGLONG(trx_count,
     trx_count,
@@ -456,9 +660,13 @@ static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(debug_slice_time),
     MYSQL_SYSVAR(debug_log_send_time),
     MYSQL_SYSVAR(debug_trx_time),
+	MYSQL_SYSVAR(debug_log_require_time),
+	MYSQL_SYSVAR(debug_conflict_time),
 
     MYSQL_SYSVAR(select_log_async_type),
     MYSQL_SYSVAR(select_trx_id_allocate_type),
+
+	MYSQL_SYSVAR(remote_id_server_addr),
 
     MYSQL_SYSVAR(slice_node_no),
     MYSQL_SYSVAR(slice_gen_time),
@@ -480,6 +688,20 @@ static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(log_send_async_rpc_time),
     MYSQL_SYSVAR(log_send_async_rpc_failed_count),
     MYSQL_SYSVAR(log_send_async_rpc_failed_time),
+
+	MYSQL_SYSVAR(log_require_succeed_sum_time),
+	MYSQL_SYSVAR(log_require_succeed_count),
+	MYSQL_SYSVAR(log_require_failed_sum_time),
+	MYSQL_SYSVAR(log_require_failed_count),
+	MYSQL_SYSVAR(log_require_async_rpc_count),
+    MYSQL_SYSVAR(log_require_async_rpc_time),
+    MYSQL_SYSVAR(log_require_async_rpc_failed_count),
+    MYSQL_SYSVAR(log_require_async_rpc_failed_time),
+	
+	MYSQL_SYSVAR(conflict_succeed_time),
+	MYSQL_SYSVAR(conflict_succeed_count),
+	MYSQL_SYSVAR(conflict_failed_time),
+	MYSQL_SYSVAR(conflict_failed_count),
 
     MYSQL_SYSVAR(trx_count),
     MYSQL_SYSVAR(trx_sum_time),

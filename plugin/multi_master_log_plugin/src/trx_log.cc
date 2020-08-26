@@ -8,8 +8,11 @@
  */
 
 #include "trx_log.h"
+#include <cstring>
 #include "debug.h"
 #include "easylogger.h"
+#include "mmlp_type.h"
+#include "trx_log.pb.h"
 #if DEBUG_REDO_LOG_COLLECT
 #include <iostream>
 #endif
@@ -173,6 +176,34 @@ int TrxLog::trx_log_encode_into_msg(MMLP_BRPC::LogSendRequest & res)
   return 1;
 }
 
+int TrxLog::trx_log_encode_into_msg(MMLP_BRPC::LogRequireResponse & res)
+{
+	if(!trx_is_commited || res.log_msg_size() > 0)
+	{
+		return -1;
+	}
+
+	res.set_trxid(trx_no);
+
+	if(trx_is_rollback)
+	{
+		res.set_is_valid(false);
+		return 0;
+	}
+
+	MMLP_BRPC::TrxLogMsg * msg_ptr = NULL;
+	for(auto it = completed_rec_list.begin(); it != completed_rec_list.end() ; it++)
+	{
+		msg_ptr = res.add_log_msg();
+		msg_ptr->set_type((*it)->type);
+		msg_ptr->set_space_id((*it)->space_id);
+		msg_ptr->set_page_no((*it)->page_no);
+		msg_ptr->set_offset((*it)->offset);
+		msg_ptr->set_rec((*it)->rec,(*it)->rec_size);
+	}
+	return 1;
+}
+
 int TrxLog::trx_log_decode_from_msg(MMLP_BRPC::LogSendRequest & res)
 {
   if(trx_is_commited || trx_is_started || !completed_rec_list.empty())
@@ -180,7 +211,7 @@ int TrxLog::trx_log_decode_from_msg(MMLP_BRPC::LogSendRequest & res)
     return -1;
   }
 
-  trx_no = res.trxid();
+  //trx_no = res.trxid();
 
   if(!res.is_valid())
   {
@@ -188,6 +219,8 @@ int TrxLog::trx_log_decode_from_msg(MMLP_BRPC::LogSendRequest & res)
     return 0;
   }
 
+  wr_trx_commiting(res.trxid());
+  us_latency = 0;
   RedoLogRec * tmp_rec;
   for(int i = 0; i < res.log_msg_size();i++)
   {
@@ -202,4 +235,37 @@ int TrxLog::trx_log_decode_from_msg(MMLP_BRPC::LogSendRequest & res)
   }
 
   return 1;
+}
+
+int TrxLog::trx_log_decode_from_msg(MMLP_BRPC::LogRequireResponse & res)
+{
+	if(trx_is_commited || trx_is_started || !completed_rec_list.empty())
+	{
+		return -1;
+	}
+
+//	trx_no = res.trxid();
+
+	if(!res.is_valid())
+	{
+		rollback_trx_log(res.trxid());
+		return 0;
+	}
+
+	wr_trx_commiting(res.trxid());
+	RedoLogRec * tmp_rec;
+	us_latency = 0;
+	for(int i = 0; i < res.log_msg_size(); i++)
+	{
+		tmp_rec =  allocate_redolog_record(res.log_msg(i).rec().size());
+		memcpy(tmp_rec->rec,res.log_msg(i).rec().c_str(), tmp_rec->rec_size);
+		tmp_rec->type = res.log_msg(i).type();
+		tmp_rec->space_id = res.log_msg(i).space_id();
+		tmp_rec->page_no = res.log_msg(i).page_no();
+		tmp_rec->offset = res.log_msg(i).offset();
+
+		completed_rec_list.push_back(tmp_rec);
+	}
+
+	return 1;
 }

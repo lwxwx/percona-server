@@ -7,8 +7,11 @@
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
 #include "trx_info.h"
+#include <cstdint>
 #include "debug.h"
 #include "easylogger.h"
+#include "mmlp_type.h"
+#include "trx_log.h"
 #if DEBUG_REDO_LOG_COLLECT
 #include <iostream>
 #endif
@@ -43,7 +46,9 @@ int TrxInfo::init() {
   id_factory.init((ID_FACTORY_TYPE)SELECT_TRX_ID_ALLOCATE_TYPE);
 
   send_service_handle_ptr = new TrxLogServiceMessageHandle(this);
-  log_transfer.init(send_service_handle_ptr,NULL);
+  require_request_handle_ptr =  new TrxLogRequireRequestHandle(this);
+  require_response_handle_ptr = new TrxLogRequireResponseHandle(this);
+  log_transfer.init(send_service_handle_ptr,require_request_handle_ptr);
 
   return 1;
 }
@@ -80,6 +85,7 @@ int TrxInfo::trx_started() {
     working_thread_map_mutex.unlock();
   }
 
+  trx_redo->set_snapshot_state(global_reply_status);
   trx_redo->trx_started();
 
   return 1;
@@ -114,25 +120,36 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
     trx_redo = working_thread_map[tid];
     // TODO : 检查事务是否为读写事务（是否包含redo log）
 
-    // TODO : 分配全局ID
+    //#### Assign Global Transaction ID
     TrxID global_id = id_factory.getGlobalTrxID();
+	trx_hole_set.add_local_hole(global_id);
 
-    // TODO : 日志空洞检查
+    //#### Trx Log Hole Check
+	if(trx_redo->get_snapshot_state() > 0)
+		global_trx_hole_check(trx_redo->get_snapshot_state(), global_id);
+    
+	// TODO : 冲突检测
+	bool is_conflict = false;
 
-    // TODO : 冲突检测
-
-    // TODO : 全局ID赋予事务日志
-    trx_redo->wr_trx_commiting(global_id);
-
-    // TODO : 日志广播
-    std::string msg = "redo log";
-
+    //#### Commit or Rollback Trx
+	if(is_conflict)
+	{
+		trx_redo->rollback_trx_log(global_id);
+	}
+	else
+	{
+		trx_redo->wr_trx_commiting(global_id);
+	}
+	trx_hole_set.complement_hole(global_id);
+	insert_global_trx_log(trx_redo);
+    
+	//#### Log Broadcast
     uint64_t latency = 0;
     int send_ret = 1;
     if (SELECT_LOG_ASYNC_TYPE == 0) {
-      send_ret = log_transfer.sync_send_log(global_id, true , *trx_redo, &latency);
+      send_ret = log_transfer.sync_send_log(*trx_redo, &latency);
     } else if (SELECT_LOG_ASYNC_TYPE == 1) {
-      send_ret = log_transfer.async_send_log(global_id, true, *trx_redo, &latency);
+      send_ret = log_transfer.async_send_log(*trx_redo, &latency);
     }
 
     if (DEBUG_LOG_SEND_TIME != 0) {
@@ -151,8 +168,6 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
     }
     working_thread_map[tid] = NULL;
 
-    // rollback : delete trx_redo
-    // TODO：多线程添加保护 global_trx_log_map[id] = trx_redo;
     return 1;
   }
 }
@@ -286,6 +301,10 @@ int TrxInfo::insert_global_trx_log(TrxLog * log)
   if(global_trx_log_map.find(id) == global_trx_log_map.end())
   {
     global_trx_log_map[id] = log;
+	if(id > global_reply_status)
+	{
+		global_reply_status = id;
+	}
     result = 1;
   }
   else
@@ -297,7 +316,41 @@ int TrxInfo::insert_global_trx_log(TrxLog * log)
   return result;
 }
 
-int TrxInfo::handle_trxlog_message(MMLP_BRPC::LogSendRequest & request)
+int TrxInfo::global_trx_hole_check(TrxID start_id, TrxID commit_id)
+{
+	int tmp_result = 0;
+	uint64_t latency = 0;
+	global_trx_log_map_mutex.lock_shared();
+	for(TrxID id = start_id; id < commit_id ; id++)
+	{
+		if(global_trx_log_map.find(id) == global_trx_log_map.end())
+		{
+			tmp_result = trx_hole_set.find_hole(id);
+			if(tmp_result == 1)
+			{
+				int require_ret = log_transfer.async_require_log(id, &latency, require_response_handle_ptr);
+				if(require_ret == 1)
+				{
+					log_require_succeed_count++;
+					log_require_succeed_sum_time += latency; 
+				}
+				else
+				{
+					log_require_failed_count++;
+					log_require_failed_sum_time += latency;
+				}
+
+			}
+		}
+	}
+	global_trx_log_map_mutex.unlock_shared();
+
+	trx_hole_set.wait_hole(commit_id-1);
+
+	return 1;
+}
+
+int TrxInfo::handle_log_send_request(MMLP_BRPC::LogSendRequest & request)
 {
   if(check_global_trx_id(request.trxid()) > 0)
   {
@@ -314,3 +367,46 @@ int TrxInfo::handle_trxlog_message(MMLP_BRPC::LogSendRequest & request)
 
   return 1;
 }
+
+int TrxInfo::handle_log_require_request(MMLP_BRPC::LogRequireRequest &request, MMLP_BRPC::LogRequireResponse &response)
+{
+	TrxLog * trx_log = NULL;
+	global_trx_log_map_mutex.lock_shared();
+	if(global_trx_log_map.find(request.trxid()) != global_trx_log_map.end() )
+	{
+		trx_log = global_trx_log_map[request.trxid()];
+	}
+	global_trx_log_map_mutex.unlock_shared();
+
+	if(trx_log == NULL)
+	{
+		response.set_trxid(trx_log->get_trxID());
+		response.set_is_valid(false);
+		response.set_require_reply(-1);
+		return -1;
+	}
+	else
+	{
+		trx_log->trx_log_encode_into_msg(response);
+		return 1;
+	}
+}
+
+int TrxInfo::handle_log_require_response(MMLP_BRPC::LogRequireResponse &response)
+{
+	if(check_global_trx_id(response.trxid()) == 1)
+	{
+		return 0;
+	}
+
+	TrxLog * log = new TrxLog();
+	log->trx_log_decode_from_msg(response);
+
+	if(insert_global_trx_log(log)<=0)
+	{
+		return -1;
+	}
+
+	return 1;
+}
+

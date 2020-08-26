@@ -13,6 +13,7 @@
 #include<string.h>
 #include<thread>
 #include<string>
+#include "my_inttypes.h"
 
 // #include "trx_log.pb.h"
 
@@ -42,10 +43,14 @@ extern int DEBUG_PHXPAXOS_TIME;
 extern int DEBUG_SLICE_TIME;
 extern int DEBUG_LOG_SEND_TIME;
 extern int DEBUG_TRX_TIME;
+extern int DEBUG_LOG_REQUIRE_TIME;
+extern int DEBUG_CONFLICT_TIME;
 
 extern int SELECT_LOG_ASYNC_TYPE;
 extern int SELECT_TRX_ID_ALLOCATE_TYPE;
 extern int SELECT_CONFLICT_HANDLE_TYPE;
+
+extern char * remote_id_server_addr;
 
 extern unsigned long slice_node_no;
 extern unsigned long long slice_gen_time;
@@ -67,6 +72,20 @@ extern unsigned long long log_send_async_rpc_count;
 extern unsigned long long log_send_async_rpc_time;
 extern unsigned long long log_send_async_rpc_failed_count;
 extern unsigned long long log_send_async_rpc_failed_time;
+
+extern unsigned long long log_require_succeed_count;
+extern unsigned long long log_require_succeed_sum_time;
+extern unsigned long long log_require_failed_count;
+extern unsigned long long log_require_failed_sum_time; 
+extern unsigned long long log_require_async_rpc_count;
+extern unsigned long long log_require_async_rpc_time;
+extern unsigned long long log_require_async_rpc_failed_count;
+extern unsigned long long log_require_async_rpc_failed_time;
+
+extern unsigned long long conflict_succeed_time;
+extern unsigned long long conflict_succeed_count;
+extern unsigned long long conflict_failed_count;
+extern unsigned long long conflict_failed_time;
 
 extern unsigned long long trx_count;
 extern unsigned long long trx_sum_time;

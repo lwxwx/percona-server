@@ -8,6 +8,14 @@
  */
 
 #include "log_transfer.h"
+#include <cstddef>
+#include <iostream>
+#include "brpc/callback.h"
+#include "brpc/closure_guard.h"
+#include "brpc/controller.h"
+#include "mmlp_type.h"
+//#include "trx_info.h"
+#include "trx_log.pb.h"
 
 #define TRANSFER_DEBUG_HEADER " [@LogTransfer DEBUG] : "
 #define TRANSFER_ERROR_HEADER " [@LogTransfer ERROR] : "
@@ -42,6 +50,35 @@ void OnLogSendRPCDone(MMLP_BRPC::LogSendResponse * response, brpc::Controller* c
 }
 
 
+void OnLogRequireRPCDone(MMLP_BRPC::LogRequireResponse * response, brpc::Controller* cntl,LogTransfer * transfer,MessageHandle * require_response_handle)
+{
+	if(cntl->Failed())
+	{
+		//failed count and time 
+		if(DEBUG_LOG_REQUIRE_TIME != 0)
+		{
+			log_require_async_rpc_failed_count++;
+			log_require_async_rpc_failed_time += cntl->latency_us();
+		}
+		std::cout << TRANSFER_ERROR_HEADER << "Fail to send Log Require Request, " << cntl->ErrorText() << std::endl;
+		return;
+	}
+	else
+	{
+		require_response_handle->handle(NULL , response);
+		// SUCCESS COUNT AND TIME
+		if(DEBUG_LOG_REQUIRE_TIME != 0)
+		{
+			log_require_async_rpc_count++;
+			log_require_async_rpc_time += cntl->latency_us();
+		}
+#if BRPC_HANDLE_DEBUG
+		std::cout << TRANSFER_DEBUG_HEADER << "Success to send Log Require Request :" << cntl->latency_us() << std::endl;
+#endif
+	}
+	transfer->return_to_require_pool(cntl, response);
+}
+
 /**
  * ============ TrxLogService_impl
  * */
@@ -54,12 +91,11 @@ void TrxLogService_impl::sendLog(::google::protobuf::RpcController* controller,
     brpc::ClosureGuard done_guard(done);
     //brpc::Controller* cntl = static_cast<brpc::Controller*>(controller);
 
-    //TODO: 函数对象或是函数指针完成一些处理
 #if BRPC_HANDLE_DEBUG
     debug_print_SendRequest(*request);
 #endif
 
-    int result = send_service_message_handle_ptr->handle((void*)request);
+    int result = send_service_message_handle_ptr->handle((void*)request,(void*)response);
 
 #if BRPC_HANDLE_DEBUG
     std::cout << TRANSFER_DEBUG_HEADER <<"Send Request Handle Result: " << result <<std::endl;
@@ -73,7 +109,15 @@ void TrxLogService_impl::requireLog(::google::protobuf::RpcController* controlle
            ::MMLP_BRPC::LogRequireResponse* response,
            ::google::protobuf::Closure* done)
 {
+	brpc::ClosureGuard done_guard(done);
 
+	int result = require_service_message_handle_ptr->handle((void*)request,(void*)response);
+
+#if BRPC_HANDLE_DEBUG
+	std::cout << TRANSFER_DEBUG_HEADER << "Require Request Handle Result: " << result << std::endl;	
+#endif
+	response->set_trxid(request->trxid());
+	response->set_require_reply(result);
 }
 
 /**
@@ -103,17 +147,6 @@ LogTransfer::~LogTransfer()
     }
 
 }
-
-// int LogTransfer::encode_trxlog_into_msg(TrxLog & log,MMLP_BRPC::LogSendRequest & res)
-// {
-
-//     return 1;
-// }
-
-// int LogTransfer::decode_msg_into_trxlog(TrxLog & log,MMLP_BRPC::LogSendRequest & res)
-// {
-//     return 1;
-// }
 
 int LogTransfer::get_send_async_arg(MMLP_BRPC::LogSendResponse * & res,brpc::Controller * & cntrl)
 {
@@ -255,7 +288,7 @@ int LogTransfer::init(MessageHandle * send_service_handle,MessageHandle * requir
     return ret;
 }
 
-int LogTransfer::sync_send_log(TrxID id,bool valid,TrxLog & trxlog,uint64_t * latency_ptr)
+int LogTransfer::sync_send_log(TrxLog & trxlog,uint64_t * latency_ptr)
 {
     if(check_failed_connections_and_retry() < 0)
     {
@@ -267,9 +300,9 @@ int LogTransfer::sync_send_log(TrxID id,bool valid,TrxLog & trxlog,uint64_t * la
     ::MMLP_BRPC::LogSendRequest request;
     ::MMLP_BRPC::LogSendResponse response;
 
-    request.set_trxid(id);
+    request.set_trxid(trxlog.get_trxID());
     //request.set_trxlogmsg(msg);
-    request.set_is_valid(valid);
+    request.set_is_valid(!trxlog.get_rollback_status());
     trxlog.trx_log_encode_into_msg(request);
 
     ::MMLP_BRPC::TrxLogService_Stub stub(&send_channels);
@@ -298,7 +331,7 @@ int LogTransfer::sync_send_log(TrxID id,bool valid,TrxLog & trxlog,uint64_t * la
     }
 }
 
-int LogTransfer::async_send_log(TrxID id , bool valid,TrxLog & trxlog,uint64_t * latency_ptr)
+int LogTransfer::async_send_log(TrxLog & trxlog,uint64_t * latency_ptr)
 {
     if(check_failed_connections_and_retry() < 0)
     {
@@ -307,9 +340,9 @@ int LogTransfer::async_send_log(TrxID id , bool valid,TrxLog & trxlog,uint64_t *
     }
 
     ::MMLP_BRPC::LogSendRequest request;
-    request.set_trxid(id);
+    request.set_trxid(trxlog.get_trxID());
    // request.set_trxlogmsg(msg);
-    request.set_is_valid(valid);
+    request.set_is_valid(!trxlog.get_rollback_status());
     trxlog.trx_log_encode_into_msg(request);
 
     brpc::Controller * cntrl_ptr = NULL;
@@ -343,7 +376,77 @@ int LogTransfer::async_send_log(TrxID id , bool valid,TrxLog & trxlog,uint64_t *
     return 1;
 }
 
+int LogTransfer::get_require_async_arg(MMLP_BRPC::LogRequireResponse *&res, brpc::Controller *&cntrl)
+{
+	if(async_require_pool.empty())
+	{
+		cntrl = new brpc::Controller;
+		res = new MMLP_BRPC::LogRequireResponse;
+	}
+	else
+	{
+		async_require_pool_mutex.lock();
+		res = async_require_pool.front().response_ptr;
+		cntrl = async_require_pool.front().cntrl_ptr;
+		async_require_pool.pop();
+		async_require_pool_mutex.unlock();
+	}
+	return 1;
+}
 
+int LogTransfer::return_to_require_pool(brpc::Controller *cntrl, MMLP_BRPC::LogRequireResponse *res)
+{
+	cntrl->Reset();
+	res->Clear();
+
+	RequireAsyncArg tmp_arg;
+	tmp_arg.response_ptr =  res;
+	tmp_arg.cntrl_ptr = cntrl;
+	async_require_pool_mutex.lock();
+	async_require_pool.push(tmp_arg);
+	async_require_pool_mutex.unlock();
+	return 1;
+}
+
+int LogTransfer::async_require_log(TrxID trx_id, uint64_t *latency_ptr,MessageHandle * require_response_handle)
+{
+    if(check_failed_connections_and_retry() < 0)
+    {
+        std::cout << TRANSFER_ERROR_HEADER << " ASYNC SEND LOG ERROR ! " << "Because failed connections" << std::endl;
+        return -1;
+    }
+
+	::MMLP_BRPC::LogRequireRequest request;
+	request.set_trxid(trx_id);
+	
+	brpc::Controller * cntrl_ptr = NULL;
+	::MMLP_BRPC::LogRequireResponse * response_ptr = NULL;
+	get_require_async_arg(response_ptr, cntrl_ptr);
+	::MMLP_BRPC::TrxLogService_Stub stub(&require_channels);
+	stub.requireLog(cntrl_ptr,&request,response_ptr,brpc::NewCallback(OnLogRequireRPCDone,response_ptr,cntrl_ptr,this,require_response_handle));
+
+	if(!cntrl_ptr->Failed())
+	{
+		//latency record
+		if(latency_ptr != NULL)
+		{
+			*latency_ptr =  cntrl_ptr->latency_us();
+		}
+#if BRPC_HANDLE_DEBUG
+	std::cout << TRANSFER_DEBUG_HEADER << "ASYNC(not done) REQUIRE LOG SUCCESS " << std::endl;
+#endif
+	}
+	else
+	{
+		if(latency_ptr != NULL)
+		{
+			*latency_ptr = cntrl_ptr->latency_us();
+		}
+		std::cout  << TRANSFER_ERROR_HEADER << "ASYNC REQUIRE LOG ERROR ! " << cntrl_ptr->ErrorText() << std::endl;
+		return -1;		
+	}
+	return 1;
+}
 
 /**
  * Debug functions

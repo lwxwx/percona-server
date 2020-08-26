@@ -919,6 +919,7 @@ class LogRequireResponse PROTOBUF_FINAL :
     kLogMsgFieldNumber = 3,
     kRequireReplyFieldNumber = 1,
     kIsValidFieldNumber = 2,
+    kTrxIDFieldNumber = 4,
   };
   // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
   int log_msg_size() const;
@@ -964,6 +965,19 @@ class LogRequireResponse PROTOBUF_FINAL :
   void _internal_set_is_valid(bool value);
   public:
 
+  // optional uint64 trxID = 4;
+  bool has_trxid() const;
+  private:
+  bool _internal_has_trxid() const;
+  public:
+  void clear_trxid();
+  ::PROTOBUF_NAMESPACE_ID::uint64 trxid() const;
+  void set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::uint64 _internal_trxid() const;
+  void _internal_set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value);
+  public:
+
   // @@protoc_insertion_point(class_scope:MMLP_BRPC.LogRequireResponse)
  private:
   class _Internal;
@@ -979,6 +993,7 @@ class LogRequireResponse PROTOBUF_FINAL :
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg > log_msg_;
   ::PROTOBUF_NAMESPACE_ID::int32 require_reply_;
   bool is_valid_;
+  ::PROTOBUF_NAMESPACE_ID::uint64 trxid_;
   friend struct ::TableStruct_trx_5flog_2eproto;
 };
 // ===================================================================
@@ -1524,6 +1539,34 @@ inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >
 LogRequireResponse::log_msg() const {
   // @@protoc_insertion_point(field_list:MMLP_BRPC.LogRequireResponse.log_msg)
   return log_msg_;
+}
+
+// optional uint64 trxID = 4;
+inline bool LogRequireResponse::_internal_has_trxid() const {
+  bool value = (_has_bits_[0] & 0x00000004u) != 0;
+  return value;
+}
+inline bool LogRequireResponse::has_trxid() const {
+  return _internal_has_trxid();
+}
+inline void LogRequireResponse::clear_trxid() {
+  trxid_ = PROTOBUF_ULONGLONG(0);
+  _has_bits_[0] &= ~0x00000004u;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint64 LogRequireResponse::_internal_trxid() const {
+  return trxid_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::uint64 LogRequireResponse::trxid() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireResponse.trxID)
+  return _internal_trxid();
+}
+inline void LogRequireResponse::_internal_set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  _has_bits_[0] |= 0x00000004u;
+  trxid_ = value;
+}
+inline void LogRequireResponse::set_trxid(::PROTOBUF_NAMESPACE_ID::uint64 value) {
+  _internal_set_trxid(value);
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireResponse.trxID)
 }
 
 #ifdef __GNUC__

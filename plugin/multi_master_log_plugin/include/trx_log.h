@@ -50,12 +50,15 @@ class TrxLog
 		std::list<RedoLogRec *> completed_rec_list;
 		RedoLogRec * now_rec;
 
+		TrxID snapshot_state;
+
 	public:
 		uint64_t us_latency;
 
 		TrxLog()
 		{
 			trx_no = 0;
+			snapshot_state = 0;
 			trx_is_started = false;
 			trx_is_commited = false;
 			trx_is_rollback = false;
@@ -70,16 +73,30 @@ class TrxLog
 
 		int rollback_trx_log(TrxID id);
 
+		//Tool functions
 		int log_clear();
 		TrxID get_trxID()
 		{
 			return trx_no;
 		}
+		bool get_rollback_status()
+		{
+			return trx_is_rollback;
+		}
+		TrxID get_snapshot_state()
+		{
+			return snapshot_state;
+		}
+		void  set_snapshot_state(TrxID id)
+		{
+			snapshot_state = id;
+		}
 
+		//message encode
 		int trx_log_encode_into_msg(MMLP_BRPC::LogSendRequest & res);
 		int trx_log_decode_from_msg(MMLP_BRPC::LogSendRequest & res);
+		int trx_log_encode_into_msg(MMLP_BRPC::LogRequireResponse & res);
+		int trx_log_decode_from_msg(MMLP_BRPC::LogRequireResponse & res);
 };
-
-
 
 #endif

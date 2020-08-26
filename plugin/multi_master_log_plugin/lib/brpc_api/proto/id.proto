@@ -1,0 +1,25 @@
+/*
+ * @Author: liu
+ * @Date: 2020-07-09 09:30
+ * @LastEditors: Do not edit
+ * @LastEditTime: 
+ * @Description: file content
+ * @FilePath: /multi-master-tool/id-increment/id.proto
+ */
+
+syntax="proto2";
+package IDIncrement;
+
+option cc_generic_services = true;
+
+message IDRequest {
+      required string message = 1;
+};
+
+message IDResponse {
+      required string message = 1;
+};
+
+service IDService {
+      rpc IDInc(IDRequest) returns (IDResponse);
+};

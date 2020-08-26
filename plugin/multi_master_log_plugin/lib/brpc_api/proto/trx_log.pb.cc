@@ -162,16 +162,18 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_trx_5flog_2eproto::offsets[] P
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, require_reply_),
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, is_valid_),
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, log_msg_),
+  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, trxid_),
   0,
   1,
   ~0u,
+  2,
 };
 static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, 10, sizeof(::MMLP_BRPC::TrxLogMsg)},
   { 15, 23, sizeof(::MMLP_BRPC::LogSendRequest)},
   { 26, 32, sizeof(::MMLP_BRPC::LogSendResponse)},
   { 33, 39, sizeof(::MMLP_BRPC::LogRequireRequest)},
-  { 40, 48, sizeof(::MMLP_BRPC::LogRequireResponse)},
+  { 40, 49, sizeof(::MMLP_BRPC::LogRequireResponse)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -190,13 +192,14 @@ const char descriptor_table_protodef_trx_5flog_2eproto[] PROTOBUF_SECTION_VARIAB
   "id\030\002 \002(\010\022%\n\007log_msg\030\003 \003(\0132\024.MMLP_BRPC.Tr"
   "xLogMsg\"%\n\017LogSendResponse\022\022\n\nsend_reply"
   "\030\001 \002(\021\"\"\n\021LogRequireRequest\022\r\n\005trxID\030\001 \002"
-  "(\004\"d\n\022LogRequireResponse\022\025\n\rrequire_repl"
+  "(\004\"s\n\022LogRequireResponse\022\025\n\rrequire_repl"
   "y\030\001 \002(\021\022\020\n\010is_valid\030\002 \002(\010\022%\n\007log_msg\030\003 \003"
-  "(\0132\024.MMLP_BRPC.TrxLogMsg2\234\001\n\rTrxLogServi"
-  "ce\022@\n\007sendLog\022\031.MMLP_BRPC.LogSendRequest"
-  "\032\032.MMLP_BRPC.LogSendResponse\022I\n\nrequireL"
-  "og\022\034.MMLP_BRPC.LogRequireRequest\032\035.MMLP_"
-  "BRPC.LogRequireResponseB\003\200\001\001"
+  "(\0132\024.MMLP_BRPC.TrxLogMsg\022\r\n\005trxID\030\004 \001(\0042"
+  "\234\001\n\rTrxLogService\022@\n\007sendLog\022\031.MMLP_BRPC"
+  ".LogSendRequest\032\032.MMLP_BRPC.LogSendRespo"
+  "nse\022I\n\nrequireLog\022\034.MMLP_BRPC.LogRequire"
+  "Request\032\035.MMLP_BRPC.LogRequireResponseB\003"
+  "\200\001\001"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_trx_5flog_2eproto_deps[1] = {
 };
@@ -209,7 +212,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_trx
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_trx_5flog_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_trx_5flog_2eproto = {
-  false, false, descriptor_table_protodef_trx_5flog_2eproto, "trx_log.proto", 548,
+  false, false, descriptor_table_protodef_trx_5flog_2eproto, "trx_log.proto", 563,
   &descriptor_table_trx_5flog_2eproto_once, descriptor_table_trx_5flog_2eproto_sccs, descriptor_table_trx_5flog_2eproto_deps, 5, 0,
   schemas, file_default_instances, TableStruct_trx_5flog_2eproto::offsets,
   file_level_metadata_trx_5flog_2eproto, 5, file_level_enum_descriptors_trx_5flog_2eproto, file_level_service_descriptors_trx_5flog_2eproto,
@@ -1346,6 +1349,9 @@ class LogRequireResponse::_Internal {
   static void set_has_is_valid(HasBits* has_bits) {
     (*has_bits)[0] |= 2u;
   }
+  static void set_has_trxid(HasBits* has_bits) {
+    (*has_bits)[0] |= 4u;
+  }
   static bool MissingRequiredFields(const HasBits& has_bits) {
     return ((has_bits[0] & 0x00000003) ^ 0x00000003) != 0;
   }
@@ -1364,16 +1370,16 @@ LogRequireResponse::LogRequireResponse(const LogRequireResponse& from)
       log_msg_(from.log_msg_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::memcpy(&require_reply_, &from.require_reply_,
-    static_cast<size_t>(reinterpret_cast<char*>(&is_valid_) -
-    reinterpret_cast<char*>(&require_reply_)) + sizeof(is_valid_));
+    static_cast<size_t>(reinterpret_cast<char*>(&trxid_) -
+    reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
   // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.LogRequireResponse)
 }
 
 void LogRequireResponse::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_LogRequireResponse_trx_5flog_2eproto.base);
   ::memset(&require_reply_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&is_valid_) -
-      reinterpret_cast<char*>(&require_reply_)) + sizeof(is_valid_));
+      reinterpret_cast<char*>(&trxid_) -
+      reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
 }
 
 LogRequireResponse::~LogRequireResponse() {
@@ -1409,10 +1415,10 @@ void LogRequireResponse::Clear() {
 
   log_msg_.Clear();
   cached_has_bits = _has_bits_[0];
-  if (cached_has_bits & 0x00000003u) {
+  if (cached_has_bits & 0x00000007u) {
     ::memset(&require_reply_, 0, static_cast<size_t>(
-        reinterpret_cast<char*>(&is_valid_) -
-        reinterpret_cast<char*>(&require_reply_)) + sizeof(is_valid_));
+        reinterpret_cast<char*>(&trxid_) -
+        reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
   }
   _has_bits_.Clear();
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
@@ -1453,6 +1459,14 @@ const char* LogRequireResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMES
             CHK_(ptr);
             if (!ctx->DataAvailable(ptr)) break;
           } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<26>(ptr));
+        } else goto handle_unusual;
+        continue;
+      // optional uint64 trxID = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 32)) {
+          _Internal::set_has_trxid(&has_bits);
+          trxid_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
         } else goto handle_unusual;
         continue;
       default: {
@@ -1503,6 +1517,12 @@ failure:
     target = stream->EnsureSpace(target);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
       InternalWriteMessage(3, this->_internal_log_msg(i), target, stream);
+  }
+
+  // optional uint64 trxID = 4;
+  if (cached_has_bits & 0x00000004u) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt64ToArray(4, this->_internal_trxid(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -1558,6 +1578,14 @@ size_t LogRequireResponse::ByteSizeLong() const {
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
   }
 
+  // optional uint64 trxID = 4;
+  cached_has_bits = _has_bits_[0];
+  if (cached_has_bits & 0x00000004u) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt64Size(
+        this->_internal_trxid());
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
         _internal_metadata_, total_size, &_cached_size_);
@@ -1591,12 +1619,15 @@ void LogRequireResponse::MergeFrom(const LogRequireResponse& from) {
 
   log_msg_.MergeFrom(from.log_msg_);
   cached_has_bits = from._has_bits_[0];
-  if (cached_has_bits & 0x00000003u) {
+  if (cached_has_bits & 0x00000007u) {
     if (cached_has_bits & 0x00000001u) {
       require_reply_ = from.require_reply_;
     }
     if (cached_has_bits & 0x00000002u) {
       is_valid_ = from.is_valid_;
+    }
+    if (cached_has_bits & 0x00000004u) {
+      trxid_ = from.trxid_;
     }
     _has_bits_[0] |= cached_has_bits;
   }
@@ -1628,8 +1659,8 @@ void LogRequireResponse::InternalSwap(LogRequireResponse* other) {
   swap(_has_bits_[0], other->_has_bits_[0]);
   log_msg_.InternalSwap(&other->log_msg_);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(LogRequireResponse, is_valid_)
-      + sizeof(LogRequireResponse::is_valid_)
+      PROTOBUF_FIELD_OFFSET(LogRequireResponse, trxid_)
+      + sizeof(LogRequireResponse::trxid_)
       - PROTOBUF_FIELD_OFFSET(LogRequireResponse, require_reply_)>(
           reinterpret_cast<char*>(&require_reply_),
           reinterpret_cast<char*>(&other->require_reply_));

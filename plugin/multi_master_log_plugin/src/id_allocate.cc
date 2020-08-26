@@ -8,9 +8,18 @@
  */
 
 #include "id_allocate.h"
+#include <cassert>
 #include <chrono>
 #include <iostream>
-
+#include <iterator>
+#include <mutex>
+#include "brpc/channel.h"
+#include "brpc/controller.h"
+#include "brpc/options.pb.h"
+#include "id.pb.h"
+#include "mmlp_type.h"
+#include <string>
+#include <memory>
 /**
  * class GlobalTrxIDFactory
  * **/
@@ -41,6 +50,10 @@ int GlobalTrxIDFactory::init(ID_FACTORY_TYPE type)
         global_id_gen = new PhxPaxosTrxIdGen_SYNC;
     }
 #endif
+	if(factory_type == ID_FACTORY_TYPE::FROM_REMOTE_NODE_ASYNC)
+	{
+		global_id_gen = new RemoteNodeTrxIdGen;
+	}
 
     if(global_id_gen != NULL)
         global_id_gen->init();
@@ -62,16 +75,91 @@ TrxID GlobalTrxIDFactory::getGlobalTrxID()
 }
 
 /**
+ * class RemoteNodeTrxIdGen
+ * **/
+int RemoteNodeTrxIdGen::init()
+{
+	if(remote_id_server_addr != nullptr)
+		server_addr = remote_id_server_addr;
+	brpc::ChannelOptions options; 
+	options.protocol = brpc::PROTOCOL_BAIDU_STD;
+    options.connection_type = brpc::CONNECTION_TYPE_SINGLE;
+
+    if (channel.Init(server_addr.c_str(), &options) != 0) {
+		std::cout << REMOTE_NODE_GEN_ERROR << "Fail to initialize channel"<< std::endl;;
+        return -1;
+    }
+}
+
+int RemoteNodeTrxIdGen::handle_request()
+{
+    stub_ptr =  new IDIncrement::IDService_Stub(&channel);
+
+	IDIncrement::IDRequest request;
+	brpc::Controller * cntrl = new brpc::Controller;
+	IDIncrement::IDResponse * response_ptr = new IDIncrement::IDResponse;
+
+	request.set_message("request id");
+
+	google::protobuf::Closure* done = brpc::NewCallback(&idIncrementResponseHanle,cntrl,response_ptr,this);
+	stub_ptr->IDInc(cntrl, &request, response_ptr, done);
+}
+
+void idIncrementResponseHanle(brpc::Controller * cntrl,IDIncrement::IDResponse * response_ptr,RemoteNodeTrxIdGen * id_gen)
+{
+    // std::unique_ptr makes sure cntl/response will be deleted before returning.
+	std::unique_ptr<brpc::Controller> cntl_guard(cntrl);
+	std::unique_ptr<IDIncrement::IDResponse> response_guard(response_ptr);
+   
+    if (cntrl->Failed()) {
+		std::cout << REMOTE_NODE_GEN_ERROR  <<"Fail to send IDIncrementRequest, " << cntrl->ErrorText()<<std::endl;
+        return;
+    }
+    // std::cout << REMOTE_NODE_GEN_DEBUG <<"Received id : "<<response_ptr->message()<<std::endl;
+    // brpc::AskToQuit();
+	id_gen->cacheIncrementID((TrxID)std::stoull(response_ptr->message()));
+}
+
+int RemoteNodeTrxIdGen::cacheIncrementID(TrxID id)
+{
+	std::unique_lock<std::mutex> cache_lock(cache_queue_mutex);
+	cache_queue.insert(id);
+	cache_id_condition.notify_one();
+	return 1;
+}
+
+TrxID RemoteNodeTrxIdGen::get_id()
+{
+	int wait_count = 0;
+	std::unique_lock<std::mutex> cache_lock(cache_queue_mutex);
+	if(cache_queue.empty())
+	{
+		handle_request();
+		while(cache_queue.empty())
+		{
+			cache_id_condition.wait_for(cache_lock,std::chrono::seconds(5));	
+			if(wait_count >= 3)
+			{
+				std::cout << "IDIncrement get_id() Failed 3 times"  << std::endl;
+				handle_request();
+				wait_count  = 0;
+				//assert(false);
+			}
+			wait_count++;
+		}
+	}
+	
+	TrxID id = *cache_queue.begin();
+	cache_queue.erase(cache_queue.begin());
+	return id;
+}
+
+
+/**
  * class SliceTrxIdGen_SYNC
  * **/
 int SliceTrxIdGen_SYNC::init()
-{
-    slice_len = 0;
-    std::string peers_str = std::string(brpc_peer_nodes_ptr);
-    std::stringstream peers_ss(peers_str);
-    std::string tmp;
-    //std::cout <<"Peer Nodes : " << peers_str << std::endl;
-    while(!peers_ss.eof())
+{ slice_len = 0; std::string peers_str = std::string(brpc_peer_nodes_ptr); std::stringstream peers_ss(peers_str); std::string tmp; //std::cout <<"Peer Nodes : " << peers_str << std::endl; while(!peers_ss.eof())
     {
         getline(peers_ss,tmp,',');
      //   std::cout << "Line Node : " << tmp << std::endl;

@@ -10,6 +10,9 @@
 #ifndef GLOBAL_TRX_ID_ALLOCATE_HEADER
 #define GLOBAL_TRX_ID_ALLOCATE_HEADER
 
+#include <condition_variable>
+#include "brpc/channel.h"
+#include "id.pb.h"
 #define PHXPAXOS_ID_COMPLIE 0
 
 #include "mmlp_type.h"
@@ -24,10 +27,13 @@
 #include <string>
 #include <sstream>
 
+#define  REMOTE_NODE_GEN_DEBUG "[RemoteNodeTrxIdGen DEBUG] : "
+#define  REMOTE_NODE_GEN_ERROR "[RemoteNodeTrxIdGen ERROR] : "
+
 enum ID_FACTORY_TYPE
 {
     PHXPAXOS_PROPOSE_SYNC = 16,
-    FROM_REMOTE_NODE_SYNC = 1,
+    FROM_REMOTE_NODE_ASYNC = 1,
     SLICE_ID_GEN_SYNC = 0
 };
 
@@ -78,16 +84,26 @@ class PhxPaxosTrxIdGen_SYNC : public GlobalTrxIdGen
     TrxID get_id();
 };
 #endif
-// class RemoteNodeTrxIdGen : public GlobalTrxIdGen
-// {
-//     private:
-//     std::queue<TrxID> cache_id;
 
-//     public:
-//     int init();
-//     int handle_request();
-//     int get_id();
-// };
+class RemoteNodeTrxIdGen : public GlobalTrxIdGen
+{
+    private:
+    std::set<TrxID> cache_queue;
+	std::mutex cache_queue_mutex;
+	std::condition_variable cache_id_condition;
+	
+	std::string server_addr;
+	brpc::Channel channel;
+	IDIncrement::IDService_Stub * stub_ptr;
+    public:
+    int init();
+    int handle_request();
+    TrxID get_id();
+
+	int cacheIncrementID(TrxID id);
+};
+
+void idIncrementResponseHanle(brpc::Controller * cntrl,IDIncrement::IDResponse * response_ptr,RemoteNodeTrxIdGen * id_gen);
 
 class SliceTrxIdGen_SYNC : public GlobalTrxIdGen
 {
