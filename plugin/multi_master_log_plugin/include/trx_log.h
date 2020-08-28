@@ -91,6 +91,10 @@ class TrxLog
 		{
 			snapshot_state = id;
 		}
+		bool is_empty()
+		{
+			return completed_rec_list.empty();
+		}
 
 		//message encode
 		int trx_log_encode_into_msg(MMLP_BRPC::LogSendRequest & res);

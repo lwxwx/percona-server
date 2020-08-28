@@ -32,6 +32,7 @@ int DEBUG_REDO_LOG_COLLECT = 0;
 int DEBUG_PHXPAXOS_PRINT = 0;
 int DEBUG_PHXPAXOS_TIME = 0;
 int DEBUG_SLICE_TIME = 0;
+int DEBUG_REMOTE_ID_TIME = 0;
 int DEBUG_LOG_SEND_TIME = 0;
 int DEBUG_TRX_TIME = 0;
 int DEBUG_LOG_REQUIRE_TIME = 0;
@@ -44,6 +45,11 @@ int SELECT_CONFLICT_HANDLE_TYPE = 0;
 
 //remote id arg
 char * remote_id_server_addr = NULL;
+unsigned long long remote_id_handle_time = 0;
+unsigned long long remote_id_handle_count = 0;
+unsigned long long remote_id_get_time = 0;
+unsigned long long remote_id_get_count = 0;
+unsigned long long remote_id_over_wait_count = 0;
 
 //slice id arg
 unsigned long slice_node_no;
@@ -184,6 +190,18 @@ MYSQL_SYSVAR_INT(debug_slice_time,
     0
 );
 
+MYSQL_SYSVAR_INT(debug_remote_id_time,
+    DEBUG_REMOTE_ID_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "remote id time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
 MYSQL_SYSVAR_INT(debug_log_send_time,
     DEBUG_LOG_SEND_TIME,
     PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
@@ -267,6 +285,65 @@ MYSQL_SYSVAR_STR(remote_id_server_addr,
     NULL
 );
 
+MYSQL_SYSVAR_ULONGLONG(remote_id_handle_time,
+    remote_id_handle_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "REMOTE ID HANDLE TIME",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(remote_id_handle_count,
+    remote_id_handle_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "REMOTE ID HANDLE COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(remote_id_get_time,
+    remote_id_get_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "REMOTE ID Get TIME",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(remote_id_get_count,
+    remote_id_get_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "REMOTE ID Get COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(remote_id_over_wait_count,
+    remote_id_over_wait_count,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG ,
+    "REMOTE ID OVER WAITI COUNT",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
 
 /*slice id sysvar*/
 MYSQL_SYSVAR_ULONG(slice_node_no,
@@ -662,11 +739,17 @@ static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(debug_trx_time),
 	MYSQL_SYSVAR(debug_log_require_time),
 	MYSQL_SYSVAR(debug_conflict_time),
+	MYSQL_SYSVAR(debug_remote_id_time),
 
     MYSQL_SYSVAR(select_log_async_type),
     MYSQL_SYSVAR(select_trx_id_allocate_type),
 
 	MYSQL_SYSVAR(remote_id_server_addr),
+	MYSQL_SYSVAR(remote_id_get_time),
+	MYSQL_SYSVAR(remote_id_get_count),
+	MYSQL_SYSVAR(remote_id_handle_time),
+	MYSQL_SYSVAR(remote_id_handle_count),
+	MYSQL_SYSVAR(remote_id_over_wait_count),
 
     MYSQL_SYSVAR(slice_node_no),
     MYSQL_SYSVAR(slice_gen_time),

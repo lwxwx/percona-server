@@ -41,6 +41,7 @@ extern int DEBUG_REDO_LOG_COLLECT;
 extern int DEBUG_PHXPAXOS_PRINT;
 extern int DEBUG_PHXPAXOS_TIME;
 extern int DEBUG_SLICE_TIME;
+extern int DEBUG_REMOTE_ID_TIME;
 extern int DEBUG_LOG_SEND_TIME;
 extern int DEBUG_TRX_TIME;
 extern int DEBUG_LOG_REQUIRE_TIME;
@@ -51,6 +52,11 @@ extern int SELECT_TRX_ID_ALLOCATE_TYPE;
 extern int SELECT_CONFLICT_HANDLE_TYPE;
 
 extern char * remote_id_server_addr;
+extern unsigned long long remote_id_handle_time;
+extern unsigned long long remote_id_handle_count;
+extern unsigned long long remote_id_get_time;
+extern unsigned long long remote_id_get_count;
+extern unsigned long long remote_id_over_wait_count;
 
 extern unsigned long slice_node_no;
 extern unsigned long long slice_gen_time;

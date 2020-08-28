@@ -10,6 +10,7 @@
 #include "id_allocate.h"
 #include <cassert>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <iterator>
 #include <mutex>
@@ -84,7 +85,7 @@ int RemoteNodeTrxIdGen::init()
 	brpc::ChannelOptions options; 
 	options.protocol = brpc::PROTOCOL_BAIDU_STD;
     options.connection_type = brpc::CONNECTION_TYPE_SINGLE;
-
+	//options.max_retry = 5;
     if (channel.Init(server_addr.c_str(), &options) != 0) {
 		std::cout << REMOTE_NODE_GEN_ERROR << "Fail to initialize channel"<< std::endl;;
         return -1;
@@ -93,7 +94,13 @@ int RemoteNodeTrxIdGen::init()
 
 int RemoteNodeTrxIdGen::handle_request()
 {
-    stub_ptr =  new IDIncrement::IDService_Stub(&channel);
+	uint64_t before_handle_request;
+    if(DEBUG_REMOTE_ID_TIME != 0)
+    {
+        before_handle_request = (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
+    }
+ 
+	stub_ptr =  new IDIncrement::IDService_Stub(&channel);
 
 	IDIncrement::IDRequest request;
 	brpc::Controller * cntrl = new brpc::Controller;
@@ -103,6 +110,12 @@ int RemoteNodeTrxIdGen::handle_request()
 
 	google::protobuf::Closure* done = brpc::NewCallback(&idIncrementResponseHanle,cntrl,response_ptr,this);
 	stub_ptr->IDInc(cntrl, &request, response_ptr, done);
+
+    if(DEBUG_REMOTE_ID_TIME != 0)
+    {
+        remote_id_handle_count++;
+        remote_id_handle_time += (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count()- before_handle_request;
+    }
 }
 
 void idIncrementResponseHanle(brpc::Controller * cntrl,IDIncrement::IDResponse * response_ptr,RemoteNodeTrxIdGen * id_gen)
@@ -112,10 +125,11 @@ void idIncrementResponseHanle(brpc::Controller * cntrl,IDIncrement::IDResponse *
 	std::unique_ptr<IDIncrement::IDResponse> response_guard(response_ptr);
    
     if (cntrl->Failed()) {
+		id_gen->handle_request();
 		std::cout << REMOTE_NODE_GEN_ERROR  <<"Fail to send IDIncrementRequest, " << cntrl->ErrorText()<<std::endl;
         return;
     }
-    // std::cout << REMOTE_NODE_GEN_DEBUG <<"Received id : "<<response_ptr->message()<<std::endl;
+//   std::cout << REMOTE_NODE_GEN_DEBUG <<"Received id : "<<response_ptr->message()<<std::endl;
     // brpc::AskToQuit();
 	id_gen->cacheIncrementID((TrxID)std::stoull(response_ptr->message()));
 }
@@ -130,27 +144,43 @@ int RemoteNodeTrxIdGen::cacheIncrementID(TrxID id)
 
 TrxID RemoteNodeTrxIdGen::get_id()
 {
-	int wait_count = 0;
+
+	uint64_t before_get_id;
+    if(DEBUG_REMOTE_ID_TIME != 0)
+    {
+        before_get_id = (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
+    }
+//	int wait_count = 0;
 	std::unique_lock<std::mutex> cache_lock(cache_queue_mutex);
 	if(cache_queue.empty())
 	{
-		handle_request();
+//		handle_request();
 		while(cache_queue.empty())
 		{
 			cache_id_condition.wait_for(cache_lock,std::chrono::seconds(5));	
-			if(wait_count >= 3)
+			if(cache_queue.empty())// && wait_count >= 1)
 			{
-				std::cout << "IDIncrement get_id() Failed 3 times"  << std::endl;
-				handle_request();
-				wait_count  = 0;
+				std::cout << "IDIncrement get_id() Failed times, cache_queue.empty() is " << cache_queue.empty()  << std::endl;
+				if(DEBUG_REMOTE_ID_TIME !=0 )
+				{
+					remote_id_over_wait_count++;
+				}
+			    handle_request();
+				//wait_count  = 0;
 				//assert(false);
 			}
-			wait_count++;
+		//	wait_count++;
 		}
 	}
 	
 	TrxID id = *cache_queue.begin();
+//	std::cout << "Get Remote ID of "  << id << std::endl;
 	cache_queue.erase(cache_queue.begin());
+    if(DEBUG_REMOTE_ID_TIME != 0)
+	{
+		remote_id_get_count++;
+        remote_id_get_time += (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count()- before_get_id;
+	}
 	return id;
 }
 
@@ -179,7 +209,7 @@ TrxID SliceTrxIdGen_SYNC::get_id()
     {
         before_slice_cal = (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
     }
-
+	
     slice_count++;
     TrxID id = node_no + slice_count * slice_len;
 

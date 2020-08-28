@@ -41,7 +41,7 @@ TrxInfo::~TrxInfo()
 }
 
 int TrxInfo::init() {
-  global_reply_status = 0;
+  global_reply_status = -1;
 
   id_factory.init((ID_FACTORY_TYPE)SELECT_TRX_ID_ALLOCATE_TYPE);
 
@@ -87,6 +87,8 @@ int TrxInfo::trx_started() {
 
   trx_redo->set_snapshot_state(global_reply_status);
   trx_redo->trx_started();
+
+  //id_factory.requestGlobalTrxID();
 
   return 1;
 }
@@ -139,6 +141,8 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
 	else
 	{
 		trx_redo->wr_trx_commiting(global_id);
+		if(global_id > global_reply_status)
+			global_reply_status  = global_id;
 	}
 	trx_hole_set.complement_hole(global_id);
 	insert_global_trx_log(trx_redo);
@@ -256,6 +260,12 @@ int TrxInfo::mtr_redolog_record_new(size_t size) {
   }
 
   TrxLog *trx_redo = working_thread_map[tid];
+
+  //first redo log need a global id
+  if(trx_redo->is_empty())
+  {
+	  id_factory.requestGlobalTrxID();
+  }
 
   if (trx_redo->new_redolog_record(size) <= 0) {
     if (DEBUG_REDO_LOG_COLLECT != 0) {
@@ -380,13 +390,14 @@ int TrxInfo::handle_log_require_request(MMLP_BRPC::LogRequireRequest &request, M
 
 	if(trx_log == NULL)
 	{
-		response.set_trxid(trx_log->get_trxID());
+		response.set_trxid(request.trxid());
 		response.set_is_valid(false);
 		response.set_require_reply(-1);
 		return -1;
 	}
 	else
 	{
+		response.set_require_reply(1);
 		trx_log->trx_log_encode_into_msg(response);
 		return 1;
 	}

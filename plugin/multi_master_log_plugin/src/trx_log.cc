@@ -190,7 +190,8 @@ int TrxLog::trx_log_encode_into_msg(MMLP_BRPC::LogRequireResponse & res)
 		res.set_is_valid(false);
 		return 0;
 	}
-
+	
+	res.set_is_valid(true);
 	MMLP_BRPC::TrxLogMsg * msg_ptr = NULL;
 	for(auto it = completed_rec_list.begin(); it != completed_rec_list.end() ; it++)
 	{
