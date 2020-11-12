@@ -14,8 +14,13 @@
 #include <google/protobuf/wire_format.h>
 // @@protoc_insertion_point(includes)
 #include <google/protobuf/port_def.inc>
-extern PROTOBUF_INTERNAL_EXPORT_trx_5flog_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_TrxLogMsg_trx_5flog_2eproto;
+extern PROTOBUF_INTERNAL_EXPORT_trx_5flog_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_BenchLogMsg_trx_5flog_2eproto;
+extern PROTOBUF_INTERNAL_EXPORT_trx_5flog_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_TrxLogMsg_trx_5flog_2eproto;
 namespace MMLP_BRPC {
+class BenchLogMsgDefaultTypeInternal {
+ public:
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<BenchLogMsg> _instance;
+} _BenchLogMsg_default_instance_;
 class TrxLogMsgDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<TrxLogMsg> _instance;
@@ -37,6 +42,20 @@ class LogRequireResponseDefaultTypeInternal {
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<LogRequireResponse> _instance;
 } _LogRequireResponse_default_instance_;
 }  // namespace MMLP_BRPC
+static void InitDefaultsscc_info_BenchLogMsg_trx_5flog_2eproto() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::MMLP_BRPC::_BenchLogMsg_default_instance_;
+    new (ptr) ::MMLP_BRPC::BenchLogMsg();
+    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::MMLP_BRPC::BenchLogMsg::InitAsDefaultInstance();
+}
+
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_BenchLogMsg_trx_5flog_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_BenchLogMsg_trx_5flog_2eproto}, {}};
+
 static void InitDefaultsscc_info_LogRequireRequest_trx_5flog_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -106,14 +125,24 @@ static void InitDefaultsscc_info_TrxLogMsg_trx_5flog_2eproto() {
   ::MMLP_BRPC::TrxLogMsg::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_TrxLogMsg_trx_5flog_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_TrxLogMsg_trx_5flog_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_TrxLogMsg_trx_5flog_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_TrxLogMsg_trx_5flog_2eproto}, {
+      &scc_info_BenchLogMsg_trx_5flog_2eproto.base,}};
 
-static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_trx_5flog_2eproto[5];
+static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_trx_5flog_2eproto[6];
 static constexpr ::PROTOBUF_NAMESPACE_ID::EnumDescriptor const** file_level_enum_descriptors_trx_5flog_2eproto = nullptr;
 static const ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor* file_level_service_descriptors_trx_5flog_2eproto[1];
 
 const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_trx_5flog_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
+  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, _has_bits_),
+  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, page_no_),
+  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, row_no_),
+  0,
+  1,
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, _has_bits_),
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -124,11 +153,13 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_trx_5flog_2eproto::offsets[] P
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, page_no_),
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, offset_),
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, rec_),
+  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, benchmsg_),
   1,
   2,
   3,
   4,
   0,
+  ~0u,
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, _has_bits_),
   PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -169,14 +200,16 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_trx_5flog_2eproto::offsets[] P
   2,
 };
 static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
-  { 0, 10, sizeof(::MMLP_BRPC::TrxLogMsg)},
-  { 15, 23, sizeof(::MMLP_BRPC::LogSendRequest)},
-  { 26, 32, sizeof(::MMLP_BRPC::LogSendResponse)},
-  { 33, 39, sizeof(::MMLP_BRPC::LogRequireRequest)},
-  { 40, 49, sizeof(::MMLP_BRPC::LogRequireResponse)},
+  { 0, 7, sizeof(::MMLP_BRPC::BenchLogMsg)},
+  { 9, 20, sizeof(::MMLP_BRPC::TrxLogMsg)},
+  { 26, 34, sizeof(::MMLP_BRPC::LogSendRequest)},
+  { 37, 43, sizeof(::MMLP_BRPC::LogSendResponse)},
+  { 44, 50, sizeof(::MMLP_BRPC::LogRequireRequest)},
+  { 51, 60, sizeof(::MMLP_BRPC::LogRequireResponse)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_BenchLogMsg_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_TrxLogMsg_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_LogSendRequest_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_LogSendResponse_default_instance_),
@@ -185,25 +218,28 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
 };
 
 const char descriptor_table_protodef_trx_5flog_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\rtrx_log.proto\022\tMMLP_BRPC\"Y\n\tTrxLogMsg\022"
-  "\014\n\004type\030\001 \002(\021\022\020\n\010space_id\030\002 \002(\r\022\017\n\007page_"
-  "no\030\003 \002(\r\022\016\n\006offset\030\004 \002(\r\022\013\n\003rec\030\005 \002(\014\"X\n"
-  "\016LogSendRequest\022\r\n\005trxID\030\001 \002(\004\022\020\n\010is_val"
-  "id\030\002 \002(\010\022%\n\007log_msg\030\003 \003(\0132\024.MMLP_BRPC.Tr"
-  "xLogMsg\"%\n\017LogSendResponse\022\022\n\nsend_reply"
-  "\030\001 \002(\021\"\"\n\021LogRequireRequest\022\r\n\005trxID\030\001 \002"
-  "(\004\"s\n\022LogRequireResponse\022\025\n\rrequire_repl"
-  "y\030\001 \002(\021\022\020\n\010is_valid\030\002 \002(\010\022%\n\007log_msg\030\003 \003"
-  "(\0132\024.MMLP_BRPC.TrxLogMsg\022\r\n\005trxID\030\004 \001(\0042"
-  "\234\001\n\rTrxLogService\022@\n\007sendLog\022\031.MMLP_BRPC"
-  ".LogSendRequest\032\032.MMLP_BRPC.LogSendRespo"
-  "nse\022I\n\nrequireLog\022\034.MMLP_BRPC.LogRequire"
-  "Request\032\035.MMLP_BRPC.LogRequireResponseB\003"
-  "\200\001\001"
+  "\n\rtrx_log.proto\022\tMMLP_BRPC\".\n\013BenchLogMs"
+  "g\022\017\n\007page_no\030\001 \002(\r\022\016\n\006row_no\030\002 \002(\r\"\203\001\n\tT"
+  "rxLogMsg\022\014\n\004type\030\001 \002(\021\022\020\n\010space_id\030\002 \002(\r"
+  "\022\017\n\007page_no\030\003 \002(\r\022\016\n\006offset\030\004 \002(\r\022\013\n\003rec"
+  "\030\005 \002(\014\022(\n\010benchmsg\030\006 \003(\0132\026.MMLP_BRPC.Ben"
+  "chLogMsg\"X\n\016LogSendRequest\022\r\n\005trxID\030\001 \002("
+  "\004\022\020\n\010is_valid\030\002 \002(\010\022%\n\007log_msg\030\003 \003(\0132\024.M"
+  "MLP_BRPC.TrxLogMsg\"%\n\017LogSendResponse\022\022\n"
+  "\nsend_reply\030\001 \002(\021\"\"\n\021LogRequireRequest\022\r"
+  "\n\005trxID\030\001 \002(\004\"s\n\022LogRequireResponse\022\025\n\rr"
+  "equire_reply\030\001 \002(\021\022\020\n\010is_valid\030\002 \002(\010\022%\n\007"
+  "log_msg\030\003 \003(\0132\024.MMLP_BRPC.TrxLogMsg\022\r\n\005t"
+  "rxID\030\004 \001(\0042\234\001\n\rTrxLogService\022@\n\007sendLog\022"
+  "\031.MMLP_BRPC.LogSendRequest\032\032.MMLP_BRPC.L"
+  "ogSendResponse\022I\n\nrequireLog\022\034.MMLP_BRPC"
+  ".LogRequireRequest\032\035.MMLP_BRPC.LogRequir"
+  "eResponseB\003\200\001\001"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_trx_5flog_2eproto_deps[1] = {
 };
-static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_trx_5flog_2eproto_sccs[5] = {
+static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_trx_5flog_2eproto_sccs[6] = {
+  &scc_info_BenchLogMsg_trx_5flog_2eproto.base,
   &scc_info_LogRequireRequest_trx_5flog_2eproto.base,
   &scc_info_LogRequireResponse_trx_5flog_2eproto.base,
   &scc_info_LogSendRequest_trx_5flog_2eproto.base,
@@ -212,15 +248,292 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_trx
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_trx_5flog_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_trx_5flog_2eproto = {
-  false, false, descriptor_table_protodef_trx_5flog_2eproto, "trx_log.proto", 563,
-  &descriptor_table_trx_5flog_2eproto_once, descriptor_table_trx_5flog_2eproto_sccs, descriptor_table_trx_5flog_2eproto_deps, 5, 0,
+  false, false, descriptor_table_protodef_trx_5flog_2eproto, "trx_log.proto", 654,
+  &descriptor_table_trx_5flog_2eproto_once, descriptor_table_trx_5flog_2eproto_sccs, descriptor_table_trx_5flog_2eproto_deps, 6, 0,
   schemas, file_default_instances, TableStruct_trx_5flog_2eproto::offsets,
-  file_level_metadata_trx_5flog_2eproto, 5, file_level_enum_descriptors_trx_5flog_2eproto, file_level_service_descriptors_trx_5flog_2eproto,
+  file_level_metadata_trx_5flog_2eproto, 6, file_level_enum_descriptors_trx_5flog_2eproto, file_level_service_descriptors_trx_5flog_2eproto,
 };
 
 // Force running AddDescriptors() at dynamic initialization time.
 static bool dynamic_init_dummy_trx_5flog_2eproto = (static_cast<void>(::PROTOBUF_NAMESPACE_ID::internal::AddDescriptors(&descriptor_table_trx_5flog_2eproto)), true);
 namespace MMLP_BRPC {
+
+// ===================================================================
+
+void BenchLogMsg::InitAsDefaultInstance() {
+}
+class BenchLogMsg::_Internal {
+ public:
+  using HasBits = decltype(std::declval<BenchLogMsg>()._has_bits_);
+  static void set_has_page_no(HasBits* has_bits) {
+    (*has_bits)[0] |= 1u;
+  }
+  static void set_has_row_no(HasBits* has_bits) {
+    (*has_bits)[0] |= 2u;
+  }
+  static bool MissingRequiredFields(const HasBits& has_bits) {
+    return ((has_bits[0] & 0x00000003) ^ 0x00000003) != 0;
+  }
+};
+
+BenchLogMsg::BenchLogMsg(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor();
+  RegisterArenaDtor(arena);
+  // @@protoc_insertion_point(arena_constructor:MMLP_BRPC.BenchLogMsg)
+}
+BenchLogMsg::BenchLogMsg(const BenchLogMsg& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message(),
+      _has_bits_(from._has_bits_) {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::memcpy(&page_no_, &from.page_no_,
+    static_cast<size_t>(reinterpret_cast<char*>(&row_no_) -
+    reinterpret_cast<char*>(&page_no_)) + sizeof(row_no_));
+  // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.BenchLogMsg)
+}
+
+void BenchLogMsg::SharedCtor() {
+  ::memset(&page_no_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&row_no_) -
+      reinterpret_cast<char*>(&page_no_)) + sizeof(row_no_));
+}
+
+BenchLogMsg::~BenchLogMsg() {
+  // @@protoc_insertion_point(destructor:MMLP_BRPC.BenchLogMsg)
+  SharedDtor();
+  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+void BenchLogMsg::SharedDtor() {
+  GOOGLE_DCHECK(GetArena() == nullptr);
+}
+
+void BenchLogMsg::ArenaDtor(void* object) {
+  BenchLogMsg* _this = reinterpret_cast< BenchLogMsg* >(object);
+  (void)_this;
+}
+void BenchLogMsg::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+}
+void BenchLogMsg::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const BenchLogMsg& BenchLogMsg::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_BenchLogMsg_trx_5flog_2eproto.base);
+  return *internal_default_instance();
+}
+
+
+void BenchLogMsg::Clear() {
+// @@protoc_insertion_point(message_clear_start:MMLP_BRPC.BenchLogMsg)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  if (cached_has_bits & 0x00000003u) {
+    ::memset(&page_no_, 0, static_cast<size_t>(
+        reinterpret_cast<char*>(&row_no_) -
+        reinterpret_cast<char*>(&page_no_)) + sizeof(row_no_));
+  }
+  _has_bits_.Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* BenchLogMsg::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  _Internal::HasBits has_bits{};
+  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
+  while (!ctx->Done(&ptr)) {
+    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
+    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
+    CHK_(ptr);
+    switch (tag >> 3) {
+      // required uint32 page_no = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
+          _Internal::set_has_page_no(&has_bits);
+          page_no_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // required uint32 row_no = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 16)) {
+          _Internal::set_has_row_no(&has_bits);
+          row_no_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      default: {
+      handle_unusual:
+        if ((tag & 7) == 4 || tag == 0) {
+          ctx->SetLastTag(tag);
+          goto success;
+        }
+        ptr = UnknownFieldParse(tag,
+            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+            ptr, ctx);
+        CHK_(ptr != nullptr);
+        continue;
+      }
+    }  // switch
+  }  // while
+success:
+  _has_bits_.Or(has_bits);
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto success;
+#undef CHK_
+}
+
+::PROTOBUF_NAMESPACE_ID::uint8* BenchLogMsg::_InternalSerialize(
+    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.BenchLogMsg)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required uint32 page_no = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(1, this->_internal_page_no(), target);
+  }
+
+  // required uint32 row_no = 2;
+  if (cached_has_bits & 0x00000002u) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(2, this->_internal_row_no(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:MMLP_BRPC.BenchLogMsg)
+  return target;
+}
+
+size_t BenchLogMsg::RequiredFieldsByteSizeFallback() const {
+// @@protoc_insertion_point(required_fields_byte_size_fallback_start:MMLP_BRPC.BenchLogMsg)
+  size_t total_size = 0;
+
+  if (_internal_has_page_no()) {
+    // required uint32 page_no = 1;
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
+        this->_internal_page_no());
+  }
+
+  if (_internal_has_row_no()) {
+    // required uint32 row_no = 2;
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
+        this->_internal_row_no());
+  }
+
+  return total_size;
+}
+size_t BenchLogMsg::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:MMLP_BRPC.BenchLogMsg)
+  size_t total_size = 0;
+
+  if (((_has_bits_[0] & 0x00000003) ^ 0x00000003) == 0) {  // All required fields are present.
+    // required uint32 page_no = 1;
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
+        this->_internal_page_no());
+
+    // required uint32 row_no = 2;
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
+        this->_internal_row_no());
+
+  } else {
+    total_size += RequiredFieldsByteSizeFallback();
+  }
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
+        _internal_metadata_, total_size, &_cached_size_);
+  }
+  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void BenchLogMsg::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:MMLP_BRPC.BenchLogMsg)
+  GOOGLE_DCHECK_NE(&from, this);
+  const BenchLogMsg* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<BenchLogMsg>(
+          &from);
+  if (source == nullptr) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:MMLP_BRPC.BenchLogMsg)
+    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:MMLP_BRPC.BenchLogMsg)
+    MergeFrom(*source);
+  }
+}
+
+void BenchLogMsg::MergeFrom(const BenchLogMsg& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:MMLP_BRPC.BenchLogMsg)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._has_bits_[0];
+  if (cached_has_bits & 0x00000003u) {
+    if (cached_has_bits & 0x00000001u) {
+      page_no_ = from.page_no_;
+    }
+    if (cached_has_bits & 0x00000002u) {
+      row_no_ = from.row_no_;
+    }
+    _has_bits_[0] |= cached_has_bits;
+  }
+}
+
+void BenchLogMsg::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:MMLP_BRPC.BenchLogMsg)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void BenchLogMsg::CopyFrom(const BenchLogMsg& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:MMLP_BRPC.BenchLogMsg)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool BenchLogMsg::IsInitialized() const {
+  if (_Internal::MissingRequiredFields(_has_bits_)) return false;
+  return true;
+}
+
+void BenchLogMsg::InternalSwap(BenchLogMsg* other) {
+  using std::swap;
+  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  swap(_has_bits_[0], other->_has_bits_[0]);
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(BenchLogMsg, row_no_)
+      + sizeof(BenchLogMsg::row_no_)
+      - PROTOBUF_FIELD_OFFSET(BenchLogMsg, page_no_)>(
+          reinterpret_cast<char*>(&page_no_),
+          reinterpret_cast<char*>(&other->page_no_));
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata BenchLogMsg::GetMetadata() const {
+  return GetMetadataStatic();
+}
+
 
 // ===================================================================
 
@@ -250,14 +563,16 @@ class TrxLogMsg::_Internal {
 };
 
 TrxLogMsg::TrxLogMsg(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
+  benchmsg_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
   // @@protoc_insertion_point(arena_constructor:MMLP_BRPC.TrxLogMsg)
 }
 TrxLogMsg::TrxLogMsg(const TrxLogMsg& from)
   : ::PROTOBUF_NAMESPACE_ID::Message(),
-      _has_bits_(from._has_bits_) {
+      _has_bits_(from._has_bits_),
+      benchmsg_(from.benchmsg_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   rec_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (from._internal_has_rec()) {
@@ -310,6 +625,7 @@ void TrxLogMsg::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  benchmsg_.Clear();
   cached_has_bits = _has_bits_[0];
   if (cached_has_bits & 0x00000001u) {
     rec_.ClearNonDefaultToEmpty();
@@ -372,6 +688,18 @@ const char* TrxLogMsg::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
+      // repeated .MMLP_BRPC.BenchLogMsg benchmsg = 6;
+      case 6:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 50)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_benchmsg(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<50>(ptr));
+        } else goto handle_unusual;
+        continue;
       default: {
       handle_unusual:
         if ((tag & 7) == 4 || tag == 0) {
@@ -430,6 +758,14 @@ failure:
   if (cached_has_bits & 0x00000001u) {
     target = stream->WriteBytesMaybeAliased(
         5, this->_internal_rec(), target);
+  }
+
+  // repeated .MMLP_BRPC.BenchLogMsg benchmsg = 6;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->_internal_benchmsg_size()); i < n; i++) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(6, this->_internal_benchmsg(i), target, stream);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -518,6 +854,13 @@ size_t TrxLogMsg::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  // repeated .MMLP_BRPC.BenchLogMsg benchmsg = 6;
+  total_size += 1UL * this->_internal_benchmsg_size();
+  for (const auto& msg : this->benchmsg_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
         _internal_metadata_, total_size, &_cached_size_);
@@ -549,6 +892,7 @@ void TrxLogMsg::MergeFrom(const TrxLogMsg& from) {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  benchmsg_.MergeFrom(from.benchmsg_);
   cached_has_bits = from._has_bits_[0];
   if (cached_has_bits & 0x0000001fu) {
     if (cached_has_bits & 0x00000001u) {
@@ -586,6 +930,7 @@ void TrxLogMsg::CopyFrom(const TrxLogMsg& from) {
 
 bool TrxLogMsg::IsInitialized() const {
   if (_Internal::MissingRequiredFields(_has_bits_)) return false;
+  if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(benchmsg_)) return false;
   return true;
 }
 
@@ -593,6 +938,7 @@ void TrxLogMsg::InternalSwap(TrxLogMsg* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   swap(_has_bits_[0], other->_has_bits_[0]);
+  benchmsg_.InternalSwap(&other->benchmsg_);
   rec_.Swap(&other->rec_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
       PROTOBUF_FIELD_OFFSET(TrxLogMsg, offset_)
@@ -1788,6 +2134,9 @@ void TrxLogService_Stub::requireLog(::PROTOBUF_NAMESPACE_ID::RpcController* cont
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace MMLP_BRPC
 PROTOBUF_NAMESPACE_OPEN
+template<> PROTOBUF_NOINLINE ::MMLP_BRPC::BenchLogMsg* Arena::CreateMaybeMessage< ::MMLP_BRPC::BenchLogMsg >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::MMLP_BRPC::BenchLogMsg >(arena);
+}
 template<> PROTOBUF_NOINLINE ::MMLP_BRPC::TrxLogMsg* Arena::CreateMaybeMessage< ::MMLP_BRPC::TrxLogMsg >(Arena* arena) {
   return Arena::CreateMessageInternal< ::MMLP_BRPC::TrxLogMsg >(arena);
 }
