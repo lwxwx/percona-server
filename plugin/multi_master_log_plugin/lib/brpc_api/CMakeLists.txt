@@ -52,22 +52,20 @@ set(BRPC_LINK_LIB
 
 
 SET(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
-# execute_process(COMMAND protoc ./*.proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} WORKING_DIRECTORY ${PROTO_DIR})
-file(GLOB_RECURSE PROTO_FILES {PROTO_SOURCE}/*.proto)
-message(FATAL_ERROR ${PROTO_FILES})
-# foreach(pfile ${PROTO_FILES})
-#   message(FATAL_ERROR ${pfile})
-# endforeach(pfile)
+execute_process(COMMAND bash "-c" "protoc ./* --cpp_out=./"
+	WORKING_DIRECTORY "${PROTO_DIR}"
+	)
+
 
 #
 # add_custom_command(OUTPUT ${PROTO_SOURCE}
 #   PRE_BUILD
 #   COMMAND protoc ${PROTO_DIR}/*.proto --cpp_out=${CMAKE_BINARY_DIR}
 #   )
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${PROTO_DIR})
 
 
-#aux_source_directory(${CMAKE_CURRENT_BINARY_DIR} PROTO_SOURCE)
+aux_source_directory(${PROTO_DIR} PROTO_SOURCE)
 
 SET(BRPC_API_SOURCE
     log_transfer.cc

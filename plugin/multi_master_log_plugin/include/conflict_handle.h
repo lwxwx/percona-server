@@ -34,13 +34,13 @@ enum ConflictHandleType
 	SerialScan = 1,
 	PipelineWithoutHole = 2,
 	Pipeline = 3,
-}
+};
 
 class ConflictHandle
 {
 	public:
 		void init(ConflictType c_type , ConflictHandleType h_type);	
-		bool conflict_detect(ConstTrxlogMap & ref_map , const TrxLog & cur_log);
+		bool conflict_detect(ConstTrxlogList & ref_map , const TrxLog & cur_log);
 	
 	private:
 		ConflictType conflict_type;

@@ -1,4 +1,4 @@
-syntax = "proto2";
+syntax="proto2";
 package MMLP_BRPC;
 option cc_generic_services = true;
 
