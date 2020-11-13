@@ -1,53 +1,73 @@
-# include dir for mmlp
-# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../include)
-# include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-SET(DEP_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include_dir)
-# SET(DEP_STATIC_LIB_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/static_dir)
-SET(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
+find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
+find_library(BRPC_LIB NAMES brpc)
+if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
+	message(FATAL_ERROR "Fail to find brpc")
+endif()
+include_directories(${BRPC_INCLUDE_PATH})
 
-include_directories(${DEP_INCLUDE_DIR}/brpc_include)
-include_directories(${DEP_INCLUDE_DIR}/protobuf_include)
-include_directories(${DEP_INCLUDE_DIR}/leveldb_include)
-include_directories(${DEP_INCLUDE_DIR}/gflags_include)
-include_directories(${PROTO_DIR})
+find_path(PROTOBUF_INLCUDE_PATH google/protobuf/message.h)
+find_library(PROTOBUF_LIB NAMES protobuf)
+if((NOT PROTOBUF_INLCUDE_PATH) OR (NOT BRPC_LIB))
+	message(FATAL_ERROR "Fail to find Protobuf")
+endif()
+include_directories(${PROTOBUF_INLCUDE_PATH})
 
-# SET(BRPC_STATIC_DEP_LIB
-#     ${DEP_STATIC_LIB_DIR}/libprotobuf.a
-#     ${DEP_STATIC_LIB_DIR}/libprotoc.a
-#     ${DEP_STATIC_LIB_DIR}/libleveldb.a
-#     ${DEP_STATIC_LIB_DIR}/libgflags.a
-#     #${DEP_STATIC_LIB_DIR}/libssl.a
-#     #${DEP_STATIC_LIB_DIR}/libcrypto.a
-#     libssl.so
-#     libcrypto.so
-#     snappy
-# )
+find_path(GFLAGS_INCLUDE_PATH gflags/gflags.h)
+find_library(GFLAGS_LIBRARY NAMES gflags libgflags)
+if((NOT GFLAGS_INCLUDE_PATH) OR (NOT GFLAGS_LIBRARY))
+  message(FATAL_ERROR "Fail to find gflags")
+endif()
+include_directories(${GFLAGS_INCLUDE_PATH})
 
-SET(BRPC_DYNAMIC_DEP_LIB
-    $ENV{BRPC_PROTOBUF_LIB}
-   # ${DEP_STATIC_LIB_DIR}/libprotobuf.a
-    $ENV{BRPC_LEVELDB_LIB}
-    $ENV{BRPC_GFLAGS_LIB}
-    libssl.so
-    libcrypto.so
+find_path(LEVELDB_INCLUDE_PATH NAMES leveldb/db.h)
+find_library(LEVELDB_LIB NAMES leveldb)
+if ((NOT LEVELDB_INCLUDE_PATH) OR (NOT LEVELDB_LIB))
+  message(FATAL_ERROR "Fail to find leveldb")
+endif()
+include_directories(${LEVELDB_INCLUDE_PATH})
+
+find_library(SSL_LIB NAMES ssl)
+if (NOT SSL_LIB)
+  message(FATAL_ERROR "Fail to find ssl")
+endif()
+
+find_library(CRYPTO_LIB NAMES crypto)
+if (NOT CRYPTO_LIB)
+  message(FATAL_ERROR "Fail to find crypto")
+endif()
+
+set(BRPC_DEP_DYNAMIC_LIB
+    ${GFLAGS_LIBRARY}
+    ${PROTOBUF_LIB}
+    ${LEVELDB_LIB}
+    ${SSL_LIB}
+    ${CRYPTO_LIB}
 )
-
-SET(BRPC_DYNAMIC_LIB
-    $ENV{BRPC_LIB}
-)
-
-
-# SET(BRPC_STATIC_LIB
-#     ${DEP_STATIC_LIB_DIR}/libbrpc.a
-# )
 
 set(BRPC_LINK_LIB
-    ${BRPC_DYNAMIC_LIB}
-    ${BRPC_DYNAMIC_DEP_LIB}
+    ${BRPC_LIB}
+		${BRPC_DEP_DYNAMIC_LIB}
 )
 
-aux_source_directory(${PROTO_DIR} PROTO_SOURCE)
+
+SET(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
+# execute_process(COMMAND protoc ./*.proto --cpp_out=${CMAKE_CURRENT_BINARY_DIR} WORKING_DIRECTORY ${PROTO_DIR})
+file(GLOB_RECURSE PROTO_FILES {PROTO_SOURCE}/*.proto)
+message(FATAL_ERROR ${PROTO_FILES})
+# foreach(pfile ${PROTO_FILES})
+#   message(FATAL_ERROR ${pfile})
+# endforeach(pfile)
+
+#
+# add_custom_command(OUTPUT ${PROTO_SOURCE}
+#   PRE_BUILD
+#   COMMAND protoc ${PROTO_DIR}/*.proto --cpp_out=${CMAKE_BINARY_DIR}
+#   )
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+
+#aux_source_directory(${CMAKE_CURRENT_BINARY_DIR} PROTO_SOURCE)
 
 SET(BRPC_API_SOURCE
     log_transfer.cc
