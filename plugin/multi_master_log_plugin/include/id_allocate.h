@@ -11,7 +11,7 @@
 #define GLOBAL_TRX_ID_ALLOCATE_HEADER
 
 #include <condition_variable>
-#include "brpc/channel.h"
+#include <brpc/channel.h>
 #include "id.pb.h"
 #define PHXPAXOS_ID_COMPLIE 0
 

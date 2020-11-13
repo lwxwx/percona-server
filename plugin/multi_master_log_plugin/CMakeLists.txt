@@ -19,10 +19,10 @@ include_directories(lib/phxpaxos/include)
 
 ## brpc_api
 add_subdirectory(lib/brpc_api)
-include_directories(lib/brpc_api)
-include_directories(lib/brpc_api/proto)
-include_directories(lib/brpc_api/include_dir/brpc_include)
-include_directories(lib/brpc_api/include_dir/protobuf_include)
+# include_directories(lib/brpc_api)
+# include_directories(lib/brpc_api/proto)
+# include_directories(lib/brpc_api/include_dir/brpc_include)
+# include_directories(lib/brpc_api/include_dir/protobuf_include)
 
 ## src
 aux_source_directory(src MULTI_MASTER_LOG_SOURCE)
