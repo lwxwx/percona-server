@@ -20,8 +20,11 @@ include_directories(lib/phxpaxos/include)
 ## brpc_api
 add_subdirectory(lib/brpc_api)
 include_directories(lib/brpc_api)
-include_directories(${BRPC_INCLUDE_PATH})
 include_directories(lib/brpc_api/proto)
+include_directories(${BRPC_INCLUDE_PATH})
+include_directories(${BRPC_PROTOBUF_INCLUDE})
+message(status "BRPC -> " ${BRPC_INCLUDE_PATH})
+message(status "PROTOBUF -> " ${BRPC_PROTOBUF_INCLUDE})
 # include_directories(lib/brpc_api/include_dir/brpc_include)
 # include_directories(lib/brpc_api/include_dir/protobuf_include)
 

@@ -1,5 +1,4 @@
 #include "conflict_thread_pool.h"
-#include <bits/stdint-uintn.h>
 #include <mutex>
 #include "trx_log.h"
 

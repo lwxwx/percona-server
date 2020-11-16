@@ -6,12 +6,25 @@ if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
 endif()
 include_directories(${BRPC_INCLUDE_PATH})
 
-find_path(PROTOBUF_INLCUDE_PATH google/protobuf/message.h)
-find_library(PROTOBUF_LIB NAMES protobuf)
-if((NOT PROTOBUF_INLCUDE_PATH) OR (NOT BRPC_LIB))
-	message(FATAL_ERROR "Fail to find Protobuf")
+# find_path(PROTOBUF_INLCUDE_PATH google/protobuf/message.h)
+# find_library(PROTOBUF_LIB NAMES protobuf)
+# if((NOT PROTOBUF_INLCUDE_PATH) OR (NOT PROTOBUF_LIB))
+#   message(FATAL_ERROR "Fail to find Protobuf")
+# endif()
+# include_directories(${PROTOBUF_INLCUDE_PATH})
+# message(status "PROTOBUF -> " ${PROTOBUF_INCLUDE_PATH})
+# message(status "PROTOBUF -> " ${PROTOBUF_LIB})
+if( DEFINED ENV{BRPC_PROTOBUF_LIB_DIR})
+	set(BRPC_PROTOBUF_INCLUDE  $ENV{BRPC_PROTOBUF_LIB_DIR}/../include/  )
+	set(BRPC_PROTOBUF_LIB $ENV{BRPC_PROTOBUF_LIB_DIR}/libprotobuf.so)
+else()
+	find_package(Protobuf)
+	set(BRPC_PROTOBUF_INCLUDE ${PROTOBUF_INCLUDE_DIR} )
+	set(BRPC_PROTOBUF_LIB ${PROTOBUF_LIBRARY})
 endif()
-include_directories(${PROTOBUF_INLCUDE_PATH})
+set(BRPC_PROTOBUF_INCLUDE ${BRPC_PROTOBUF_INCLUDE} CACHE STRING "brpc protobuf include path ")
+message(status "BRPC_API PROTOBUF -> " ${BRPC_PROTOBUF_INCLUDE})
+include_directories(${BRPC_PROTOBUF_INCLUDE})
 
 find_path(GFLAGS_INCLUDE_PATH gflags/gflags.h)
 find_library(GFLAGS_LIBRARY NAMES gflags libgflags)
@@ -39,7 +52,7 @@ endif()
 
 set(BRPC_DEP_DYNAMIC_LIB
     ${GFLAGS_LIBRARY}
-    ${PROTOBUF_LIB}
+		${BRPC_PROTOBUF_LIB}
     ${LEVELDB_LIB}
     ${SSL_LIB}
     ${CRYPTO_LIB}
@@ -52,7 +65,7 @@ set(BRPC_LINK_LIB
 
 
 SET(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
-execute_process(COMMAND bash "-c" "protoc ./* --cpp_out=./"
+execute_process(COMMAND bash "-c" "rm *.cc *.h && protoc ./* --cpp_out=./"
 	WORKING_DIRECTORY "${PROTO_DIR}"
 	)
 
@@ -63,7 +76,6 @@ execute_process(COMMAND bash "-c" "protoc ./* --cpp_out=./"
 #   COMMAND protoc ${PROTO_DIR}/*.proto --cpp_out=${CMAKE_BINARY_DIR}
 #   )
 include_directories(${PROTO_DIR})
-
 
 aux_source_directory(${PROTO_DIR} PROTO_SOURCE)
 
