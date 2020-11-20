@@ -13,7 +13,7 @@
 #include<string.h>
 #include<thread>
 #include<string>
-#include "my_inttypes.h"
+#include<stdint.h>
 
 // #include "trx_log.pb.h"
 

@@ -7,20 +7,20 @@ ConflictThreadEnv::ConflictThreadEnv()
 
 }
 
-ConflictThreadEnv:~ConflictThreadEnv()
+ConflictThreadEnv::~ConflictThreadEnv()
 {
 
 }
 
-ConflictThreadEnv::operator()()
+ void ConflictThreadEnv::operator()()
 {
 	while (1) 
 	{
 		{
 			std::unique_lock<std::mutex> lck(state_mutex);
-			idle_cond.wait(lck,[]{return thread_finish_flag.load() || !task_queue.empty(); });
+			idle_cond.wait(lck,[this]{return this->thread_destory_flag.load() || !this->task_queue.empty(); });
 		}
-		if(thread_finish_flag.load() && task_queue.empty())
+		if(thread_destory_flag.load() && task_queue.empty())
 		{
 			break;
 		}
@@ -53,22 +53,22 @@ void ConflictThreadEnv::task_execute(ConflictTask *task)
 
 int ConflictThreadPool::init(uint32_t capacity ,ConflictVerifyFunction * verify_fun)
 {
-	verifyFunc = verify_fun;
+	ConflictThreadEnv::verifyFunc = verify_fun;
 	max_capacity = capacity;
-	thread_vector.resize(capacity);
-	for (int i = 0; i < capacity; i++)
-	{
-		thread_vector[i].thd_id = i;
-	}
+	// thread_vector.resize(capacity);
+	// for (int i = 0; i < capacity; i++)
+	// {
+	//   thread_vector[i].thd_id = i;
+	// }
 	return 1;
 }
 
 ConflictThreadPool::~ConflictThreadPool()
 {
-	thread_vector.clear();
+	// thread_vector.clear();
 }
 
-int ConflictThreadPool::distribute_task(TrxLog * cur_trx_log,ConstTrxlogList &task_content,uint32_t require_threads)
+int ConflictThreadPool::distribute_task(TrxLog * cur_trx_log,ConstTrxlogList & task_content,uint32_t require_threads)
 {
 	if(require_threads <= 0)
 	{
