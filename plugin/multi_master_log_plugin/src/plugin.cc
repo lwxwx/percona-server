@@ -1,8 +1,8 @@
 /*
- * @Author: wei
+ * @Author: wei,liu
  * @Date: 2020-06-16 09:19:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-16 10:44:34
+ * @LastEditTime: 2020-11-12 20:00
  * @Description: plugin main source file
  * @FilePath: /multi_master_log_plugin/src/plugin.cc
  */
@@ -13,6 +13,7 @@
 #include "../mml_plugin_functions.h"
 #include <climits>
 #include "debug.h"
+#include "locktable_client.h"
 
 /*SYS_VAR*/
 struct st_mysql_daemon multi_master_log_descriptor=
@@ -37,11 +38,13 @@ int DEBUG_LOG_SEND_TIME = 0;
 int DEBUG_TRX_TIME = 0;
 int DEBUG_LOG_REQUIRE_TIME = 0;
 int DEBUG_CONFLICT_TIME = 0;
+int DEBUG_REMOTE_LOCKTABLE_TIME = 0;
 
 //select flag
 int SELECT_LOG_ASYNC_TYPE = 0;
 int SELECT_TRX_ID_ALLOCATE_TYPE = 0;
 int SELECT_CONFLICT_HANDLE_TYPE = 0;
+int SELECT_REMOTE_LOCKTABLE = 0;
 
 //remote id arg
 char * remote_id_server_addr = NULL;
@@ -93,6 +96,14 @@ unsigned long long conflict_failed_time = 0;
 //trx time
 unsigned long long trx_count = 0;
 unsigned long long trx_sum_time = 0;
+
+//lock_table arg
+char * remote_locktable_server_addr = NULL;
+int remote_locktable_local_port = 0;
+unsigned long long remote_locktable_sum_time = 0;
+unsigned long long remote_locktable_sum_cnt = 0;
+std::vector<std::pair<unsigned int,unsigned int>> RPC_time;
+std::mutex RPC_time_mutex;
 
 /* node sysvar */
 MYSQL_SYSVAR_STR(phxpaxos_local_node,
@@ -722,6 +733,77 @@ MYSQL_SYSVAR_ULONGLONG(trx_sum_time,
     0
 );
 
+/* lock_table sysvar */
+MYSQL_SYSVAR_INT(select_remote_locktable,
+    SELECT_REMOTE_LOCKTABLE,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "if select remote lock_table",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(debug_remote_locktable_time,
+    DEBUG_REMOTE_LOCKTABLE_TIME,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "remote lock_table time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_STR(remote_locktable_server_addr,
+    remote_locktable_server_addr,
+    PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "lock_table server addr",
+    NULL,
+    NULL,
+    NULL
+);
+
+MYSQL_SYSVAR_INT(remote_locktable_local_port,
+    remote_locktable_local_port,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "locktable info receiver nodes port",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(remote_locktable_sum_time,
+    remote_locktable_sum_time,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "locktable sum time in rpc",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(remote_locktable_sum_cnt,
+    remote_locktable_sum_cnt,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
+    "locktable sum count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+
 /*plugin global var*/
 static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(group_name),
@@ -740,9 +822,11 @@ static SYS_VAR * multi_master_system_vars[] = {
 	MYSQL_SYSVAR(debug_log_require_time),
 	MYSQL_SYSVAR(debug_conflict_time),
 	MYSQL_SYSVAR(debug_remote_id_time),
+    MYSQL_SYSVAR(debug_remote_locktable_time),
 
     MYSQL_SYSVAR(select_log_async_type),
     MYSQL_SYSVAR(select_trx_id_allocate_type),
+    MYSQL_SYSVAR(select_remote_locktable),
 
 	MYSQL_SYSVAR(remote_id_server_addr),
 	MYSQL_SYSVAR(remote_id_get_time),
@@ -789,6 +873,11 @@ static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(trx_count),
     MYSQL_SYSVAR(trx_sum_time),
 
+    MYSQL_SYSVAR(remote_locktable_server_addr),
+    MYSQL_SYSVAR(remote_locktable_local_port),
+    MYSQL_SYSVAR(remote_locktable_sum_time),
+    MYSQL_SYSVAR(remote_locktable_sum_cnt),
+
     NULL
 };
 
@@ -796,24 +885,41 @@ static SHOW_VAR multi_master_status_vars[] = {
      {NULL, NULL, SHOW_LONG, SHOW_SCOPE_GLOBAL}
 };
 
+void inform_receive()
+{
+    plugin_remote_locktable_receiver_ptr->run();
+}
 
 /*plugin main functions*/
 int plugin_multi_master_log_init(MYSQL_PLUGIN plugin_info)
 {
-    mml_plugin_interface_active = 1;
+    if(SELECT_REMOTE_LOCKTABLE)
+    {
+        mml_locktable_active=1;
+        plugin_remote_locktable_receiver_ptr = new InformReceiver;
+        plugin_remote_locktable_receiver_ptr->init();
+        std::thread receiver(inform_receive);
+        receiver.detach();
+        plugin_remote_locktable_sender_ptr = new RemoteLockTable;
+        plugin_remote_locktable_sender_ptr->init();
 
-    plugin_trx_info_ptr = new TrxInfo;
-    plugin_trx_info_ptr->init();
-
-    //std::cout << std::endl << "Get Group Name From Plugin Var : " << group_name_ptr << std::endl;
-    //register function ptr
-    mml_plugin_mtr_redo_record_add_ptr = mml_plugin_mtr_redo_record_add;
-    mml_plugin_mtr_redo_record_new_ptr = mml_plugin_mtr_redo_record_new;
-    mml_plugin_wr_trx_commit_ptr = mml_plugin_wr_trx_commit;
-    mml_plugin_trx_start_ptr = mml_plugin_trx_start;
-
+        mml_locktable_send_request_ptr = mml_locktable_send_request;
+    }
+    else
+    {
+        mml_plugin_interface_active = 1;
+        plugin_trx_info_ptr = new TrxInfo;
+        plugin_trx_info_ptr->init();        
+        //std::cout << std::endl << "Get Group Name From Plugin Var : " << group_name_ptr << std::endl;
+        //register function ptr
+        mml_plugin_mtr_redo_record_add_ptr = mml_plugin_mtr_redo_record_add;
+        mml_plugin_mtr_redo_record_new_ptr = mml_plugin_mtr_redo_record_new;
+        mml_plugin_wr_trx_commit_ptr = mml_plugin_wr_trx_commit;
+        mml_plugin_trx_start_ptr = mml_plugin_trx_start;
+    }
+    
     return 0;
-}
+} 
 
 int plugin_multi_master_log_check_uninstall(MYSQL_PLUGIN plugin_info)
 {

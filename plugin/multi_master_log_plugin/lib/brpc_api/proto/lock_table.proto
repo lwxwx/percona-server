@@ -1,0 +1,26 @@
+/*
+ * @Author: liu
+ * @Date: 2020-07-23 10:00
+ * @LastEditors: Do not edit
+ * @LastEditTime: 
+ * @Description: file content
+ * @FilePath: /multi-master-tool/lock_table/id.proto
+ */
+
+syntax="proto2";
+package lock_table;
+
+option cc_generic_services = true;
+
+message LOCKRequest {
+      required string message = 1;
+};
+
+message LOCKResponse {
+      required string message = 1;
+};
+
+service LOCKService {
+      rpc LOCKTable(LOCKRequest) returns (LOCKResponse);
+};
+

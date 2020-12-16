@@ -1,8 +1,8 @@
 /*
- * @Author: wei
+ * @Author: wei,liu
  * @Date: 2020-06-24 09:38:32
  * @LastEditors: Do not edit
- * @LastEditTime: 2020-07-28 14:31:22
+ * @LastEditTime: 2020-11-12 21:30
  * @Description: file content
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/include/mmlp_type.h
  */
@@ -14,6 +14,9 @@
 #include<thread>
 #include<string>
 #include "my_inttypes.h"
+#include <map>
+#include <mutex>
+#include <vector>
 
 // #include "trx_log.pb.h"
 
@@ -31,6 +34,9 @@ using plugin_space_id_t = uint32_t;
 using plugin_page_no_t = uint32_t;
 using plugin_page_offset_t = unsigned long;
 
+using TableID = uint32_t;
+using PageID = uint32_t;
+
 extern char * group_name_ptr;
 extern char * phxpaxos_local_node_ptr;
 extern char * phxpaxos_peer_nodes_ptr;
@@ -46,10 +52,12 @@ extern int DEBUG_LOG_SEND_TIME;
 extern int DEBUG_TRX_TIME;
 extern int DEBUG_LOG_REQUIRE_TIME;
 extern int DEBUG_CONFLICT_TIME;
+extern int DEBUG_REMOTE_LOCKTABLE_TIME;
 
 extern int SELECT_LOG_ASYNC_TYPE;
 extern int SELECT_TRX_ID_ALLOCATE_TYPE;
 extern int SELECT_CONFLICT_HANDLE_TYPE;
+extern int SELECT_REMOTE_LOCKTABLE;
 
 extern char * remote_id_server_addr;
 extern unsigned long long remote_id_handle_time;
@@ -95,5 +103,10 @@ extern unsigned long long conflict_failed_time;
 
 extern unsigned long long trx_count;
 extern unsigned long long trx_sum_time;
+
+extern char * remote_locktable_server_addr;
+extern int remote_locktable_local_port;
+extern unsigned long long remote_locktable_sum_time;
+extern unsigned long long remote_locktable_sum_cnt;
 
 #endif

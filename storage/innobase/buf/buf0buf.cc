@@ -37,6 +37,16 @@ this program; if not, write to the Free Software Foundation, Inc.,
  Created 11/5/1995 Heikki Tuuri
  *******************************************************/
 
+/**
+ * @Author: liu
+ * @Date: 2020-11-13 21:30
+ * @LastEditors: Do not edit
+ * @LastEditTime: 
+ * @Description: insert plugin lock table
+ */ 
+
+#include "../../../plugin/multi_master_log_plugin/mml_plugin_functions.h"
+
 #include "my_config.h"
 
 #include "btr0btr.h"
@@ -4229,11 +4239,45 @@ buf_block_t *Buf_fetch<T>::single_page() {
   return (block);
 }
 
+/*BY LIU*/ 
+std::map<std::string,std::mutex> handle_locker;
+std::map<std::string,bool> if_handle;
+std::map<std::string,std::string> which_handle;
+std::mutex variables_mutex;
+/*BY LIU*/ 
+
 buf_block_t *buf_page_get_gen(const page_id_t &page_id,
                               const page_size_t &page_size, ulint rw_latch,
                               buf_block_t *guess, Page_fetch mode,
                               const char *file, ulint line, mtr_t *mtr,
                               bool dirty_with_no_latch, dberr_t *err) {
+                                
+/*BY LIU */
+  unsigned long long start_time=(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();           
+  std::stringstream ss;
+  ss<<std::this_thread::get_id();
+  std::string table_page=std::to_string(page_id.space())+"-"+std::to_string(page_id.page_no());
+  if(mml_locktable_active==1 && rw_latch!=RW_NO_LATCH)
+  {
+    std::string lock_type = (rw_latch == RW_X_LATCH)?"write":"read";   
+    handle_locker[table_page].lock();
+    if(!if_handle[table_page])
+    {
+      (*mml_locktable_send_request_ptr)(page_id.space(),page_id.page_no(),lock_type,remote_locktable_local_port);     
+      if_handle[table_page]=true;
+      which_handle[table_page]=ss.str();
+    }
+    handle_locker[table_page].unlock();
+    if(DEBUG_REMOTE_LOCKTABLE_TIME != 0)
+    {
+      std::lock_guard<std::mutex> guard(variables_mutex);
+      remote_locktable_sum_cnt++;
+      unsigned long long end_time=(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
+      remote_locktable_sum_time += end_time-start_time;
+    }
+  }
+/*BY LIU*/  
+
 #ifdef UNIV_DEBUG
   ut_ad(mtr->is_active());
 
@@ -4277,6 +4321,28 @@ buf_block_t *buf_page_get_gen(const page_id_t &page_id,
     fetch.m_mtr = mtr;
     fetch.m_dirty_with_no_latch = dirty_with_no_latch;
 
+/*BY LIU*/
+  unsigned long long start_realse=(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
+    if(mml_locktable_active==1 && rw_latch!=RW_NO_LATCH)
+    {
+      if(ss.str()==which_handle[table_page])
+      {
+        (*mml_locktable_send_request_ptr)(page_id.space(),page_id.page_no(),"realse",remote_locktable_local_port); 
+        handle_locker[table_page].lock();
+        if_handle[table_page]=false;
+        which_handle[table_page]="";
+        handle_locker[table_page].unlock();
+      }
+      if(DEBUG_REMOTE_LOCKTABLE_TIME != 0)
+      {
+        std::lock_guard<std::mutex> guard(variables_mutex);
+        remote_locktable_sum_cnt++;
+        unsigned long long end_realse=(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
+        remote_locktable_sum_time += end_realse-start_realse;
+      }
+    }
+/*BY LIU*/ 
+
     return (fetch.single_page());
 
   } else {
@@ -4289,6 +4355,28 @@ buf_block_t *buf_page_get_gen(const page_id_t &page_id,
     fetch.m_line = line;
     fetch.m_mtr = mtr;
     fetch.m_dirty_with_no_latch = dirty_with_no_latch;
+
+/*BY LIU*/
+  unsigned long long start_realse=(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
+    if(mml_locktable_active==1 && rw_latch!=RW_NO_LATCH)
+    {
+      if(ss.str()==which_handle[table_page])
+      {
+        (*mml_locktable_send_request_ptr)(page_id.space(),page_id.page_no(),"realse",remote_locktable_local_port); 
+        handle_locker[table_page].lock();
+        if_handle[table_page]=false;
+        which_handle[table_page]="";
+        handle_locker[table_page].unlock();
+      }
+      if(DEBUG_REMOTE_LOCKTABLE_TIME != 0)
+      {
+        std::lock_guard<std::mutex> guard(variables_mutex);
+        remote_locktable_sum_cnt++;
+        unsigned long long end_realse=(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count();
+        remote_locktable_sum_time += end_realse-start_realse;
+      }
+    }
+/*BY LIU*/ 
 
     return (fetch.single_page());
   }

@@ -32,6 +32,13 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/sql/auth
 )
 
+# BY liu
+include_directories(../../plugin/multi_master_log_plugin/lib/brpc_api/)
+include_directories(../../plugin/multi_master_log_plugin/lib/brpc_api/include_dir/brpc_include)
+include_directories(../../plugin/multi_master_log_plugin/include)
+include_directories(../../plugin/multi_master_log_plugin/lib/brpc_api/proto)
+# END BY liu
+
 # Conflicting YYSTYPE, because we have multiple Bison grammars.
 # WL#11100 Migrate to Bison 3.x should fix this.
 #

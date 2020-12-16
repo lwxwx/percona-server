@@ -8,6 +8,7 @@
  */
 
 #include "plugin_interface.h"
+#include "locktable_client.h"
 
 // int mml_plugin_interface_active = -1;
 
@@ -29,4 +30,10 @@ int mml_plugin_mtr_redo_record_new(size_t size)
 int mml_plugin_wr_trx_commit(TrxID id)
 {
     return plugin_trx_info_ptr->wr_trx_commiting(id);
+}
+
+/*Lock Table*/
+int mml_locktable_send_request(TableID table_id,PageID page_id,std::string request_type,int c_s_port)
+{
+    return plugin_remote_locktable_sender_ptr->send_request(table_id,page_id,request_type,c_s_port);
 }

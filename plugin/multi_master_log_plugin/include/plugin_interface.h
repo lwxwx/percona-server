@@ -29,5 +29,7 @@ int mml_plugin_mtr_redo_record_new(size_t size);
 
 int mml_plugin_wr_trx_commit(TrxID id);
 
+/*Lock Table*/
+int mml_locktable_send_request(TableID table_id,PageID page_id,std::string request_type,int c_s_port);
 
 #endif /* PLUGIN_INTERFACE_HEADER*/

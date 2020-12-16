@@ -8,6 +8,7 @@
  */
 
 #include "mml_plugin_functions.h"
+#include <thread>
 
 int mml_plugin_interface_active = -1;
 
@@ -15,3 +16,8 @@ int (*mml_plugin_trx_start_ptr)() = NULL;
 int (*mml_plugin_mtr_redo_record_add_ptr)(plugin_mlog_id_t type,plugin_space_id_t space_id,plugin_page_no_t page_no,plugin_page_offset_t offset) = NULL;
 int (*mml_plugin_mtr_redo_record_new_ptr)(size_t size);
 int (*mml_plugin_wr_trx_commit_ptr)(TrxID id) = NULL;
+
+int mml_locktable_active = -1;
+
+int (*mml_locktable_send_request_ptr)(TableID table_id,PageID page_id,std::string request_type,int c_s_port)=NULL;
+
