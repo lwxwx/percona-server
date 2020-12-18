@@ -3,6 +3,15 @@
 
 #include <cstdint>
 #include "benchlog.h"
+#include "conflict_thread_pool.h"
+
+class ConflictVerifyFunction_YCSB : public ConflictVerifyFunction
+{
+	public:
+	bool operator()(const TrxLog * cur_log,const TrxLog * ref_log);
+	
+	private:
+};
 
 namespace Update_YSCB_Workload {
 

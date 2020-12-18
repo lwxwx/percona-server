@@ -93,6 +93,12 @@ extern unsigned long long conflict_succeed_count;
 extern unsigned long long conflict_failed_count;
 extern unsigned long long conflict_failed_time;
 
+extern unsigned long long conflict_page_percent;
+extern unsigned long long conflict_row_percent;
+extern unsigned long long conflict_trx_length;
+extern unsigned long long conflict_detect_method;
+extern unsigned long long conflict_detect_level;
+
 extern unsigned long long trx_count;
 extern unsigned long long trx_sum_time;
 

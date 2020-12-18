@@ -1,89 +1,118 @@
 #include "conflict_thread_pool.h"
+#include <condition_variable>
 #include <mutex>
+#include <thread>
+#include <utility>
+#include "conflict_thread_pool.h"
+#include "mmlp_type.h"
 #include "trx_log.h"
 
 ConflictThreadEnv::ConflictThreadEnv()
 {
-
+	thd_ptr =  new std::thread(*this);
 }
 
 ConflictThreadEnv::~ConflictThreadEnv()
 {
-
+	delete thd_ptr;
 }
 
- void ConflictThreadEnv::operator()()
+void ConflictThreadEnv::operator()()
 {
+	ConflictTask cur_task;
+	bool cur_res = false;
 	while (1) 
 	{
+		if(task_queue.empty())
 		{
-			std::unique_lock<std::mutex> lck(state_mutex);
-			idle_cond.wait(lck,[this]{return this->thread_destory_flag.load() || !this->task_queue.empty(); });
+			std::unique_lock<std::mutex> lck(task_mutex);
+			task_thread_cond.wait(lck);
 		}
-		if(thread_destory_flag.load() && task_queue.empty())
+		else
 		{
-			break;
+			{
+				std::unique_lock<std::mutex> lck(task_mutex);
+				do
+				{
+					// pop conflict task 
+					cur_task = task_queue.front();
+					task_queue.pop();
+					cur_res = task_state_map[cur_task.cur_log->get_trxID()]->result.load();
+					task_state_map[cur_task.cur_log->get_trxID()]->count.fetch_sub(1);
+				} while(cur_res);
+			}
+		  cur_res = (*verifyFunc)(cur_task.cur_log,cur_task.ref_log);
+			if(cur_res == true)
+			{
+				task_state_map[cur_task.cur_log->get_trxID()]->result.store(cur_res);
+			}
 		}
-
-		ConflictTask * task_ptr = &task_queue.front();
-		task_execute(task_ptr);
-		if(task_ptr->task_finish_cond_ptr != NULL)
-		{
-			task_ptr->task_finish_cond_ptr->notify_all();
-		}
-		task_queue.pop();
-
 	}
 }
 
-void ConflictThreadEnv::task_execute(ConflictTask *task)
-{
-	auto it = task->task_content.begin();
-	bool verify_result = false;
-	for( ; it != task->task_content.end(); it++)
-	{
-		verify_result = (*verifyFunc)(task->cur_log,*it);
-		if(verify_result)
-		{
-			break;
-		}
-	}
-	(*task->task_result) = verify_result;
-}
-
-int ConflictThreadPool::init(uint32_t capacity ,ConflictVerifyFunction * verify_fun)
+int ConflictThreadPool::init(ConflictVerifyFunction * verify_fun)
 {
 	ConflictThreadEnv::verifyFunc = verify_fun;
-	max_capacity = capacity;
-	// thread_vector.resize(capacity);
-	// for (int i = 0; i < capacity; i++)
-	// {
-	//   thread_vector[i].thd_id = i;
-	// }
-	return 1;
+
+	for (int i = 0 ; i < DEFAULT_MAX_THREAD_POOL_CAPACITY ; i++ )
+	{
+		thread_vector.push_back(new ConflictThreadEnv);
+	}
 }
 
 ConflictThreadPool::~ConflictThreadPool()
 {
-	// thread_vector.clear();
+	for (auto it = thread_vector.begin(); it != thread_vector.end() ; it++)
+	{
+		delete *it;
+	}
+	thread_vector.clear();
 }
 
-int ConflictThreadPool::distribute_task(TrxLog * cur_trx_log,ConstTrxlogList & task_content,uint32_t require_threads)
+int ConflictThreadPool::wait_for_result(TrxLog *cur_trx_log, std::vector<TrxLog *> &ref_list)
 {
-	if(require_threads <= 0)
 	{
-		require_threads = max_capacity;
-	}
-	uint32_t task_len = task_content.size();
-	if(task_len <= 2*require_threads)
-	{
-		//TODO verify in local thread
-	}
-	else
-	{
-		uint32_t unit_len = task_len / require_threads;	
+		std::unique_lock<std::mutex> lck(ConflictThreadEnv::task_mutex);
 
+		for (auto it = ref_list.begin(); it != ref_list.end(); it++)
+		{
+			add_task(cur_trx_log, *it);
+		}
 	}
 
+	std::condition_variable trx_cond;
+  std::mutex trx_mutex;
+
+	while(ConflictThreadEnv::task_state_map[cur_trx_log->get_trxID()]->count >= 0)
+	{	
+		std::unique_lock<std::mutex> trx_lck(trx_mutex);
+		trx_cond.wait(trx_lck);
+	}
+
+	{
+		std::unique_lock<std::mutex> lck(ConflictThreadEnv::task_mutex);
+		delete ConflictThreadEnv::task_state_map[cur_trx_log->get_trxID()];
+		ConflictThreadEnv::task_state_map.erase(cur_trx_log->get_trxID());
+	}
 	return 1;
 }
+
+int ConflictThreadPool::add_task(TrxLog * cur_trx_log , TrxLog * ref_trx_log)
+{
+	TrxID cur_id = cur_trx_log->get_trxID();
+ 	ConflictTask tempTask;
+	tempTask.cur_log = cur_trx_log;
+	tempTask.ref_log = ref_trx_log;
+	if(ConflictThreadEnv::task_state_map.find(cur_id) == ConflictThreadEnv::task_state_map.end())
+	{
+		ConflictThreadEnv::task_state_map.emplace(cur_id,new TaskState);
+		ConflictThreadEnv::task_state_map[cur_id]->count.store(0);
+		ConflictThreadEnv::task_state_map[cur_id]->result.store(false);
+		ConflictThreadEnv::task_state_map[cur_id]->trx_cond_ptr = nullptr;
+	}
+	ConflictThreadEnv::task_queue.push(tempTask);
+	ConflictThreadEnv::task_state_map[cur_id]->count.fetch_add(1);
+	return 1;
+}
+
+

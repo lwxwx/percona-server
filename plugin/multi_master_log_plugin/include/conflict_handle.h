@@ -32,72 +32,31 @@ enum ConflictType{
 enum ConflictHandleType
 {
 	SerialScan = 1,
-	PipelineWithoutHole = 2,
-	Pipeline = 3,
+	ArgMode = 2,
+	PipelineWithoutHole = 3,
+	Pipeline = 4,
+};
+
+enum ConflictHandleLevel
+{
+	PAGE = 1,
+	ROW = 2
 };
 
 class ConflictHandle
 {
 	public:
-		void init(ConflictType c_type , ConflictHandleType h_type);	
-		bool conflict_detect(ConstTrxlogList & ref_map , const TrxLog & cur_log);
+		void init(ConflictHandleLevel c_level, ConflictHandleType h_type);	
+		bool conflict_detect(std::vector<const TrxLog*> & ref_list , const TrxLog * cur_log);
+		static bool arg_detect(TrxID id);
 	
 	private:
-		ConflictType conflict_type;
+		ConflictHandleLevel handle_level;
 		ConflictHandleType handle_type;
 
-	/* log scan */
-		bool serial_scan(ConstTrxlogList & ref_list , const TrxLog & cur_log);
-		bool pipeline_without_hole(ConstTrxlogList & ref_list , const TrxLog & cur_log);
-
+		/* log scan */
+		bool pipeline_without_hole(std::vector<const TrxLog *> & ref_list , const TrxLog & cur_log);
 		/* verify */
-		bool conflict_verify(const TrxLog & ref_log, const TrxLog & cur_log);
 };
-
-
-// enum ConflictArgType
-// {
-//     // PERCENTAGE_CONFLICT_HANDLE
-//     MAX_PERCENT,
-//
-//     //
-// };
-//
-/**
- * Static ConflictHandle Class
- * **/
-// class ConflictHandle
-// {
-//     public:
-//     // set conflict handle type
-//     static void setHandleType(ConflictHandleType type)
-//     {
-//         handle_type = type;
-//     }
-//     static ConflictHandleType getHandleType()
-//     {
-//         return handle_type;
-//     }
-//
-//     // set args for conflict_check
-//     static void setArg(ConflictArgType key,void * val)
-//     {
-//         arg_map[key] = val;
-//     }
-//     static void * getArg(ConflictArgType key)
-//     {
-//         return arg_map[key];
-//     }
-//
-//     // static interface -  conflict check function for any handle type
-//     // TODO:仅支持了百分比冲突判断
-//     static int conflict_check(TrxLog * trx);
-//
-//     private:
-//     static int percent_conflict_check(TrxLog * trx);
-//
-//     static ConflictHandleType handle_type;
-//     static std::map<ConflictArgType,void *> arg_map;
-// };
 
 #endif

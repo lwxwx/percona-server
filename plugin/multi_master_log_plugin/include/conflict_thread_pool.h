@@ -1,6 +1,6 @@
-#ifndef  CONFLICT_THREAD_POOL_HEADER
-#define CONFLICT_THREAD_POOL_HEADER
-
+#ifndef  CONFLICT_THREAD_POOL_HEADER 
+#define CONFLICT_THREAD_POOL_HEADER 
+#include <bits/stdint-uintn.h> 
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -8,34 +8,33 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <vector>
 #include "mmlp_type.h"
 #include "trx_log.h"
+
 #define DEFAULT_MAX_THREAD_POOL_CAPACITY 8
+#define DEFAULT_TASK_UNIT_LEN 5
 
 typedef std::list<const TrxLog *> ConstTrxlogList;
 
 struct ConflictTask
 {
 	TrxLog * cur_log;  // id of current transaction
-	ConstTrxlogList task_content;
-	std::condition_variable * task_finish_cond_ptr;
-	bool * task_result;
+	TrxLog * ref_log;
+};
+
+struct TaskState
+{
+	std::atomic_uint32_t count; // only when count <= 0, TaskState can be delete;
+	std::atomic_bool result;
+	std::condition_variable * trx_cond_ptr;
 };
 
 class ConflictVerifyFunction
 {
 	public:
-		virtual bool operator()(const TrxLog * ref_log,const TrxLog * cur_log) = 0;
+		virtual bool operator()(const TrxLog * cur_log,const TrxLog * ref_log) = 0;
 };
-// struct ConflictThreadEnv
-// {
-//   std::thread thd;
-//   std::condition_variable idle_cond;
-//   std::condition_variable task_finish_cond;
-//   std::mutex idle_mutex;
-//   uint32_t id;
-//   std::queue<ConflictTask> task_queue;
-// };
 
 class ConflictThreadEnv
 {
@@ -44,32 +43,29 @@ class ConflictThreadEnv
 		~ConflictThreadEnv();
 		void operator()();
 
-		static void task_execute(ConflictTask * task);
+		//after verify , modify the result, check task counts of GTSN , delete from map and notify trx thread when finish
+		//Not init in construct function
 		static ConflictVerifyFunction * verifyFunc; 
+		static std::mutex task_mutex;		
+		static std::condition_variable task_thread_cond;
+		static std::queue<ConflictTask> task_queue; 
+		static std::map<TrxID, TaskState *> task_state_map;
 	private:
 		std::thread * thd_ptr;
-		std::condition_variable idle_cond;
-		std::mutex state_mutex;
-		std::queue<ConflictTask> task_queue;
-		std::atomic<bool> thread_destory_flag;
 };
 
 class ConflictThreadPool
 {
 	public:
-		int init(uint32_t capacity,ConflictVerifyFunction * verify_fun); // start thread
-		int distribute_task(TrxLog *cur_trx_log, ConstTrxlogList & task_content, uint32_t require_threads = 0); // 0 = max_capacity
-		int destory_pool();
+		int init(ConflictVerifyFunction * verify_fun); // start thread
+		int wait_for_result(TrxLog * cur_trx_log, std::vector<TrxLog *> & ref_list);
 		~ConflictThreadPool();
+	
 	private:
-		uint32_t max_capacity;
+		std::vector<ConflictThreadEnv *> thread_vector;
 		
-		//TODO : 多线程结果通知，参考workflow
-		//std::map<TrxID,bool> result_map;
-		//// task queue
-		//// thread array
+		int add_task(TrxLog * cur_trx_log, TrxLog * ref_trx_log);
 };
-		//
 #endif
-
+	
 	

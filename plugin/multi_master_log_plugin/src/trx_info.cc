@@ -7,7 +7,9 @@
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
 #include "trx_info.h"
+#include <bits/stdint-uintn.h>
 #include <cstdint>
+#include "conflict_handle.h"
 #include "debug.h"
 #include "easylogger.h"
 #include "mmlp_type.h"
@@ -120,7 +122,7 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
     }
 
     trx_redo = working_thread_map[tid];
-    // TODO : 检查事务是否为读写事务（是否包含redo log）
+    // 检查事务是否为读写事务（是否包含redo log）
 
     //#### Assign Global Transaction ID
     TrxID global_id = id_factory.getGlobalTrxID();
@@ -130,8 +132,24 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
 	if(trx_redo->get_snapshot_state() > 0)
 		global_trx_hole_check(trx_redo->get_snapshot_state(), global_id);
     
-	// TODO : 冲突检测
-	bool is_conflict = false;
+	// 冲突检测
+  uint64_t conflict_latency = (std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::steady_clock::now().time_since_epoch()))
+                     .count();
+	bool is_conflict = ConflictHandle::arg_detect(global_id);
+	conflict_latency = (std::chrono::duration_cast<std::chrono::microseconds>(
+                      std::chrono::steady_clock::now().time_since_epoch()))
+                     .count() - conflict_latency;
+	if(is_conflict)
+	{
+		conflict_failed_count = conflict_failed_count + 1;
+		conflict_failed_time = conflict_failed_time + conflict_latency;
+	}
+	else
+	{
+		conflict_succeed_count = conflict_succeed_count + 1; 
+		conflict_succeed_time = conflict_succeed_time + conflict_latency;
+	}
 
     //#### Commit or Rollback Trx
 	if(is_conflict)

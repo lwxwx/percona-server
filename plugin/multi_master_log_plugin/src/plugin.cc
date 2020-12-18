@@ -7,6 +7,7 @@
  * @FilePath: /multi_master_log_plugin/src/plugin.cc
  */
 #include <mysql/plugin.h>
+#include "mmlp_type.h"
 #include "mysql.h"
 #include "trx_info.h"
 #include "plugin_interface.h"
@@ -89,6 +90,12 @@ unsigned long long conflict_succeed_time = 0;
 unsigned long long conflict_succeed_count = 0;
 unsigned long long conflict_failed_count = 0;
 unsigned long long conflict_failed_time = 0;
+
+unsigned long long conflict_page_percent = 0;
+unsigned long long conflict_row_percent = 0;
+unsigned long long conflict_trx_length = 0;
+unsigned long long conflict_detect_method = 0;
+unsigned long long conflict_detect_level = 0;
 
 //trx time
 unsigned long long trx_count = 0;
@@ -696,6 +703,36 @@ MYSQL_SYSVAR_ULONGLONG(conflict_failed_count,
     ULONG_LONG_MAX,
     0
 );
+
+MYSQL_SYSVAR_ULONGLONG(conflict_page_percent,
+		conflict_page_percent, 
+		PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+		"page count"
+		, NULL, NULL, 0, 0, ULONG_LONG_MAX, 0);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_row_percent,
+		conflict_row_percent, 
+		PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+		"page count"
+		, NULL, NULL, 0, 0, ULONG_LONG_MAX, 0);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_trx_length,
+		conflict_trx_length, 
+		PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+		"trx len"
+		, NULL, NULL, 0, 0, ULONG_LONG_MAX, 0);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_detect_level, 
+		conflict_detect_level,
+		PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+		"detect level"
+		, NULL, NULL, 0, 0, ULONG_LONG_MAX, 0);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_detect_method,
+		conflict_detect_method, 
+		PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+		"detect method"
+		, NULL, NULL, 0, 0, ULONG_LONG_MAX, 0);
 
 /* trx sysvar */
 MYSQL_SYSVAR_ULONGLONG(trx_count,
