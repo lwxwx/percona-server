@@ -136,23 +136,31 @@ int TrxInfo::wr_trx_commiting(TrxID local_id) {
   uint64_t conflict_latency = (std::chrono::duration_cast<std::chrono::microseconds>(
                       std::chrono::steady_clock::now().time_since_epoch()))
                      .count();
-	bool is_conflict = ConflictHandle::arg_detect(global_id);
+	int conflict_res = ConflictHandle::arg_detect(global_id);
 	conflict_latency = (std::chrono::duration_cast<std::chrono::microseconds>(
                       std::chrono::steady_clock::now().time_since_epoch()))
                      .count() - conflict_latency;
-	if(is_conflict)
+	if(conflict_res > 1)
 	{
+		if(conflict_res == 2)
+		{
+			conflict_row_failed = conflict_row_failed + 1;
+		}
 		conflict_failed_count = conflict_failed_count + 1;
 		conflict_failed_time = conflict_failed_time + conflict_latency;
 	}
 	else
 	{
+		if(conflict_res == 1)
+		{
+			conflict_page_failed = conflict_page_failed + 1;
+		}
 		conflict_succeed_count = conflict_succeed_count + 1; 
 		conflict_succeed_time = conflict_succeed_time + conflict_latency;
 	}
 
     //#### Commit or Rollback Trx
-	if(is_conflict)
+	if(conflict_res)
 	{
 		trx_redo->rollback_trx_log(global_id);
 	}

@@ -48,7 +48,7 @@ class ConflictHandle
 	public:
 		void init(ConflictHandleLevel c_level, ConflictHandleType h_type);	
 		bool conflict_detect(std::vector<const TrxLog*> & ref_list , const TrxLog * cur_log);
-		static bool arg_detect(TrxID id);
+		static int arg_detect(TrxID id);
 	
 	private:
 		ConflictHandleLevel handle_level;
