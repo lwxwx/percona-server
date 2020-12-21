@@ -7,7 +7,7 @@
  * @FilePath: /percona-server/plugin/multi_master_log_plugin/src/trx_info.cc
  */
 #include "trx_info.h"
-#include <bits/stdint-uintn.h>
+// #include <bits/stdint-uintn.h>
 #include <cstdint>
 #include "conflict_handle.h"
 #include "debug.h"

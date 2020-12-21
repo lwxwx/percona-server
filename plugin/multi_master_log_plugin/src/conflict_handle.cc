@@ -1,5 +1,5 @@
 #include "conflict_handle.h"
-#include <bits/stdint-uintn.h>
+// #include <bits/stdint-uintn.h>
 #include <cstdlib>
 #include "mmlp_type.h"
 #include "trx_log.h"

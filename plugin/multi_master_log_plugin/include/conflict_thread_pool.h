@@ -1,6 +1,6 @@
 #ifndef  CONFLICT_THREAD_POOL_HEADER 
 #define CONFLICT_THREAD_POOL_HEADER 
-#include <bits/stdint-uintn.h> 
+// #include <bits/stdint-uintn.h>
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
