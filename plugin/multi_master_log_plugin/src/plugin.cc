@@ -91,8 +91,8 @@ unsigned long long conflict_succeed_count = 0;
 unsigned long long conflict_failed_count = 0;
 unsigned long long conflict_failed_time = 0;
 
-unsigned long long conflict_page_failed;
-unsigned long long conflict_row_failed;
+unsigned long long conflict_page_failed = 0;
+unsigned long long conflict_row_failed = 0;
 
 unsigned long long conflict_page_percent = 0;
 unsigned long long conflict_row_percent = 0;
@@ -850,6 +850,19 @@ static SYS_VAR * multi_master_system_vars[] = {
 	MYSQL_SYSVAR(conflict_failed_time),
 	MYSQL_SYSVAR(conflict_failed_count),
 
+MYSQL_SYSVAR(conflict_succeed_time) ,
+MYSQL_SYSVAR(conflict_succeed_count),
+MYSQL_SYSVAR(conflict_failed_count),
+MYSQL_SYSVAR(conflict_failed_time),
+
+MYSQL_SYSVAR(conflict_page_failed),
+MYSQL_SYSVAR(conflict_row_failed),
+
+MYSQL_SYSVAR(conflict_page_percent),
+MYSQL_SYSVAR(conflict_row_percent),
+MYSQL_SYSVAR(conflict_trx_length),
+MYSQL_SYSVAR(conflict_detect_method),
+MYSQL_SYSVAR(conflict_detect_level),
     MYSQL_SYSVAR(trx_count),
     MYSQL_SYSVAR(trx_sum_time),
 
