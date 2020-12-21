@@ -91,6 +91,9 @@ unsigned long long conflict_succeed_count = 0;
 unsigned long long conflict_failed_count = 0;
 unsigned long long conflict_failed_time = 0;
 
+unsigned long long conflict_page_failed;
+unsigned long long conflict_row_failed;
+
 unsigned long long conflict_page_percent = 0;
 unsigned long long conflict_row_percent = 0;
 unsigned long long conflict_trx_length = 0;
@@ -696,6 +699,30 @@ MYSQL_SYSVAR_ULONGLONG(conflict_failed_count,
     conflict_failed_count,
     PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
     "Conflict Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_page_failed,
+    conflict_page_failed,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "page Conflict Count",
+    NULL,
+    NULL,
+    0,
+    0,
+    ULONG_LONG_MAX,
+    0
+);
+
+MYSQL_SYSVAR_ULONGLONG(conflict_row_failed,
+    conflict_row_failed,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "row Conflict Count",
     NULL,
     NULL,
     0,
