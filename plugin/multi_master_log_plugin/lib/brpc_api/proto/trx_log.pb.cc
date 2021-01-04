@@ -5,264 +5,625 @@
 
 #include <algorithm>
 
+#include <google/protobuf/stubs/common.h>
+#include <google/protobuf/stubs/port.h>
 #include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/extension_set.h>
-#include <google/protobuf/wire_format_lite.h>
+#include <google/protobuf/wire_format_lite_inl.h>
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/generated_message_reflection.h>
 #include <google/protobuf/reflection_ops.h>
 #include <google/protobuf/wire_format.h>
+// This is a temporary google only hack
+#ifdef GOOGLE_PROTOBUF_ENFORCE_UNIQUENESS
+#include "third_party/protobuf/version.h"
+#endif
 // @@protoc_insertion_point(includes)
-#include <google/protobuf/port_def.inc>
-extern PROTOBUF_INTERNAL_EXPORT_trx_5flog_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_TrxLogMsg_trx_5flog_2eproto;
+
+namespace protobuf_trx_5flog_2eproto {
+extern PROTOBUF_INTERNAL_EXPORT_protobuf_trx_5flog_2eproto ::google::protobuf::internal::SCCInfo<0> scc_info_BenchLogMsg;
+extern PROTOBUF_INTERNAL_EXPORT_protobuf_trx_5flog_2eproto ::google::protobuf::internal::SCCInfo<1> scc_info_TrxLogMsg;
+}  // namespace protobuf_trx_5flog_2eproto
 namespace MMLP_BRPC {
+class BenchLogMsgDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<BenchLogMsg>
+      _instance;
+} _BenchLogMsg_default_instance_;
 class TrxLogMsgDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<TrxLogMsg> _instance;
+  ::google::protobuf::internal::ExplicitlyConstructed<TrxLogMsg>
+      _instance;
 } _TrxLogMsg_default_instance_;
 class LogSendRequestDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<LogSendRequest> _instance;
+  ::google::protobuf::internal::ExplicitlyConstructed<LogSendRequest>
+      _instance;
 } _LogSendRequest_default_instance_;
 class LogSendResponseDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<LogSendResponse> _instance;
+  ::google::protobuf::internal::ExplicitlyConstructed<LogSendResponse>
+      _instance;
 } _LogSendResponse_default_instance_;
 class LogRequireRequestDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<LogRequireRequest> _instance;
+  ::google::protobuf::internal::ExplicitlyConstructed<LogRequireRequest>
+      _instance;
 } _LogRequireRequest_default_instance_;
 class LogRequireResponseDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<LogRequireResponse> _instance;
+  ::google::protobuf::internal::ExplicitlyConstructed<LogRequireResponse>
+      _instance;
 } _LogRequireResponse_default_instance_;
 }  // namespace MMLP_BRPC
-static void InitDefaultsscc_info_LogRequireRequest_trx_5flog_2eproto() {
+namespace protobuf_trx_5flog_2eproto {
+static void InitDefaultsBenchLogMsg() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::MMLP_BRPC::_LogRequireRequest_default_instance_;
-    new (ptr) ::MMLP_BRPC::LogRequireRequest();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+    void* ptr = &::MMLP_BRPC::_BenchLogMsg_default_instance_;
+    new (ptr) ::MMLP_BRPC::BenchLogMsg();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::MMLP_BRPC::LogRequireRequest::InitAsDefaultInstance();
+  ::MMLP_BRPC::BenchLogMsg::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_LogRequireRequest_trx_5flog_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_LogRequireRequest_trx_5flog_2eproto}, {}};
+::google::protobuf::internal::SCCInfo<0> scc_info_BenchLogMsg =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsBenchLogMsg}, {}};
 
-static void InitDefaultsscc_info_LogRequireResponse_trx_5flog_2eproto() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  {
-    void* ptr = &::MMLP_BRPC::_LogRequireResponse_default_instance_;
-    new (ptr) ::MMLP_BRPC::LogRequireResponse();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
-  }
-  ::MMLP_BRPC::LogRequireResponse::InitAsDefaultInstance();
-}
-
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_LogRequireResponse_trx_5flog_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_LogRequireResponse_trx_5flog_2eproto}, {
-      &scc_info_TrxLogMsg_trx_5flog_2eproto.base,}};
-
-static void InitDefaultsscc_info_LogSendRequest_trx_5flog_2eproto() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  {
-    void* ptr = &::MMLP_BRPC::_LogSendRequest_default_instance_;
-    new (ptr) ::MMLP_BRPC::LogSendRequest();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
-  }
-  ::MMLP_BRPC::LogSendRequest::InitAsDefaultInstance();
-}
-
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_LogSendRequest_trx_5flog_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_LogSendRequest_trx_5flog_2eproto}, {
-      &scc_info_TrxLogMsg_trx_5flog_2eproto.base,}};
-
-static void InitDefaultsscc_info_LogSendResponse_trx_5flog_2eproto() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  {
-    void* ptr = &::MMLP_BRPC::_LogSendResponse_default_instance_;
-    new (ptr) ::MMLP_BRPC::LogSendResponse();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
-  }
-  ::MMLP_BRPC::LogSendResponse::InitAsDefaultInstance();
-}
-
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_LogSendResponse_trx_5flog_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_LogSendResponse_trx_5flog_2eproto}, {}};
-
-static void InitDefaultsscc_info_TrxLogMsg_trx_5flog_2eproto() {
+static void InitDefaultsTrxLogMsg() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
     void* ptr = &::MMLP_BRPC::_TrxLogMsg_default_instance_;
     new (ptr) ::MMLP_BRPC::TrxLogMsg();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
   }
   ::MMLP_BRPC::TrxLogMsg::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_TrxLogMsg_trx_5flog_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_TrxLogMsg_trx_5flog_2eproto}, {}};
+::google::protobuf::internal::SCCInfo<1> scc_info_TrxLogMsg =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 1, InitDefaultsTrxLogMsg}, {
+      &protobuf_trx_5flog_2eproto::scc_info_BenchLogMsg.base,}};
 
-static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_trx_5flog_2eproto[5];
-static constexpr ::PROTOBUF_NAMESPACE_ID::EnumDescriptor const** file_level_enum_descriptors_trx_5flog_2eproto = nullptr;
-static const ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor* file_level_service_descriptors_trx_5flog_2eproto[1];
+static void InitDefaultsLogSendRequest() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_trx_5flog_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, _has_bits_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, _internal_metadata_),
+  {
+    void* ptr = &::MMLP_BRPC::_LogSendRequest_default_instance_;
+    new (ptr) ::MMLP_BRPC::LogSendRequest();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::MMLP_BRPC::LogSendRequest::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<1> scc_info_LogSendRequest =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 1, InitDefaultsLogSendRequest}, {
+      &protobuf_trx_5flog_2eproto::scc_info_TrxLogMsg.base,}};
+
+static void InitDefaultsLogSendResponse() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::MMLP_BRPC::_LogSendResponse_default_instance_;
+    new (ptr) ::MMLP_BRPC::LogSendResponse();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::MMLP_BRPC::LogSendResponse::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_LogSendResponse =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsLogSendResponse}, {}};
+
+static void InitDefaultsLogRequireRequest() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::MMLP_BRPC::_LogRequireRequest_default_instance_;
+    new (ptr) ::MMLP_BRPC::LogRequireRequest();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::MMLP_BRPC::LogRequireRequest::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_LogRequireRequest =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsLogRequireRequest}, {}};
+
+static void InitDefaultsLogRequireResponse() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::MMLP_BRPC::_LogRequireResponse_default_instance_;
+    new (ptr) ::MMLP_BRPC::LogRequireResponse();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::MMLP_BRPC::LogRequireResponse::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<1> scc_info_LogRequireResponse =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 1, InitDefaultsLogRequireResponse}, {
+      &protobuf_trx_5flog_2eproto::scc_info_TrxLogMsg.base,}};
+
+void InitDefaults() {
+  ::google::protobuf::internal::InitSCC(&scc_info_BenchLogMsg.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_TrxLogMsg.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_LogSendRequest.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_LogSendResponse.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_LogRequireRequest.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_LogRequireResponse.base);
+}
+
+::google::protobuf::Metadata file_level_metadata[6];
+const ::google::protobuf::ServiceDescriptor* file_level_service_descriptors[1];
+
+const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, _has_bits_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, type_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, space_id_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, page_no_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, offset_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, rec_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, page_no_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::BenchLogMsg, row_no_),
+  0,
+  1,
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, _has_bits_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, type_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, space_id_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, page_no_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, offset_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, rec_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::TrxLogMsg, benchmsg_),
   1,
   2,
   3,
   4,
   0,
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, _has_bits_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, _internal_metadata_),
+  ~0u,
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, _has_bits_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, trxid_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, is_valid_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, log_msg_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, trxid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, is_valid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, log_msg_),
   0,
   1,
   ~0u,
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, _has_bits_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, _has_bits_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, send_reply_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, send_reply_),
   0,
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, _has_bits_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, _has_bits_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, trxid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, trxid_),
   0,
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, _has_bits_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, _has_bits_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, require_reply_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, is_valid_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, log_msg_),
-  PROTOBUF_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, trxid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, require_reply_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, is_valid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, log_msg_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, trxid_),
   0,
   1,
   ~0u,
   2,
 };
-static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
-  { 0, 10, sizeof(::MMLP_BRPC::TrxLogMsg)},
-  { 15, 23, sizeof(::MMLP_BRPC::LogSendRequest)},
-  { 26, 32, sizeof(::MMLP_BRPC::LogSendResponse)},
-  { 33, 39, sizeof(::MMLP_BRPC::LogRequireRequest)},
-  { 40, 49, sizeof(::MMLP_BRPC::LogRequireResponse)},
+static const ::google::protobuf::internal::MigrationSchema schemas[] GOOGLE_PROTOBUF_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
+  { 0, 7, sizeof(::MMLP_BRPC::BenchLogMsg)},
+  { 9, 20, sizeof(::MMLP_BRPC::TrxLogMsg)},
+  { 26, 34, sizeof(::MMLP_BRPC::LogSendRequest)},
+  { 37, 43, sizeof(::MMLP_BRPC::LogSendResponse)},
+  { 44, 50, sizeof(::MMLP_BRPC::LogRequireRequest)},
+  { 51, 60, sizeof(::MMLP_BRPC::LogRequireResponse)},
 };
 
-static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_TrxLogMsg_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_LogSendRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_LogSendResponse_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_LogRequireRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::MMLP_BRPC::_LogRequireResponse_default_instance_),
+static ::google::protobuf::Message const * const file_default_instances[] = {
+  reinterpret_cast<const ::google::protobuf::Message*>(&::MMLP_BRPC::_BenchLogMsg_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::MMLP_BRPC::_TrxLogMsg_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::MMLP_BRPC::_LogSendRequest_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::MMLP_BRPC::_LogSendResponse_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::MMLP_BRPC::_LogRequireRequest_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::MMLP_BRPC::_LogRequireResponse_default_instance_),
 };
 
-const char descriptor_table_protodef_trx_5flog_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\rtrx_log.proto\022\tMMLP_BRPC\"Y\n\tTrxLogMsg\022"
-  "\014\n\004type\030\001 \002(\021\022\020\n\010space_id\030\002 \002(\r\022\017\n\007page_"
-  "no\030\003 \002(\r\022\016\n\006offset\030\004 \002(\r\022\013\n\003rec\030\005 \002(\014\"X\n"
-  "\016LogSendRequest\022\r\n\005trxID\030\001 \002(\004\022\020\n\010is_val"
-  "id\030\002 \002(\010\022%\n\007log_msg\030\003 \003(\0132\024.MMLP_BRPC.Tr"
-  "xLogMsg\"%\n\017LogSendResponse\022\022\n\nsend_reply"
-  "\030\001 \002(\021\"\"\n\021LogRequireRequest\022\r\n\005trxID\030\001 \002"
-  "(\004\"s\n\022LogRequireResponse\022\025\n\rrequire_repl"
-  "y\030\001 \002(\021\022\020\n\010is_valid\030\002 \002(\010\022%\n\007log_msg\030\003 \003"
-  "(\0132\024.MMLP_BRPC.TrxLogMsg\022\r\n\005trxID\030\004 \001(\0042"
-  "\234\001\n\rTrxLogService\022@\n\007sendLog\022\031.MMLP_BRPC"
-  ".LogSendRequest\032\032.MMLP_BRPC.LogSendRespo"
-  "nse\022I\n\nrequireLog\022\034.MMLP_BRPC.LogRequire"
-  "Request\032\035.MMLP_BRPC.LogRequireResponseB\003"
-  "\200\001\001"
-  ;
-static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_trx_5flog_2eproto_deps[1] = {
-};
-static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_trx_5flog_2eproto_sccs[5] = {
-  &scc_info_LogRequireRequest_trx_5flog_2eproto.base,
-  &scc_info_LogRequireResponse_trx_5flog_2eproto.base,
-  &scc_info_LogSendRequest_trx_5flog_2eproto.base,
-  &scc_info_LogSendResponse_trx_5flog_2eproto.base,
-  &scc_info_TrxLogMsg_trx_5flog_2eproto.base,
-};
-static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_trx_5flog_2eproto_once;
-const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_trx_5flog_2eproto = {
-  false, false, descriptor_table_protodef_trx_5flog_2eproto, "trx_log.proto", 563,
-  &descriptor_table_trx_5flog_2eproto_once, descriptor_table_trx_5flog_2eproto_sccs, descriptor_table_trx_5flog_2eproto_deps, 5, 0,
-  schemas, file_default_instances, TableStruct_trx_5flog_2eproto::offsets,
-  file_level_metadata_trx_5flog_2eproto, 5, file_level_enum_descriptors_trx_5flog_2eproto, file_level_service_descriptors_trx_5flog_2eproto,
-};
+void protobuf_AssignDescriptors() {
+  AddDescriptors();
+  AssignDescriptors(
+      "trx_log.proto", schemas, file_default_instances, TableStruct::offsets,
+      file_level_metadata, NULL, file_level_service_descriptors);
+}
 
-// Force running AddDescriptors() at dynamic initialization time.
-static bool dynamic_init_dummy_trx_5flog_2eproto = (static_cast<void>(::PROTOBUF_NAMESPACE_ID::internal::AddDescriptors(&descriptor_table_trx_5flog_2eproto)), true);
+void protobuf_AssignDescriptorsOnce() {
+  static ::google::protobuf::internal::once_flag once;
+  ::google::protobuf::internal::call_once(once, protobuf_AssignDescriptors);
+}
+
+void protobuf_RegisterTypes(const ::std::string&) GOOGLE_PROTOBUF_ATTRIBUTE_COLD;
+void protobuf_RegisterTypes(const ::std::string&) {
+  protobuf_AssignDescriptorsOnce();
+  ::google::protobuf::internal::RegisterAllTypes(file_level_metadata, 6);
+}
+
+void AddDescriptorsImpl() {
+  InitDefaults();
+  static const char descriptor[] GOOGLE_PROTOBUF_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
+      "\n\rtrx_log.proto\022\tMMLP_BRPC\".\n\013BenchLogMs"
+      "g\022\017\n\007page_no\030\001 \002(\r\022\016\n\006row_no\030\002 \002(\r\"\203\001\n\tT"
+      "rxLogMsg\022\014\n\004type\030\001 \002(\021\022\020\n\010space_id\030\002 \002(\r"
+      "\022\017\n\007page_no\030\003 \002(\r\022\016\n\006offset\030\004 \002(\r\022\013\n\003rec"
+      "\030\005 \002(\014\022(\n\010benchmsg\030\006 \003(\0132\026.MMLP_BRPC.Ben"
+      "chLogMsg\"X\n\016LogSendRequest\022\r\n\005trxID\030\001 \002("
+      "\004\022\020\n\010is_valid\030\002 \002(\010\022%\n\007log_msg\030\003 \003(\0132\024.M"
+      "MLP_BRPC.TrxLogMsg\"%\n\017LogSendResponse\022\022\n"
+      "\nsend_reply\030\001 \002(\021\"\"\n\021LogRequireRequest\022\r"
+      "\n\005trxID\030\001 \002(\004\"s\n\022LogRequireResponse\022\025\n\rr"
+      "equire_reply\030\001 \002(\021\022\020\n\010is_valid\030\002 \002(\010\022%\n\007"
+      "log_msg\030\003 \003(\0132\024.MMLP_BRPC.TrxLogMsg\022\r\n\005t"
+      "rxID\030\004 \001(\0042\234\001\n\rTrxLogService\022@\n\007sendLog\022"
+      "\031.MMLP_BRPC.LogSendRequest\032\032.MMLP_BRPC.L"
+      "ogSendResponse\022I\n\nrequireLog\022\034.MMLP_BRPC"
+      ".LogRequireRequest\032\035.MMLP_BRPC.LogRequir"
+      "eResponseB\003\200\001\001"
+  };
+  ::google::protobuf::DescriptorPool::InternalAddGeneratedFile(
+      descriptor, 654);
+  ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
+    "trx_log.proto", &protobuf_RegisterTypes);
+}
+
+void AddDescriptors() {
+  static ::google::protobuf::internal::once_flag once;
+  ::google::protobuf::internal::call_once(once, AddDescriptorsImpl);
+}
+// Force AddDescriptors() to be called at dynamic initialization time.
+struct StaticDescriptorInitializer {
+  StaticDescriptorInitializer() {
+    AddDescriptors();
+  }
+} static_descriptor_initializer;
+}  // namespace protobuf_trx_5flog_2eproto
 namespace MMLP_BRPC {
+
+// ===================================================================
+
+void BenchLogMsg::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int BenchLogMsg::kPageNoFieldNumber;
+const int BenchLogMsg::kRowNoFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
+
+BenchLogMsg::BenchLogMsg()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_trx_5flog_2eproto::scc_info_BenchLogMsg.base);
+  SharedCtor();
+  // @@protoc_insertion_point(constructor:MMLP_BRPC.BenchLogMsg)
+}
+BenchLogMsg::BenchLogMsg(const BenchLogMsg& from)
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
+      _has_bits_(from._has_bits_) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::memcpy(&page_no_, &from.page_no_,
+    static_cast<size_t>(reinterpret_cast<char*>(&row_no_) -
+    reinterpret_cast<char*>(&page_no_)) + sizeof(row_no_));
+  // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.BenchLogMsg)
+}
+
+void BenchLogMsg::SharedCtor() {
+  ::memset(&page_no_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&row_no_) -
+      reinterpret_cast<char*>(&page_no_)) + sizeof(row_no_));
+}
+
+BenchLogMsg::~BenchLogMsg() {
+  // @@protoc_insertion_point(destructor:MMLP_BRPC.BenchLogMsg)
+  SharedDtor();
+}
+
+void BenchLogMsg::SharedDtor() {
+}
+
+void BenchLogMsg::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const ::google::protobuf::Descriptor* BenchLogMsg::descriptor() {
+  ::protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const BenchLogMsg& BenchLogMsg::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_trx_5flog_2eproto::scc_info_BenchLogMsg.base);
+  return *internal_default_instance();
+}
+
+
+void BenchLogMsg::Clear() {
+// @@protoc_insertion_point(message_clear_start:MMLP_BRPC.BenchLogMsg)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  if (cached_has_bits & 3u) {
+    ::memset(&page_no_, 0, static_cast<size_t>(
+        reinterpret_cast<char*>(&row_no_) -
+        reinterpret_cast<char*>(&page_no_)) + sizeof(row_no_));
+  }
+  _has_bits_.Clear();
+  _internal_metadata_.Clear();
+}
+
+bool BenchLogMsg::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:MMLP_BRPC.BenchLogMsg)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
+      // required uint32 page_no = 1;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
+          set_has_page_no();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
+                 input, &page_no_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      // required uint32 row_no = 2;
+      case 2: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(16u /* 16 & 0xFF */)) {
+          set_has_row_no();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
+                 input, &row_no_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      default: {
+      handle_unusual:
+        if (tag == 0) {
+          goto success;
+        }
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
+      }
+    }
+  }
+success:
+  // @@protoc_insertion_point(parse_success:MMLP_BRPC.BenchLogMsg)
+  return true;
+failure:
+  // @@protoc_insertion_point(parse_failure:MMLP_BRPC.BenchLogMsg)
+  return false;
+#undef DO_
+}
+
+void BenchLogMsg::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:MMLP_BRPC.BenchLogMsg)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required uint32 page_no = 1;
+  if (cached_has_bits & 0x00000001u) {
+    ::google::protobuf::internal::WireFormatLite::WriteUInt32(1, this->page_no(), output);
+  }
+
+  // required uint32 row_no = 2;
+  if (cached_has_bits & 0x00000002u) {
+    ::google::protobuf::internal::WireFormatLite::WriteUInt32(2, this->row_no(), output);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        _internal_metadata_.unknown_fields(), output);
+  }
+  // @@protoc_insertion_point(serialize_end:MMLP_BRPC.BenchLogMsg)
+}
+
+::google::protobuf::uint8* BenchLogMsg::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.BenchLogMsg)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required uint32 page_no = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(1, this->page_no(), target);
+  }
+
+  // required uint32 row_no = 2;
+  if (cached_has_bits & 0x00000002u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(2, this->row_no(), target);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields(), target);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:MMLP_BRPC.BenchLogMsg)
+  return target;
+}
+
+size_t BenchLogMsg::RequiredFieldsByteSizeFallback() const {
+// @@protoc_insertion_point(required_fields_byte_size_fallback_start:MMLP_BRPC.BenchLogMsg)
+  size_t total_size = 0;
+
+  if (has_page_no()) {
+    // required uint32 page_no = 1;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->page_no());
+  }
+
+  if (has_row_no()) {
+    // required uint32 row_no = 2;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->row_no());
+  }
+
+  return total_size;
+}
+size_t BenchLogMsg::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:MMLP_BRPC.BenchLogMsg)
+  size_t total_size = 0;
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        _internal_metadata_.unknown_fields());
+  }
+  if (((_has_bits_[0] & 0x00000003) ^ 0x00000003) == 0) {  // All required fields are present.
+    // required uint32 page_no = 1;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->page_no());
+
+    // required uint32 row_no = 2;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->row_no());
+
+  } else {
+    total_size += RequiredFieldsByteSizeFallback();
+  }
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void BenchLogMsg::MergeFrom(const ::google::protobuf::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:MMLP_BRPC.BenchLogMsg)
+  GOOGLE_DCHECK_NE(&from, this);
+  const BenchLogMsg* source =
+      ::google::protobuf::internal::DynamicCastToGenerated<const BenchLogMsg>(
+          &from);
+  if (source == NULL) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:MMLP_BRPC.BenchLogMsg)
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:MMLP_BRPC.BenchLogMsg)
+    MergeFrom(*source);
+  }
+}
+
+void BenchLogMsg::MergeFrom(const BenchLogMsg& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:MMLP_BRPC.BenchLogMsg)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._has_bits_[0];
+  if (cached_has_bits & 3u) {
+    if (cached_has_bits & 0x00000001u) {
+      page_no_ = from.page_no_;
+    }
+    if (cached_has_bits & 0x00000002u) {
+      row_no_ = from.row_no_;
+    }
+    _has_bits_[0] |= cached_has_bits;
+  }
+}
+
+void BenchLogMsg::CopyFrom(const ::google::protobuf::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:MMLP_BRPC.BenchLogMsg)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void BenchLogMsg::CopyFrom(const BenchLogMsg& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:MMLP_BRPC.BenchLogMsg)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool BenchLogMsg::IsInitialized() const {
+  if ((_has_bits_[0] & 0x00000003) != 0x00000003) return false;
+  return true;
+}
+
+void BenchLogMsg::Swap(BenchLogMsg* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
+void BenchLogMsg::InternalSwap(BenchLogMsg* other) {
+  using std::swap;
+  swap(page_no_, other->page_no_);
+  swap(row_no_, other->row_no_);
+  swap(_has_bits_[0], other->_has_bits_[0]);
+  _internal_metadata_.Swap(&other->_internal_metadata_);
+}
+
+::google::protobuf::Metadata BenchLogMsg::GetMetadata() const {
+  protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages];
+}
+
 
 // ===================================================================
 
 void TrxLogMsg::InitAsDefaultInstance() {
 }
-class TrxLogMsg::_Internal {
- public:
-  using HasBits = decltype(std::declval<TrxLogMsg>()._has_bits_);
-  static void set_has_type(HasBits* has_bits) {
-    (*has_bits)[0] |= 2u;
-  }
-  static void set_has_space_id(HasBits* has_bits) {
-    (*has_bits)[0] |= 4u;
-  }
-  static void set_has_page_no(HasBits* has_bits) {
-    (*has_bits)[0] |= 8u;
-  }
-  static void set_has_offset(HasBits* has_bits) {
-    (*has_bits)[0] |= 16u;
-  }
-  static void set_has_rec(HasBits* has_bits) {
-    (*has_bits)[0] |= 1u;
-  }
-  static bool MissingRequiredFields(const HasBits& has_bits) {
-    return ((has_bits[0] & 0x0000001f) ^ 0x0000001f) != 0;
-  }
-};
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int TrxLogMsg::kTypeFieldNumber;
+const int TrxLogMsg::kSpaceIdFieldNumber;
+const int TrxLogMsg::kPageNoFieldNumber;
+const int TrxLogMsg::kOffsetFieldNumber;
+const int TrxLogMsg::kRecFieldNumber;
+const int TrxLogMsg::kBenchmsgFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-TrxLogMsg::TrxLogMsg(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+TrxLogMsg::TrxLogMsg()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_trx_5flog_2eproto::scc_info_TrxLogMsg.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:MMLP_BRPC.TrxLogMsg)
+  // @@protoc_insertion_point(constructor:MMLP_BRPC.TrxLogMsg)
 }
 TrxLogMsg::TrxLogMsg(const TrxLogMsg& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
-      _has_bits_(from._has_bits_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  rec_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (from._internal_has_rec()) {
-    rec_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_rec(),
-      GetArena());
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
+      _has_bits_(from._has_bits_),
+      benchmsg_(from.benchmsg_) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  rec_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.has_rec()) {
+    rec_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.rec_);
   }
   ::memcpy(&type_, &from.type_,
     static_cast<size_t>(reinterpret_cast<char*>(&offset_) -
@@ -271,8 +632,7 @@ TrxLogMsg::TrxLogMsg(const TrxLogMsg& from)
 }
 
 void TrxLogMsg::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_TrxLogMsg_trx_5flog_2eproto.base);
-  rec_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  rec_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   ::memset(&type_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&offset_) -
       reinterpret_cast<char*>(&type_)) + sizeof(offset_));
@@ -281,160 +641,251 @@ void TrxLogMsg::SharedCtor() {
 TrxLogMsg::~TrxLogMsg() {
   // @@protoc_insertion_point(destructor:MMLP_BRPC.TrxLogMsg)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void TrxLogMsg::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  rec_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  rec_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
-void TrxLogMsg::ArenaDtor(void* object) {
-  TrxLogMsg* _this = reinterpret_cast< TrxLogMsg* >(object);
-  (void)_this;
-}
-void TrxLogMsg::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void TrxLogMsg::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* TrxLogMsg::descriptor() {
+  ::protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
 const TrxLogMsg& TrxLogMsg::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_TrxLogMsg_trx_5flog_2eproto.base);
+  ::google::protobuf::internal::InitSCC(&protobuf_trx_5flog_2eproto::scc_info_TrxLogMsg.base);
   return *internal_default_instance();
 }
 
 
 void TrxLogMsg::Clear() {
 // @@protoc_insertion_point(message_clear_start:MMLP_BRPC.TrxLogMsg)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  benchmsg_.Clear();
   cached_has_bits = _has_bits_[0];
   if (cached_has_bits & 0x00000001u) {
-    rec_.ClearNonDefaultToEmpty();
+    rec_.ClearNonDefaultToEmptyNoArena();
   }
-  if (cached_has_bits & 0x0000001eu) {
+  if (cached_has_bits & 30u) {
     ::memset(&type_, 0, static_cast<size_t>(
         reinterpret_cast<char*>(&offset_) -
         reinterpret_cast<char*>(&type_)) + sizeof(offset_));
   }
   _has_bits_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* TrxLogMsg::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  _Internal::HasBits has_bits{};
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
+bool TrxLogMsg::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:MMLP_BRPC.TrxLogMsg)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // required sint32 type = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
-          _Internal::set_has_type(&has_bits);
-          type_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarintZigZag32(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
+          set_has_type();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_SINT32>(
+                 input, &type_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // required uint32 space_id = 2;
-      case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 16)) {
-          _Internal::set_has_space_id(&has_bits);
-          space_id_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 2: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(16u /* 16 & 0xFF */)) {
+          set_has_space_id();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
+                 input, &space_id_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // required uint32 page_no = 3;
-      case 3:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 24)) {
-          _Internal::set_has_page_no(&has_bits);
-          page_no_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 3: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(24u /* 24 & 0xFF */)) {
+          set_has_page_no();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
+                 input, &page_no_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // required uint32 offset = 4;
-      case 4:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 32)) {
-          _Internal::set_has_offset(&has_bits);
-          offset_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 4: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(32u /* 32 & 0xFF */)) {
+          set_has_offset();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
+                 input, &offset_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // required bytes rec = 5;
-      case 5:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 42)) {
-          auto str = _internal_mutable_rec();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 5: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(42u /* 42 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadBytes(
+                input, this->mutable_rec()));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      // repeated .MMLP_BRPC.BenchLogMsg benchmsg = 6;
+      case 6: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(50u /* 50 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadMessage(
+                input, add_benchmsg()));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  _has_bits_.Or(has_bits);
-  return ptr;
+  // @@protoc_insertion_point(parse_success:MMLP_BRPC.TrxLogMsg)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:MMLP_BRPC.TrxLogMsg)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* TrxLogMsg::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.TrxLogMsg)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void TrxLogMsg::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:MMLP_BRPC.TrxLogMsg)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
   // required sint32 type = 1;
   if (cached_has_bits & 0x00000002u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteSInt32ToArray(1, this->_internal_type(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteSInt32(1, this->type(), output);
   }
 
   // required uint32 space_id = 2;
   if (cached_has_bits & 0x00000004u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(2, this->_internal_space_id(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteUInt32(2, this->space_id(), output);
   }
 
   // required uint32 page_no = 3;
   if (cached_has_bits & 0x00000008u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(3, this->_internal_page_no(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteUInt32(3, this->page_no(), output);
   }
 
   // required uint32 offset = 4;
   if (cached_has_bits & 0x00000010u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt32ToArray(4, this->_internal_offset(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteUInt32(4, this->offset(), output);
   }
 
   // required bytes rec = 5;
   if (cached_has_bits & 0x00000001u) {
-    target = stream->WriteBytesMaybeAliased(
-        5, this->_internal_rec(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteBytesMaybeAliased(
+      5, this->rec(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  // repeated .MMLP_BRPC.BenchLogMsg benchmsg = 6;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->benchmsg_size()); i < n; i++) {
+    ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
+      6,
+      this->benchmsg(static_cast<int>(i)),
+      output);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        _internal_metadata_.unknown_fields(), output);
+  }
+  // @@protoc_insertion_point(serialize_end:MMLP_BRPC.TrxLogMsg)
+}
+
+::google::protobuf::uint8* TrxLogMsg::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.TrxLogMsg)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required sint32 type = 1;
+  if (cached_has_bits & 0x00000002u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteSInt32ToArray(1, this->type(), target);
+  }
+
+  // required uint32 space_id = 2;
+  if (cached_has_bits & 0x00000004u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(2, this->space_id(), target);
+  }
+
+  // required uint32 page_no = 3;
+  if (cached_has_bits & 0x00000008u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(3, this->page_no(), target);
+  }
+
+  // required uint32 offset = 4;
+  if (cached_has_bits & 0x00000010u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(4, this->offset(), target);
+  }
+
+  // required bytes rec = 5;
+  if (cached_has_bits & 0x00000001u) {
+    target =
+      ::google::protobuf::internal::WireFormatLite::WriteBytesToArray(
+        5, this->rec(), target);
+  }
+
+  // repeated .MMLP_BRPC.BenchLogMsg benchmsg = 6;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->benchmsg_size()); i < n; i++) {
+    target = ::google::protobuf::internal::WireFormatLite::
+      InternalWriteMessageToArray(
+        6, this->benchmsg(static_cast<int>(i)), deterministic, target);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields(), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:MMLP_BRPC.TrxLogMsg)
   return target;
@@ -444,39 +895,39 @@ size_t TrxLogMsg::RequiredFieldsByteSizeFallback() const {
 // @@protoc_insertion_point(required_fields_byte_size_fallback_start:MMLP_BRPC.TrxLogMsg)
   size_t total_size = 0;
 
-  if (_internal_has_rec()) {
+  if (has_rec()) {
     // required bytes rec = 5;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
-        this->_internal_rec());
+      ::google::protobuf::internal::WireFormatLite::BytesSize(
+        this->rec());
   }
 
-  if (_internal_has_type()) {
+  if (has_type()) {
     // required sint32 type = 1;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SInt32Size(
-        this->_internal_type());
+      ::google::protobuf::internal::WireFormatLite::SInt32Size(
+        this->type());
   }
 
-  if (_internal_has_space_id()) {
+  if (has_space_id()) {
     // required uint32 space_id = 2;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
-        this->_internal_space_id());
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->space_id());
   }
 
-  if (_internal_has_page_no()) {
+  if (has_page_no()) {
     // required uint32 page_no = 3;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
-        this->_internal_page_no());
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->page_no());
   }
 
-  if (_internal_has_offset()) {
+  if (has_offset()) {
     // required uint32 offset = 4;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
-        this->_internal_offset());
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->offset());
   }
 
   return total_size;
@@ -485,57 +936,65 @@ size_t TrxLogMsg::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:MMLP_BRPC.TrxLogMsg)
   size_t total_size = 0;
 
+  if (_internal_metadata_.have_unknown_fields()) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        _internal_metadata_.unknown_fields());
+  }
   if (((_has_bits_[0] & 0x0000001f) ^ 0x0000001f) == 0) {  // All required fields are present.
     // required bytes rec = 5;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
-        this->_internal_rec());
+      ::google::protobuf::internal::WireFormatLite::BytesSize(
+        this->rec());
 
     // required sint32 type = 1;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SInt32Size(
-        this->_internal_type());
+      ::google::protobuf::internal::WireFormatLite::SInt32Size(
+        this->type());
 
     // required uint32 space_id = 2;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
-        this->_internal_space_id());
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->space_id());
 
     // required uint32 page_no = 3;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
-        this->_internal_page_no());
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->page_no());
 
     // required uint32 offset = 4;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt32Size(
-        this->_internal_offset());
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->offset());
 
   } else {
     total_size += RequiredFieldsByteSizeFallback();
   }
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
+  // repeated .MMLP_BRPC.BenchLogMsg benchmsg = 6;
+  {
+    unsigned int count = static_cast<unsigned int>(this->benchmsg_size());
+    total_size += 1UL * count;
+    for (unsigned int i = 0; i < count; i++) {
+      total_size +=
+        ::google::protobuf::internal::WireFormatLite::MessageSize(
+          this->benchmsg(static_cast<int>(i)));
+    }
   }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void TrxLogMsg::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void TrxLogMsg::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:MMLP_BRPC.TrxLogMsg)
   GOOGLE_DCHECK_NE(&from, this);
   const TrxLogMsg* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<TrxLogMsg>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const TrxLogMsg>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:MMLP_BRPC.TrxLogMsg)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:MMLP_BRPC.TrxLogMsg)
     MergeFrom(*source);
@@ -545,14 +1004,16 @@ void TrxLogMsg::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
 void TrxLogMsg::MergeFrom(const TrxLogMsg& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:MMLP_BRPC.TrxLogMsg)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  benchmsg_.MergeFrom(from.benchmsg_);
   cached_has_bits = from._has_bits_[0];
-  if (cached_has_bits & 0x0000001fu) {
+  if (cached_has_bits & 31u) {
     if (cached_has_bits & 0x00000001u) {
-      _internal_set_rec(from._internal_rec());
+      set_has_rec();
+      rec_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.rec_);
     }
     if (cached_has_bits & 0x00000002u) {
       type_ = from.type_;
@@ -570,7 +1031,7 @@ void TrxLogMsg::MergeFrom(const TrxLogMsg& from) {
   }
 }
 
-void TrxLogMsg::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void TrxLogMsg::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:MMLP_BRPC.TrxLogMsg)
   if (&from == this) return;
   Clear();
@@ -585,25 +1046,31 @@ void TrxLogMsg::CopyFrom(const TrxLogMsg& from) {
 }
 
 bool TrxLogMsg::IsInitialized() const {
-  if (_Internal::MissingRequiredFields(_has_bits_)) return false;
+  if ((_has_bits_[0] & 0x0000001f) != 0x0000001f) return false;
+  if (!::google::protobuf::internal::AllAreInitialized(this->benchmsg())) return false;
   return true;
 }
 
+void TrxLogMsg::Swap(TrxLogMsg* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void TrxLogMsg::InternalSwap(TrxLogMsg* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  CastToBase(&benchmsg_)->InternalSwap(CastToBase(&other->benchmsg_));
+  rec_.Swap(&other->rec_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+    GetArenaNoVirtual());
+  swap(type_, other->type_);
+  swap(space_id_, other->space_id_);
+  swap(page_no_, other->page_no_);
+  swap(offset_, other->offset_);
   swap(_has_bits_[0], other->_has_bits_[0]);
-  rec_.Swap(&other->rec_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(TrxLogMsg, offset_)
-      + sizeof(TrxLogMsg::offset_)
-      - PROTOBUF_FIELD_OFFSET(TrxLogMsg, type_)>(
-          reinterpret_cast<char*>(&type_),
-          reinterpret_cast<char*>(&other->type_));
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata TrxLogMsg::GetMetadata() const {
-  return GetMetadataStatic();
+::google::protobuf::Metadata TrxLogMsg::GetMetadata() const {
+  protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages];
 }
 
 
@@ -611,32 +1078,25 @@ void TrxLogMsg::InternalSwap(TrxLogMsg* other) {
 
 void LogSendRequest::InitAsDefaultInstance() {
 }
-class LogSendRequest::_Internal {
- public:
-  using HasBits = decltype(std::declval<LogSendRequest>()._has_bits_);
-  static void set_has_trxid(HasBits* has_bits) {
-    (*has_bits)[0] |= 1u;
-  }
-  static void set_has_is_valid(HasBits* has_bits) {
-    (*has_bits)[0] |= 2u;
-  }
-  static bool MissingRequiredFields(const HasBits& has_bits) {
-    return ((has_bits[0] & 0x00000003) ^ 0x00000003) != 0;
-  }
-};
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int LogSendRequest::kTrxIDFieldNumber;
+const int LogSendRequest::kIsValidFieldNumber;
+const int LogSendRequest::kLogMsgFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-LogSendRequest::LogSendRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  log_msg_(arena) {
+LogSendRequest::LogSendRequest()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_trx_5flog_2eproto::scc_info_LogSendRequest.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:MMLP_BRPC.LogSendRequest)
+  // @@protoc_insertion_point(constructor:MMLP_BRPC.LogSendRequest)
 }
 LogSendRequest::LogSendRequest(const LogSendRequest& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
       _has_bits_(from._has_bits_),
       log_msg_(from.log_msg_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   ::memcpy(&trxid_, &from.trxid_,
     static_cast<size_t>(reinterpret_cast<char*>(&is_valid_) -
     reinterpret_cast<char*>(&trxid_)) + sizeof(is_valid_));
@@ -644,7 +1104,6 @@ LogSendRequest::LogSendRequest(const LogSendRequest& from)
 }
 
 void LogSendRequest::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_LogSendRequest_trx_5flog_2eproto.base);
   ::memset(&trxid_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&is_valid_) -
       reinterpret_cast<char*>(&trxid_)) + sizeof(is_valid_));
@@ -653,135 +1112,174 @@ void LogSendRequest::SharedCtor() {
 LogSendRequest::~LogSendRequest() {
   // @@protoc_insertion_point(destructor:MMLP_BRPC.LogSendRequest)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void LogSendRequest::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void LogSendRequest::ArenaDtor(void* object) {
-  LogSendRequest* _this = reinterpret_cast< LogSendRequest* >(object);
-  (void)_this;
-}
-void LogSendRequest::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void LogSendRequest::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* LogSendRequest::descriptor() {
+  ::protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
 const LogSendRequest& LogSendRequest::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_LogSendRequest_trx_5flog_2eproto.base);
+  ::google::protobuf::internal::InitSCC(&protobuf_trx_5flog_2eproto::scc_info_LogSendRequest.base);
   return *internal_default_instance();
 }
 
 
 void LogSendRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:MMLP_BRPC.LogSendRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   log_msg_.Clear();
   cached_has_bits = _has_bits_[0];
-  if (cached_has_bits & 0x00000003u) {
+  if (cached_has_bits & 3u) {
     ::memset(&trxid_, 0, static_cast<size_t>(
         reinterpret_cast<char*>(&is_valid_) -
         reinterpret_cast<char*>(&trxid_)) + sizeof(is_valid_));
   }
   _has_bits_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* LogSendRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  _Internal::HasBits has_bits{};
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
+bool LogSendRequest::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:MMLP_BRPC.LogSendRequest)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // required uint64 trxID = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
-          _Internal::set_has_trxid(&has_bits);
-          trxid_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
+          set_has_trxid();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
+                 input, &trxid_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // required bool is_valid = 2;
-      case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 16)) {
-          _Internal::set_has_is_valid(&has_bits);
-          is_valid_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 2: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(16u /* 16 & 0xFF */)) {
+          set_has_is_valid();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   bool, ::google::protobuf::internal::WireFormatLite::TYPE_BOOL>(
+                 input, &is_valid_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
-      case 3:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
-          ptr -= 1;
-          do {
-            ptr += 1;
-            ptr = ctx->ParseMessage(_internal_add_log_msg(), ptr);
-            CHK_(ptr);
-            if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<26>(ptr));
-        } else goto handle_unusual;
-        continue;
+      case 3: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(26u /* 26 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadMessage(
+                input, add_log_msg()));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  _has_bits_.Or(has_bits);
-  return ptr;
+  // @@protoc_insertion_point(parse_success:MMLP_BRPC.LogSendRequest)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:MMLP_BRPC.LogSendRequest)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* LogSendRequest::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogSendRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void LogSendRequest::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:MMLP_BRPC.LogSendRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
   // required uint64 trxID = 1;
   if (cached_has_bits & 0x00000001u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt64ToArray(1, this->_internal_trxid(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteUInt64(1, this->trxid(), output);
   }
 
   // required bool is_valid = 2;
   if (cached_has_bits & 0x00000002u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteBoolToArray(2, this->_internal_is_valid(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteBool(2, this->is_valid(), output);
   }
 
   // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
   for (unsigned int i = 0,
-      n = static_cast<unsigned int>(this->_internal_log_msg_size()); i < n; i++) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(3, this->_internal_log_msg(i), target, stream);
+      n = static_cast<unsigned int>(this->log_msg_size()); i < n; i++) {
+    ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
+      3,
+      this->log_msg(static_cast<int>(i)),
+      output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if (_internal_metadata_.have_unknown_fields()) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        _internal_metadata_.unknown_fields(), output);
+  }
+  // @@protoc_insertion_point(serialize_end:MMLP_BRPC.LogSendRequest)
+}
+
+::google::protobuf::uint8* LogSendRequest::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogSendRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required uint64 trxID = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(1, this->trxid(), target);
+  }
+
+  // required bool is_valid = 2;
+  if (cached_has_bits & 0x00000002u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(2, this->is_valid(), target);
+  }
+
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->log_msg_size()); i < n; i++) {
+    target = ::google::protobuf::internal::WireFormatLite::
+      InternalWriteMessageToArray(
+        3, this->log_msg(static_cast<int>(i)), deterministic, target);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields(), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:MMLP_BRPC.LogSendRequest)
   return target;
@@ -791,14 +1289,14 @@ size_t LogSendRequest::RequiredFieldsByteSizeFallback() const {
 // @@protoc_insertion_point(required_fields_byte_size_fallback_start:MMLP_BRPC.LogSendRequest)
   size_t total_size = 0;
 
-  if (_internal_has_trxid()) {
+  if (has_trxid()) {
     // required uint64 trxID = 1;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt64Size(
-        this->_internal_trxid());
+      ::google::protobuf::internal::WireFormatLite::UInt64Size(
+        this->trxid());
   }
 
-  if (_internal_has_is_valid()) {
+  if (has_is_valid()) {
     // required bool is_valid = 2;
     total_size += 1 + 1;
   }
@@ -809,11 +1307,16 @@ size_t LogSendRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:MMLP_BRPC.LogSendRequest)
   size_t total_size = 0;
 
+  if (_internal_metadata_.have_unknown_fields()) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        _internal_metadata_.unknown_fields());
+  }
   if (((_has_bits_[0] & 0x00000003) ^ 0x00000003) == 0) {  // All required fields are present.
     // required uint64 trxID = 1;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt64Size(
-        this->_internal_trxid());
+      ::google::protobuf::internal::WireFormatLite::UInt64Size(
+        this->trxid());
 
     // required bool is_valid = 2;
     total_size += 1 + 1;
@@ -821,35 +1324,31 @@ size_t LogSendRequest::ByteSizeLong() const {
   } else {
     total_size += RequiredFieldsByteSizeFallback();
   }
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
   // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
-  total_size += 1UL * this->_internal_log_msg_size();
-  for (const auto& msg : this->log_msg_) {
-    total_size +=
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  {
+    unsigned int count = static_cast<unsigned int>(this->log_msg_size());
+    total_size += 1UL * count;
+    for (unsigned int i = 0; i < count; i++) {
+      total_size +=
+        ::google::protobuf::internal::WireFormatLite::MessageSize(
+          this->log_msg(static_cast<int>(i)));
+    }
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void LogSendRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogSendRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:MMLP_BRPC.LogSendRequest)
   GOOGLE_DCHECK_NE(&from, this);
   const LogSendRequest* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<LogSendRequest>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const LogSendRequest>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:MMLP_BRPC.LogSendRequest)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:MMLP_BRPC.LogSendRequest)
     MergeFrom(*source);
@@ -859,13 +1358,13 @@ void LogSendRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
 void LogSendRequest::MergeFrom(const LogSendRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:MMLP_BRPC.LogSendRequest)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   log_msg_.MergeFrom(from.log_msg_);
   cached_has_bits = from._has_bits_[0];
-  if (cached_has_bits & 0x00000003u) {
+  if (cached_has_bits & 3u) {
     if (cached_has_bits & 0x00000001u) {
       trxid_ = from.trxid_;
     }
@@ -876,7 +1375,7 @@ void LogSendRequest::MergeFrom(const LogSendRequest& from) {
   }
 }
 
-void LogSendRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogSendRequest::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:MMLP_BRPC.LogSendRequest)
   if (&from == this) return;
   Clear();
@@ -891,26 +1390,27 @@ void LogSendRequest::CopyFrom(const LogSendRequest& from) {
 }
 
 bool LogSendRequest::IsInitialized() const {
-  if (_Internal::MissingRequiredFields(_has_bits_)) return false;
-  if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(log_msg_)) return false;
+  if ((_has_bits_[0] & 0x00000003) != 0x00000003) return false;
+  if (!::google::protobuf::internal::AllAreInitialized(this->log_msg())) return false;
   return true;
 }
 
+void LogSendRequest::Swap(LogSendRequest* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void LogSendRequest::InternalSwap(LogSendRequest* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  CastToBase(&log_msg_)->InternalSwap(CastToBase(&other->log_msg_));
+  swap(trxid_, other->trxid_);
+  swap(is_valid_, other->is_valid_);
   swap(_has_bits_[0], other->_has_bits_[0]);
-  log_msg_.InternalSwap(&other->log_msg_);
-  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(LogSendRequest, is_valid_)
-      + sizeof(LogSendRequest::is_valid_)
-      - PROTOBUF_FIELD_OFFSET(LogSendRequest, trxid_)>(
-          reinterpret_cast<char*>(&trxid_),
-          reinterpret_cast<char*>(&other->trxid_));
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata LogSendRequest::GetMetadata() const {
-  return GetMetadataStatic();
+::google::protobuf::Metadata LogSendRequest::GetMetadata() const {
+  protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages];
 }
 
 
@@ -918,27 +1418,22 @@ void LogSendRequest::InternalSwap(LogSendRequest* other) {
 
 void LogSendResponse::InitAsDefaultInstance() {
 }
-class LogSendResponse::_Internal {
- public:
-  using HasBits = decltype(std::declval<LogSendResponse>()._has_bits_);
-  static void set_has_send_reply(HasBits* has_bits) {
-    (*has_bits)[0] |= 1u;
-  }
-  static bool MissingRequiredFields(const HasBits& has_bits) {
-    return ((has_bits[0] & 0x00000001) ^ 0x00000001) != 0;
-  }
-};
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int LogSendResponse::kSendReplyFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-LogSendResponse::LogSendResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+LogSendResponse::LogSendResponse()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_trx_5flog_2eproto::scc_info_LogSendResponse.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:MMLP_BRPC.LogSendResponse)
+  // @@protoc_insertion_point(constructor:MMLP_BRPC.LogSendResponse)
 }
 LogSendResponse::LogSendResponse(const LogSendResponse& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
       _has_bits_(from._has_bits_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   send_reply_ = from.send_reply_;
   // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.LogSendResponse)
 }
@@ -950,95 +1445,115 @@ void LogSendResponse::SharedCtor() {
 LogSendResponse::~LogSendResponse() {
   // @@protoc_insertion_point(destructor:MMLP_BRPC.LogSendResponse)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void LogSendResponse::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void LogSendResponse::ArenaDtor(void* object) {
-  LogSendResponse* _this = reinterpret_cast< LogSendResponse* >(object);
-  (void)_this;
-}
-void LogSendResponse::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void LogSendResponse::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* LogSendResponse::descriptor() {
+  ::protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
 const LogSendResponse& LogSendResponse::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_LogSendResponse_trx_5flog_2eproto.base);
+  ::google::protobuf::internal::InitSCC(&protobuf_trx_5flog_2eproto::scc_info_LogSendResponse.base);
   return *internal_default_instance();
 }
 
 
 void LogSendResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:MMLP_BRPC.LogSendResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   send_reply_ = 0;
   _has_bits_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* LogSendResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  _Internal::HasBits has_bits{};
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
+bool LogSendResponse::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:MMLP_BRPC.LogSendResponse)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // required sint32 send_reply = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
-          _Internal::set_has_send_reply(&has_bits);
-          send_reply_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarintZigZag32(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
+          set_has_send_reply();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_SINT32>(
+                 input, &send_reply_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  _has_bits_.Or(has_bits);
-  return ptr;
+  // @@protoc_insertion_point(parse_success:MMLP_BRPC.LogSendResponse)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:MMLP_BRPC.LogSendResponse)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* LogSendResponse::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogSendResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void LogSendResponse::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:MMLP_BRPC.LogSendResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
   // required sint32 send_reply = 1;
   if (cached_has_bits & 0x00000001u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteSInt32ToArray(1, this->_internal_send_reply(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteSInt32(1, this->send_reply(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if (_internal_metadata_.have_unknown_fields()) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        _internal_metadata_.unknown_fields(), output);
+  }
+  // @@protoc_insertion_point(serialize_end:MMLP_BRPC.LogSendResponse)
+}
+
+::google::protobuf::uint8* LogSendResponse::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogSendResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required sint32 send_reply = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteSInt32ToArray(1, this->send_reply(), target);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields(), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:MMLP_BRPC.LogSendResponse)
   return target;
@@ -1048,34 +1563,31 @@ size_t LogSendResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:MMLP_BRPC.LogSendResponse)
   size_t total_size = 0;
 
+  if (_internal_metadata_.have_unknown_fields()) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        _internal_metadata_.unknown_fields());
+  }
   // required sint32 send_reply = 1;
-  if (_internal_has_send_reply()) {
+  if (has_send_reply()) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SInt32Size(
-        this->_internal_send_reply());
+      ::google::protobuf::internal::WireFormatLite::SInt32Size(
+        this->send_reply());
   }
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void LogSendResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogSendResponse::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:MMLP_BRPC.LogSendResponse)
   GOOGLE_DCHECK_NE(&from, this);
   const LogSendResponse* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<LogSendResponse>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const LogSendResponse>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:MMLP_BRPC.LogSendResponse)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:MMLP_BRPC.LogSendResponse)
     MergeFrom(*source);
@@ -1085,16 +1597,16 @@ void LogSendResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
 void LogSendResponse::MergeFrom(const LogSendResponse& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:MMLP_BRPC.LogSendResponse)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (from._internal_has_send_reply()) {
-    _internal_set_send_reply(from._internal_send_reply());
+  if (from.has_send_reply()) {
+    set_send_reply(from.send_reply());
   }
 }
 
-void LogSendResponse::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogSendResponse::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:MMLP_BRPC.LogSendResponse)
   if (&from == this) return;
   Clear();
@@ -1109,19 +1621,24 @@ void LogSendResponse::CopyFrom(const LogSendResponse& from) {
 }
 
 bool LogSendResponse::IsInitialized() const {
-  if (_Internal::MissingRequiredFields(_has_bits_)) return false;
+  if ((_has_bits_[0] & 0x00000001) != 0x00000001) return false;
   return true;
 }
 
+void LogSendResponse::Swap(LogSendResponse* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void LogSendResponse::InternalSwap(LogSendResponse* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  swap(_has_bits_[0], other->_has_bits_[0]);
   swap(send_reply_, other->send_reply_);
+  swap(_has_bits_[0], other->_has_bits_[0]);
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata LogSendResponse::GetMetadata() const {
-  return GetMetadataStatic();
+::google::protobuf::Metadata LogSendResponse::GetMetadata() const {
+  protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages];
 }
 
 
@@ -1129,127 +1646,142 @@ void LogSendResponse::InternalSwap(LogSendResponse* other) {
 
 void LogRequireRequest::InitAsDefaultInstance() {
 }
-class LogRequireRequest::_Internal {
- public:
-  using HasBits = decltype(std::declval<LogRequireRequest>()._has_bits_);
-  static void set_has_trxid(HasBits* has_bits) {
-    (*has_bits)[0] |= 1u;
-  }
-  static bool MissingRequiredFields(const HasBits& has_bits) {
-    return ((has_bits[0] & 0x00000001) ^ 0x00000001) != 0;
-  }
-};
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int LogRequireRequest::kTrxIDFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-LogRequireRequest::LogRequireRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+LogRequireRequest::LogRequireRequest()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_trx_5flog_2eproto::scc_info_LogRequireRequest.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:MMLP_BRPC.LogRequireRequest)
+  // @@protoc_insertion_point(constructor:MMLP_BRPC.LogRequireRequest)
 }
 LogRequireRequest::LogRequireRequest(const LogRequireRequest& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
       _has_bits_(from._has_bits_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   trxid_ = from.trxid_;
   // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.LogRequireRequest)
 }
 
 void LogRequireRequest::SharedCtor() {
-  trxid_ = PROTOBUF_ULONGLONG(0);
+  trxid_ = GOOGLE_ULONGLONG(0);
 }
 
 LogRequireRequest::~LogRequireRequest() {
   // @@protoc_insertion_point(destructor:MMLP_BRPC.LogRequireRequest)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void LogRequireRequest::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void LogRequireRequest::ArenaDtor(void* object) {
-  LogRequireRequest* _this = reinterpret_cast< LogRequireRequest* >(object);
-  (void)_this;
-}
-void LogRequireRequest::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void LogRequireRequest::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* LogRequireRequest::descriptor() {
+  ::protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
 const LogRequireRequest& LogRequireRequest::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_LogRequireRequest_trx_5flog_2eproto.base);
+  ::google::protobuf::internal::InitSCC(&protobuf_trx_5flog_2eproto::scc_info_LogRequireRequest.base);
   return *internal_default_instance();
 }
 
 
 void LogRequireRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:MMLP_BRPC.LogRequireRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  trxid_ = PROTOBUF_ULONGLONG(0);
+  trxid_ = GOOGLE_ULONGLONG(0);
   _has_bits_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* LogRequireRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  _Internal::HasBits has_bits{};
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
+bool LogRequireRequest::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:MMLP_BRPC.LogRequireRequest)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // required uint64 trxID = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
-          _Internal::set_has_trxid(&has_bits);
-          trxid_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
+          set_has_trxid();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
+                 input, &trxid_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  _has_bits_.Or(has_bits);
-  return ptr;
+  // @@protoc_insertion_point(parse_success:MMLP_BRPC.LogRequireRequest)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:MMLP_BRPC.LogRequireRequest)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* LogRequireRequest::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogRequireRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void LogRequireRequest::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:MMLP_BRPC.LogRequireRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
   // required uint64 trxID = 1;
   if (cached_has_bits & 0x00000001u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt64ToArray(1, this->_internal_trxid(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteUInt64(1, this->trxid(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if (_internal_metadata_.have_unknown_fields()) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        _internal_metadata_.unknown_fields(), output);
+  }
+  // @@protoc_insertion_point(serialize_end:MMLP_BRPC.LogRequireRequest)
+}
+
+::google::protobuf::uint8* LogRequireRequest::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogRequireRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required uint64 trxID = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(1, this->trxid(), target);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields(), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:MMLP_BRPC.LogRequireRequest)
   return target;
@@ -1259,34 +1791,31 @@ size_t LogRequireRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:MMLP_BRPC.LogRequireRequest)
   size_t total_size = 0;
 
+  if (_internal_metadata_.have_unknown_fields()) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        _internal_metadata_.unknown_fields());
+  }
   // required uint64 trxID = 1;
-  if (_internal_has_trxid()) {
+  if (has_trxid()) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt64Size(
-        this->_internal_trxid());
+      ::google::protobuf::internal::WireFormatLite::UInt64Size(
+        this->trxid());
   }
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void LogRequireRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogRequireRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:MMLP_BRPC.LogRequireRequest)
   GOOGLE_DCHECK_NE(&from, this);
   const LogRequireRequest* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<LogRequireRequest>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const LogRequireRequest>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:MMLP_BRPC.LogRequireRequest)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:MMLP_BRPC.LogRequireRequest)
     MergeFrom(*source);
@@ -1296,16 +1825,16 @@ void LogRequireRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) 
 void LogRequireRequest::MergeFrom(const LogRequireRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:MMLP_BRPC.LogRequireRequest)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (from._internal_has_trxid()) {
-    _internal_set_trxid(from._internal_trxid());
+  if (from.has_trxid()) {
+    set_trxid(from.trxid());
   }
 }
 
-void LogRequireRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogRequireRequest::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:MMLP_BRPC.LogRequireRequest)
   if (&from == this) return;
   Clear();
@@ -1320,19 +1849,24 @@ void LogRequireRequest::CopyFrom(const LogRequireRequest& from) {
 }
 
 bool LogRequireRequest::IsInitialized() const {
-  if (_Internal::MissingRequiredFields(_has_bits_)) return false;
+  if ((_has_bits_[0] & 0x00000001) != 0x00000001) return false;
   return true;
 }
 
+void LogRequireRequest::Swap(LogRequireRequest* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void LogRequireRequest::InternalSwap(LogRequireRequest* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  swap(_has_bits_[0], other->_has_bits_[0]);
   swap(trxid_, other->trxid_);
+  swap(_has_bits_[0], other->_has_bits_[0]);
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata LogRequireRequest::GetMetadata() const {
-  return GetMetadataStatic();
+::google::protobuf::Metadata LogRequireRequest::GetMetadata() const {
+  protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages];
 }
 
 
@@ -1340,35 +1874,26 @@ void LogRequireRequest::InternalSwap(LogRequireRequest* other) {
 
 void LogRequireResponse::InitAsDefaultInstance() {
 }
-class LogRequireResponse::_Internal {
- public:
-  using HasBits = decltype(std::declval<LogRequireResponse>()._has_bits_);
-  static void set_has_require_reply(HasBits* has_bits) {
-    (*has_bits)[0] |= 1u;
-  }
-  static void set_has_is_valid(HasBits* has_bits) {
-    (*has_bits)[0] |= 2u;
-  }
-  static void set_has_trxid(HasBits* has_bits) {
-    (*has_bits)[0] |= 4u;
-  }
-  static bool MissingRequiredFields(const HasBits& has_bits) {
-    return ((has_bits[0] & 0x00000003) ^ 0x00000003) != 0;
-  }
-};
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int LogRequireResponse::kRequireReplyFieldNumber;
+const int LogRequireResponse::kIsValidFieldNumber;
+const int LogRequireResponse::kLogMsgFieldNumber;
+const int LogRequireResponse::kTrxIDFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-LogRequireResponse::LogRequireResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  log_msg_(arena) {
+LogRequireResponse::LogRequireResponse()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_trx_5flog_2eproto::scc_info_LogRequireResponse.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:MMLP_BRPC.LogRequireResponse)
+  // @@protoc_insertion_point(constructor:MMLP_BRPC.LogRequireResponse)
 }
 LogRequireResponse::LogRequireResponse(const LogRequireResponse& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
       _has_bits_(from._has_bits_),
       log_msg_(from.log_msg_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   ::memcpy(&require_reply_, &from.require_reply_,
     static_cast<size_t>(reinterpret_cast<char*>(&trxid_) -
     reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
@@ -1376,7 +1901,6 @@ LogRequireResponse::LogRequireResponse(const LogRequireResponse& from)
 }
 
 void LogRequireResponse::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_LogRequireResponse_trx_5flog_2eproto.base);
   ::memset(&require_reply_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&trxid_) -
       reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
@@ -1385,149 +1909,198 @@ void LogRequireResponse::SharedCtor() {
 LogRequireResponse::~LogRequireResponse() {
   // @@protoc_insertion_point(destructor:MMLP_BRPC.LogRequireResponse)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void LogRequireResponse::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void LogRequireResponse::ArenaDtor(void* object) {
-  LogRequireResponse* _this = reinterpret_cast< LogRequireResponse* >(object);
-  (void)_this;
-}
-void LogRequireResponse::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void LogRequireResponse::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* LogRequireResponse::descriptor() {
+  ::protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
 const LogRequireResponse& LogRequireResponse::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_LogRequireResponse_trx_5flog_2eproto.base);
+  ::google::protobuf::internal::InitSCC(&protobuf_trx_5flog_2eproto::scc_info_LogRequireResponse.base);
   return *internal_default_instance();
 }
 
 
 void LogRequireResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:MMLP_BRPC.LogRequireResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   log_msg_.Clear();
   cached_has_bits = _has_bits_[0];
-  if (cached_has_bits & 0x00000007u) {
+  if (cached_has_bits & 7u) {
     ::memset(&require_reply_, 0, static_cast<size_t>(
         reinterpret_cast<char*>(&trxid_) -
         reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
   }
   _has_bits_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* LogRequireResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  _Internal::HasBits has_bits{};
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
+bool LogRequireResponse::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:MMLP_BRPC.LogRequireResponse)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // required sint32 require_reply = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
-          _Internal::set_has_require_reply(&has_bits);
-          require_reply_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarintZigZag32(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
+          set_has_require_reply();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_SINT32>(
+                 input, &require_reply_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // required bool is_valid = 2;
-      case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 16)) {
-          _Internal::set_has_is_valid(&has_bits);
-          is_valid_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 2: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(16u /* 16 & 0xFF */)) {
+          set_has_is_valid();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   bool, ::google::protobuf::internal::WireFormatLite::TYPE_BOOL>(
+                 input, &is_valid_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
-      case 3:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
-          ptr -= 1;
-          do {
-            ptr += 1;
-            ptr = ctx->ParseMessage(_internal_add_log_msg(), ptr);
-            CHK_(ptr);
-            if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<26>(ptr));
-        } else goto handle_unusual;
-        continue;
+      case 3: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(26u /* 26 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadMessage(
+                input, add_log_msg()));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       // optional uint64 trxID = 4;
-      case 4:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 32)) {
-          _Internal::set_has_trxid(&has_bits);
-          trxid_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 4: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(32u /* 32 & 0xFF */)) {
+          set_has_trxid();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
+                 input, &trxid_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  _has_bits_.Or(has_bits);
-  return ptr;
+  // @@protoc_insertion_point(parse_success:MMLP_BRPC.LogRequireResponse)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:MMLP_BRPC.LogRequireResponse)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* LogRequireResponse::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogRequireResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void LogRequireResponse::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:MMLP_BRPC.LogRequireResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
   // required sint32 require_reply = 1;
   if (cached_has_bits & 0x00000001u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteSInt32ToArray(1, this->_internal_require_reply(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteSInt32(1, this->require_reply(), output);
   }
 
   // required bool is_valid = 2;
   if (cached_has_bits & 0x00000002u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteBoolToArray(2, this->_internal_is_valid(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteBool(2, this->is_valid(), output);
   }
 
   // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
   for (unsigned int i = 0,
-      n = static_cast<unsigned int>(this->_internal_log_msg_size()); i < n; i++) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(3, this->_internal_log_msg(i), target, stream);
+      n = static_cast<unsigned int>(this->log_msg_size()); i < n; i++) {
+    ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
+      3,
+      this->log_msg(static_cast<int>(i)),
+      output);
   }
 
   // optional uint64 trxID = 4;
   if (cached_has_bits & 0x00000004u) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteUInt64ToArray(4, this->_internal_trxid(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteUInt64(4, this->trxid(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if (_internal_metadata_.have_unknown_fields()) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        _internal_metadata_.unknown_fields(), output);
+  }
+  // @@protoc_insertion_point(serialize_end:MMLP_BRPC.LogRequireResponse)
+}
+
+::google::protobuf::uint8* LogRequireResponse::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:MMLP_BRPC.LogRequireResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _has_bits_[0];
+  // required sint32 require_reply = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteSInt32ToArray(1, this->require_reply(), target);
+  }
+
+  // required bool is_valid = 2;
+  if (cached_has_bits & 0x00000002u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(2, this->is_valid(), target);
+  }
+
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->log_msg_size()); i < n; i++) {
+    target = ::google::protobuf::internal::WireFormatLite::
+      InternalWriteMessageToArray(
+        3, this->log_msg(static_cast<int>(i)), deterministic, target);
+  }
+
+  // optional uint64 trxID = 4;
+  if (cached_has_bits & 0x00000004u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(4, this->trxid(), target);
+  }
+
+  if (_internal_metadata_.have_unknown_fields()) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields(), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:MMLP_BRPC.LogRequireResponse)
   return target;
@@ -1537,14 +2110,14 @@ size_t LogRequireResponse::RequiredFieldsByteSizeFallback() const {
 // @@protoc_insertion_point(required_fields_byte_size_fallback_start:MMLP_BRPC.LogRequireResponse)
   size_t total_size = 0;
 
-  if (_internal_has_require_reply()) {
+  if (has_require_reply()) {
     // required sint32 require_reply = 1;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SInt32Size(
-        this->_internal_require_reply());
+      ::google::protobuf::internal::WireFormatLite::SInt32Size(
+        this->require_reply());
   }
 
-  if (_internal_has_is_valid()) {
+  if (has_is_valid()) {
     // required bool is_valid = 2;
     total_size += 1 + 1;
   }
@@ -1555,11 +2128,16 @@ size_t LogRequireResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:MMLP_BRPC.LogRequireResponse)
   size_t total_size = 0;
 
+  if (_internal_metadata_.have_unknown_fields()) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        _internal_metadata_.unknown_fields());
+  }
   if (((_has_bits_[0] & 0x00000003) ^ 0x00000003) == 0) {  // All required fields are present.
     // required sint32 require_reply = 1;
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SInt32Size(
-        this->_internal_require_reply());
+      ::google::protobuf::internal::WireFormatLite::SInt32Size(
+        this->require_reply());
 
     // required bool is_valid = 2;
     total_size += 1 + 1;
@@ -1567,43 +2145,38 @@ size_t LogRequireResponse::ByteSizeLong() const {
   } else {
     total_size += RequiredFieldsByteSizeFallback();
   }
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
   // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
-  total_size += 1UL * this->_internal_log_msg_size();
-  for (const auto& msg : this->log_msg_) {
-    total_size +=
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  {
+    unsigned int count = static_cast<unsigned int>(this->log_msg_size());
+    total_size += 1UL * count;
+    for (unsigned int i = 0; i < count; i++) {
+      total_size +=
+        ::google::protobuf::internal::WireFormatLite::MessageSize(
+          this->log_msg(static_cast<int>(i)));
+    }
   }
 
   // optional uint64 trxID = 4;
-  cached_has_bits = _has_bits_[0];
-  if (cached_has_bits & 0x00000004u) {
+  if (has_trxid()) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::UInt64Size(
-        this->_internal_trxid());
+      ::google::protobuf::internal::WireFormatLite::UInt64Size(
+        this->trxid());
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void LogRequireResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogRequireResponse::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:MMLP_BRPC.LogRequireResponse)
   GOOGLE_DCHECK_NE(&from, this);
   const LogRequireResponse* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<LogRequireResponse>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const LogRequireResponse>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:MMLP_BRPC.LogRequireResponse)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:MMLP_BRPC.LogRequireResponse)
     MergeFrom(*source);
@@ -1613,13 +2186,13 @@ void LogRequireResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from)
 void LogRequireResponse::MergeFrom(const LogRequireResponse& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:MMLP_BRPC.LogRequireResponse)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   log_msg_.MergeFrom(from.log_msg_);
   cached_has_bits = from._has_bits_[0];
-  if (cached_has_bits & 0x00000007u) {
+  if (cached_has_bits & 7u) {
     if (cached_has_bits & 0x00000001u) {
       require_reply_ = from.require_reply_;
     }
@@ -1633,7 +2206,7 @@ void LogRequireResponse::MergeFrom(const LogRequireResponse& from) {
   }
 }
 
-void LogRequireResponse::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void LogRequireResponse::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:MMLP_BRPC.LogRequireResponse)
   if (&from == this) return;
   Clear();
@@ -1648,26 +2221,28 @@ void LogRequireResponse::CopyFrom(const LogRequireResponse& from) {
 }
 
 bool LogRequireResponse::IsInitialized() const {
-  if (_Internal::MissingRequiredFields(_has_bits_)) return false;
-  if (!::PROTOBUF_NAMESPACE_ID::internal::AllAreInitialized(log_msg_)) return false;
+  if ((_has_bits_[0] & 0x00000003) != 0x00000003) return false;
+  if (!::google::protobuf::internal::AllAreInitialized(this->log_msg())) return false;
   return true;
 }
 
+void LogRequireResponse::Swap(LogRequireResponse* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void LogRequireResponse::InternalSwap(LogRequireResponse* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  CastToBase(&log_msg_)->InternalSwap(CastToBase(&other->log_msg_));
+  swap(require_reply_, other->require_reply_);
+  swap(is_valid_, other->is_valid_);
+  swap(trxid_, other->trxid_);
   swap(_has_bits_[0], other->_has_bits_[0]);
-  log_msg_.InternalSwap(&other->log_msg_);
-  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(LogRequireResponse, trxid_)
-      + sizeof(LogRequireResponse::trxid_)
-      - PROTOBUF_FIELD_OFFSET(LogRequireResponse, require_reply_)>(
-          reinterpret_cast<char*>(&require_reply_),
-          reinterpret_cast<char*>(&other->require_reply_));
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata LogRequireResponse::GetMetadata() const {
-  return GetMetadataStatic();
+::google::protobuf::Metadata LogRequireResponse::GetMetadata() const {
+  protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_trx_5flog_2eproto::file_level_metadata[kIndexInFileMessages];
 }
 
 
@@ -1675,16 +2250,16 @@ void LogRequireResponse::InternalSwap(LogRequireResponse* other) {
 
 TrxLogService::~TrxLogService() {}
 
-const ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor* TrxLogService::descriptor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&descriptor_table_trx_5flog_2eproto);
-  return file_level_service_descriptors_trx_5flog_2eproto[0];
+const ::google::protobuf::ServiceDescriptor* TrxLogService::descriptor() {
+  protobuf_trx_5flog_2eproto::protobuf_AssignDescriptorsOnce();
+  return protobuf_trx_5flog_2eproto::file_level_service_descriptors[0];
 }
 
-const ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor* TrxLogService::GetDescriptor() {
+const ::google::protobuf::ServiceDescriptor* TrxLogService::GetDescriptor() {
   return descriptor();
 }
 
-void TrxLogService::sendLog(::PROTOBUF_NAMESPACE_ID::RpcController* controller,
+void TrxLogService::sendLog(::google::protobuf::RpcController* controller,
                          const ::MMLP_BRPC::LogSendRequest*,
                          ::MMLP_BRPC::LogSendResponse*,
                          ::google::protobuf::Closure* done) {
@@ -1692,7 +2267,7 @@ void TrxLogService::sendLog(::PROTOBUF_NAMESPACE_ID::RpcController* controller,
   done->Run();
 }
 
-void TrxLogService::requireLog(::PROTOBUF_NAMESPACE_ID::RpcController* controller,
+void TrxLogService::requireLog(::google::protobuf::RpcController* controller,
                          const ::MMLP_BRPC::LogRequireRequest*,
                          ::MMLP_BRPC::LogRequireResponse*,
                          ::google::protobuf::Closure* done) {
@@ -1700,27 +2275,23 @@ void TrxLogService::requireLog(::PROTOBUF_NAMESPACE_ID::RpcController* controlle
   done->Run();
 }
 
-void TrxLogService::CallMethod(const ::PROTOBUF_NAMESPACE_ID::MethodDescriptor* method,
-                             ::PROTOBUF_NAMESPACE_ID::RpcController* controller,
-                             const ::PROTOBUF_NAMESPACE_ID::Message* request,
-                             ::PROTOBUF_NAMESPACE_ID::Message* response,
+void TrxLogService::CallMethod(const ::google::protobuf::MethodDescriptor* method,
+                             ::google::protobuf::RpcController* controller,
+                             const ::google::protobuf::Message* request,
+                             ::google::protobuf::Message* response,
                              ::google::protobuf::Closure* done) {
-  GOOGLE_DCHECK_EQ(method->service(), file_level_service_descriptors_trx_5flog_2eproto[0]);
+  GOOGLE_DCHECK_EQ(method->service(), protobuf_trx_5flog_2eproto::file_level_service_descriptors[0]);
   switch(method->index()) {
     case 0:
       sendLog(controller,
-             ::PROTOBUF_NAMESPACE_ID::internal::DownCast<const ::MMLP_BRPC::LogSendRequest*>(
-                 request),
-             ::PROTOBUF_NAMESPACE_ID::internal::DownCast<::MMLP_BRPC::LogSendResponse*>(
-                 response),
+             ::google::protobuf::down_cast<const ::MMLP_BRPC::LogSendRequest*>(request),
+             ::google::protobuf::down_cast< ::MMLP_BRPC::LogSendResponse*>(response),
              done);
       break;
     case 1:
       requireLog(controller,
-             ::PROTOBUF_NAMESPACE_ID::internal::DownCast<const ::MMLP_BRPC::LogRequireRequest*>(
-                 request),
-             ::PROTOBUF_NAMESPACE_ID::internal::DownCast<::MMLP_BRPC::LogRequireResponse*>(
-                 response),
+             ::google::protobuf::down_cast<const ::MMLP_BRPC::LogRequireRequest*>(request),
+             ::google::protobuf::down_cast< ::MMLP_BRPC::LogRequireResponse*>(response),
              done);
       break;
     default:
@@ -1729,8 +2300,8 @@ void TrxLogService::CallMethod(const ::PROTOBUF_NAMESPACE_ID::MethodDescriptor* 
   }
 }
 
-const ::PROTOBUF_NAMESPACE_ID::Message& TrxLogService::GetRequestPrototype(
-    const ::PROTOBUF_NAMESPACE_ID::MethodDescriptor* method) const {
+const ::google::protobuf::Message& TrxLogService::GetRequestPrototype(
+    const ::google::protobuf::MethodDescriptor* method) const {
   GOOGLE_DCHECK_EQ(method->service(), descriptor());
   switch(method->index()) {
     case 0:
@@ -1739,13 +2310,13 @@ const ::PROTOBUF_NAMESPACE_ID::Message& TrxLogService::GetRequestPrototype(
       return ::MMLP_BRPC::LogRequireRequest::default_instance();
     default:
       GOOGLE_LOG(FATAL) << "Bad method index; this should never happen.";
-      return *::PROTOBUF_NAMESPACE_ID::MessageFactory::generated_factory()
+      return *::google::protobuf::MessageFactory::generated_factory()
           ->GetPrototype(method->input_type());
   }
 }
 
-const ::PROTOBUF_NAMESPACE_ID::Message& TrxLogService::GetResponsePrototype(
-    const ::PROTOBUF_NAMESPACE_ID::MethodDescriptor* method) const {
+const ::google::protobuf::Message& TrxLogService::GetResponsePrototype(
+    const ::google::protobuf::MethodDescriptor* method) const {
   GOOGLE_DCHECK_EQ(method->service(), descriptor());
   switch(method->index()) {
     case 0:
@@ -1754,30 +2325,30 @@ const ::PROTOBUF_NAMESPACE_ID::Message& TrxLogService::GetResponsePrototype(
       return ::MMLP_BRPC::LogRequireResponse::default_instance();
     default:
       GOOGLE_LOG(FATAL) << "Bad method index; this should never happen.";
-      return *::PROTOBUF_NAMESPACE_ID::MessageFactory::generated_factory()
+      return *::google::protobuf::MessageFactory::generated_factory()
           ->GetPrototype(method->output_type());
   }
 }
 
-TrxLogService_Stub::TrxLogService_Stub(::PROTOBUF_NAMESPACE_ID::RpcChannel* channel)
+TrxLogService_Stub::TrxLogService_Stub(::google::protobuf::RpcChannel* channel)
   : channel_(channel), owns_channel_(false) {}
 TrxLogService_Stub::TrxLogService_Stub(
-    ::PROTOBUF_NAMESPACE_ID::RpcChannel* channel,
-    ::PROTOBUF_NAMESPACE_ID::Service::ChannelOwnership ownership)
+    ::google::protobuf::RpcChannel* channel,
+    ::google::protobuf::Service::ChannelOwnership ownership)
   : channel_(channel),
-    owns_channel_(ownership == ::PROTOBUF_NAMESPACE_ID::Service::STUB_OWNS_CHANNEL) {}
+    owns_channel_(ownership == ::google::protobuf::Service::STUB_OWNS_CHANNEL) {}
 TrxLogService_Stub::~TrxLogService_Stub() {
   if (owns_channel_) delete channel_;
 }
 
-void TrxLogService_Stub::sendLog(::PROTOBUF_NAMESPACE_ID::RpcController* controller,
+void TrxLogService_Stub::sendLog(::google::protobuf::RpcController* controller,
                               const ::MMLP_BRPC::LogSendRequest* request,
                               ::MMLP_BRPC::LogSendResponse* response,
                               ::google::protobuf::Closure* done) {
   channel_->CallMethod(descriptor()->method(0),
                        controller, request, response, done);
 }
-void TrxLogService_Stub::requireLog(::PROTOBUF_NAMESPACE_ID::RpcController* controller,
+void TrxLogService_Stub::requireLog(::google::protobuf::RpcController* controller,
                               const ::MMLP_BRPC::LogRequireRequest* request,
                               ::MMLP_BRPC::LogRequireResponse* response,
                               ::google::protobuf::Closure* done) {
@@ -1787,23 +2358,27 @@ void TrxLogService_Stub::requireLog(::PROTOBUF_NAMESPACE_ID::RpcController* cont
 
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace MMLP_BRPC
-PROTOBUF_NAMESPACE_OPEN
-template<> PROTOBUF_NOINLINE ::MMLP_BRPC::TrxLogMsg* Arena::CreateMaybeMessage< ::MMLP_BRPC::TrxLogMsg >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::MMLP_BRPC::TrxLogMsg >(arena);
+namespace google {
+namespace protobuf {
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::MMLP_BRPC::BenchLogMsg* Arena::CreateMaybeMessage< ::MMLP_BRPC::BenchLogMsg >(Arena* arena) {
+  return Arena::CreateInternal< ::MMLP_BRPC::BenchLogMsg >(arena);
 }
-template<> PROTOBUF_NOINLINE ::MMLP_BRPC::LogSendRequest* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogSendRequest >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::MMLP_BRPC::LogSendRequest >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::MMLP_BRPC::TrxLogMsg* Arena::CreateMaybeMessage< ::MMLP_BRPC::TrxLogMsg >(Arena* arena) {
+  return Arena::CreateInternal< ::MMLP_BRPC::TrxLogMsg >(arena);
 }
-template<> PROTOBUF_NOINLINE ::MMLP_BRPC::LogSendResponse* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogSendResponse >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::MMLP_BRPC::LogSendResponse >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::MMLP_BRPC::LogSendRequest* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogSendRequest >(Arena* arena) {
+  return Arena::CreateInternal< ::MMLP_BRPC::LogSendRequest >(arena);
 }
-template<> PROTOBUF_NOINLINE ::MMLP_BRPC::LogRequireRequest* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogRequireRequest >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::MMLP_BRPC::LogRequireRequest >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::MMLP_BRPC::LogSendResponse* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogSendResponse >(Arena* arena) {
+  return Arena::CreateInternal< ::MMLP_BRPC::LogSendResponse >(arena);
 }
-template<> PROTOBUF_NOINLINE ::MMLP_BRPC::LogRequireResponse* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogRequireResponse >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::MMLP_BRPC::LogRequireResponse >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::MMLP_BRPC::LogRequireRequest* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogRequireRequest >(Arena* arena) {
+  return Arena::CreateInternal< ::MMLP_BRPC::LogRequireRequest >(arena);
 }
-PROTOBUF_NAMESPACE_CLOSE
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::MMLP_BRPC::LogRequireResponse* Arena::CreateMaybeMessage< ::MMLP_BRPC::LogRequireResponse >(Arena* arena) {
+  return Arena::CreateInternal< ::MMLP_BRPC::LogRequireResponse >(arena);
+}
+}  // namespace protobuf
+}  // namespace google
 
 // @@protoc_insertion_point(global_scope)
-#include <google/protobuf/port_undef.inc>

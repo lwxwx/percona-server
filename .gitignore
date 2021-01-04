@@ -22,3 +22,5 @@ source_downloads
 /GPATH
 /GRTAGS
 /GTAGS
+
+.cache

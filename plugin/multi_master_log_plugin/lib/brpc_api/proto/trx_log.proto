@@ -1,6 +1,12 @@
-syntax = "proto2";
+syntax="proto2";
 package MMLP_BRPC;
 option cc_generic_services = true;
+
+message BenchLogMsg
+{
+	required uint32 page_no = 1;
+	required uint32 row_no = 2;
+}
 
 message TrxLogMsg
 {
@@ -9,6 +15,7 @@ message TrxLogMsg
     required uint32 page_no = 3;
     required uint32 offset = 4;
     required bytes rec = 5;
+	repeated BenchLogMsg benchmsg = 6;
 }
 
 message LogSendRequest
