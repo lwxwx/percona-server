@@ -36,7 +36,8 @@ class TrxInfo
 		std::mutex  working_thread_map_mutex;
 		std::shared_mutex  global_trx_log_map_mutex;
 		std::map<ThreadID,TrxLog * > working_thread_map;
-		std::map<TrxID,TrxLog *> global_trx_log_map;
+		// std::map<TrxID,TrxLog *> global_trx_log_map;
+		std::map<UnifID,TrxLog * > global_trx_log_map;
 
 		TrxID global_reply_status;
 		GlobalTrxIDFactory id_factory;
@@ -49,8 +50,11 @@ class TrxInfo
 		
 		//check trx_id in global_trx_log_map
 		int check_global_trx_id(TrxID id);
+		// int check_global_trx_id(UnifID id);
 		//insert trx log into global_trx_log_map
 		int insert_global_trx_log(TrxLog * log);
+		
+		void find_in_global_trx_log_map(UnifID id);
 
 	public:
 		~TrxInfo();

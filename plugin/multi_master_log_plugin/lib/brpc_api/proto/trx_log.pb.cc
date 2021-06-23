@@ -187,11 +187,15 @@ const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUT
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, trxid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, trxid_part_id_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, trxid_s_id_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, trxid_m_id_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, is_valid_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendRequest, log_msg_),
-  0,
   1,
+  0,
+  3,
+  2,
   ~0u,
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, _has_bits_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogSendResponse, _internal_metadata_),
@@ -205,7 +209,9 @@ const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUT
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, trxid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, trxid_part_id_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireRequest, trxid_own_id_),
+  1,
   0,
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, _has_bits_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, _internal_metadata_),
@@ -215,19 +221,23 @@ const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUT
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, require_reply_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, is_valid_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, log_msg_),
-  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, trxid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, trxid_part_id_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, trxid_s_id_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::MMLP_BRPC::LogRequireResponse, trxid_m_id_),
   0,
   1,
   ~0u,
+  4,
   2,
+  3,
 };
 static const ::google::protobuf::internal::MigrationSchema schemas[] GOOGLE_PROTOBUF_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
   { 0, 7, sizeof(::MMLP_BRPC::BenchLogMsg)},
   { 9, 20, sizeof(::MMLP_BRPC::TrxLogMsg)},
-  { 26, 34, sizeof(::MMLP_BRPC::LogSendRequest)},
-  { 37, 43, sizeof(::MMLP_BRPC::LogSendResponse)},
-  { 44, 50, sizeof(::MMLP_BRPC::LogRequireRequest)},
-  { 51, 60, sizeof(::MMLP_BRPC::LogRequireResponse)},
+  { 26, 36, sizeof(::MMLP_BRPC::LogSendRequest)},
+  { 41, 47, sizeof(::MMLP_BRPC::LogSendResponse)},
+  { 48, 55, sizeof(::MMLP_BRPC::LogRequireRequest)},
+  { 57, 68, sizeof(::MMLP_BRPC::LogRequireResponse)},
 };
 
 static ::google::protobuf::Message const * const file_default_instances[] = {
@@ -265,21 +275,24 @@ void AddDescriptorsImpl() {
       "rxLogMsg\022\014\n\004type\030\001 \002(\021\022\020\n\010space_id\030\002 \002(\r"
       "\022\017\n\007page_no\030\003 \002(\r\022\016\n\006offset\030\004 \002(\r\022\013\n\003rec"
       "\030\005 \002(\014\022(\n\010benchmsg\030\006 \003(\0132\026.MMLP_BRPC.Ben"
-      "chLogMsg\"X\n\016LogSendRequest\022\r\n\005trxID\030\001 \002("
-      "\004\022\020\n\010is_valid\030\002 \002(\010\022%\n\007log_msg\030\003 \003(\0132\024.M"
-      "MLP_BRPC.TrxLogMsg\"%\n\017LogSendResponse\022\022\n"
-      "\nsend_reply\030\001 \002(\021\"\"\n\021LogRequireRequest\022\r"
-      "\n\005trxID\030\001 \002(\004\"s\n\022LogRequireResponse\022\025\n\rr"
+      "chLogMsg\"\210\001\n\016LogSendRequest\022\025\n\rtrxID_par"
+      "t_id\030\001 \002(\005\022\022\n\ntrxID_s_id\030\002 \002(\003\022\022\n\ntrxID_"
+      "m_id\030\003 \002(\003\022\020\n\010is_valid\030\004 \002(\010\022%\n\007log_msg\030"
+      "\005 \003(\0132\024.MMLP_BRPC.TrxLogMsg\"%\n\017LogSendRe"
+      "sponse\022\022\n\nsend_reply\030\001 \002(\021\"@\n\021LogRequire"
+      "Request\022\025\n\rtrxID_part_id\030\001 \002(\005\022\024\n\014trxID_"
+      "own_id\030\002 \001(\003\"\243\001\n\022LogRequireResponse\022\025\n\rr"
       "equire_reply\030\001 \002(\021\022\020\n\010is_valid\030\002 \002(\010\022%\n\007"
-      "log_msg\030\003 \003(\0132\024.MMLP_BRPC.TrxLogMsg\022\r\n\005t"
-      "rxID\030\004 \001(\0042\234\001\n\rTrxLogService\022@\n\007sendLog\022"
-      "\031.MMLP_BRPC.LogSendRequest\032\032.MMLP_BRPC.L"
-      "ogSendResponse\022I\n\nrequireLog\022\034.MMLP_BRPC"
-      ".LogRequireRequest\032\035.MMLP_BRPC.LogRequir"
-      "eResponseB\003\200\001\001"
+      "log_msg\030\003 \003(\0132\024.MMLP_BRPC.TrxLogMsg\022\025\n\rt"
+      "rxID_part_id\030\004 \001(\005\022\022\n\ntrxID_s_id\030\005 \001(\003\022\022"
+      "\n\ntrxID_m_id\030\006 \001(\0032\234\001\n\rTrxLogService\022@\n\007"
+      "sendLog\022\031.MMLP_BRPC.LogSendRequest\032\032.MML"
+      "P_BRPC.LogSendResponse\022I\n\nrequireLog\022\034.M"
+      "MLP_BRPC.LogRequireRequest\032\035.MMLP_BRPC.L"
+      "ogRequireResponseB\003\200\001\001"
   };
   ::google::protobuf::DescriptorPool::InternalAddGeneratedFile(
-      descriptor, 654);
+      descriptor, 782);
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
     "trx_log.proto", &protobuf_RegisterTypes);
 }
@@ -1079,7 +1092,9 @@ void TrxLogMsg::InternalSwap(TrxLogMsg* other) {
 void LogSendRequest::InitAsDefaultInstance() {
 }
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
-const int LogSendRequest::kTrxIDFieldNumber;
+const int LogSendRequest::kTrxIDPartIdFieldNumber;
+const int LogSendRequest::kTrxIDSIdFieldNumber;
+const int LogSendRequest::kTrxIDMIdFieldNumber;
 const int LogSendRequest::kIsValidFieldNumber;
 const int LogSendRequest::kLogMsgFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
@@ -1097,16 +1112,16 @@ LogSendRequest::LogSendRequest(const LogSendRequest& from)
       _has_bits_(from._has_bits_),
       log_msg_(from.log_msg_) {
   _internal_metadata_.MergeFrom(from._internal_metadata_);
-  ::memcpy(&trxid_, &from.trxid_,
-    static_cast<size_t>(reinterpret_cast<char*>(&is_valid_) -
-    reinterpret_cast<char*>(&trxid_)) + sizeof(is_valid_));
+  ::memcpy(&trxid_s_id_, &from.trxid_s_id_,
+    static_cast<size_t>(reinterpret_cast<char*>(&trxid_m_id_) -
+    reinterpret_cast<char*>(&trxid_s_id_)) + sizeof(trxid_m_id_));
   // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.LogSendRequest)
 }
 
 void LogSendRequest::SharedCtor() {
-  ::memset(&trxid_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&is_valid_) -
-      reinterpret_cast<char*>(&trxid_)) + sizeof(is_valid_));
+  ::memset(&trxid_s_id_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&trxid_m_id_) -
+      reinterpret_cast<char*>(&trxid_s_id_)) + sizeof(trxid_m_id_));
 }
 
 LogSendRequest::~LogSendRequest() {
@@ -1139,10 +1154,10 @@ void LogSendRequest::Clear() {
 
   log_msg_.Clear();
   cached_has_bits = _has_bits_[0];
-  if (cached_has_bits & 3u) {
-    ::memset(&trxid_, 0, static_cast<size_t>(
-        reinterpret_cast<char*>(&is_valid_) -
-        reinterpret_cast<char*>(&trxid_)) + sizeof(is_valid_));
+  if (cached_has_bits & 15u) {
+    ::memset(&trxid_s_id_, 0, static_cast<size_t>(
+        reinterpret_cast<char*>(&trxid_m_id_) -
+        reinterpret_cast<char*>(&trxid_s_id_)) + sizeof(trxid_m_id_));
   }
   _has_bits_.Clear();
   _internal_metadata_.Clear();
@@ -1158,24 +1173,52 @@ bool LogSendRequest::MergePartialFromCodedStream(
     tag = p.first;
     if (!p.second) goto handle_unusual;
     switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
-      // required uint64 trxID = 1;
+      // required int32 trxID_part_id = 1;
       case 1: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
             static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
-          set_has_trxid();
+          set_has_trxid_part_id();
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
-                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
-                 input, &trxid_)));
+                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
+                 input, &trxid_part_id_)));
         } else {
           goto handle_unusual;
         }
         break;
       }
 
-      // required bool is_valid = 2;
+      // required int64 trxID_s_id = 2;
       case 2: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
             static_cast< ::google::protobuf::uint8>(16u /* 16 & 0xFF */)) {
+          set_has_trxid_s_id();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int64, ::google::protobuf::internal::WireFormatLite::TYPE_INT64>(
+                 input, &trxid_s_id_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      // required int64 trxID_m_id = 3;
+      case 3: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(24u /* 24 & 0xFF */)) {
+          set_has_trxid_m_id();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int64, ::google::protobuf::internal::WireFormatLite::TYPE_INT64>(
+                 input, &trxid_m_id_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      // required bool is_valid = 4;
+      case 4: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(32u /* 32 & 0xFF */)) {
           set_has_is_valid();
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    bool, ::google::protobuf::internal::WireFormatLite::TYPE_BOOL>(
@@ -1186,10 +1229,10 @@ bool LogSendRequest::MergePartialFromCodedStream(
         break;
       }
 
-      // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
-      case 3: {
+      // repeated .MMLP_BRPC.TrxLogMsg log_msg = 5;
+      case 5: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
-            static_cast< ::google::protobuf::uint8>(26u /* 26 & 0xFF */)) {
+            static_cast< ::google::protobuf::uint8>(42u /* 42 & 0xFF */)) {
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessage(
                 input, add_log_msg()));
         } else {
@@ -1225,21 +1268,31 @@ void LogSendRequest::SerializeWithCachedSizes(
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
-  // required uint64 trxID = 1;
-  if (cached_has_bits & 0x00000001u) {
-    ::google::protobuf::internal::WireFormatLite::WriteUInt64(1, this->trxid(), output);
-  }
-
-  // required bool is_valid = 2;
+  // required int32 trxID_part_id = 1;
   if (cached_has_bits & 0x00000002u) {
-    ::google::protobuf::internal::WireFormatLite::WriteBool(2, this->is_valid(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteInt32(1, this->trxid_part_id(), output);
   }
 
-  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  // required int64 trxID_s_id = 2;
+  if (cached_has_bits & 0x00000001u) {
+    ::google::protobuf::internal::WireFormatLite::WriteInt64(2, this->trxid_s_id(), output);
+  }
+
+  // required int64 trxID_m_id = 3;
+  if (cached_has_bits & 0x00000008u) {
+    ::google::protobuf::internal::WireFormatLite::WriteInt64(3, this->trxid_m_id(), output);
+  }
+
+  // required bool is_valid = 4;
+  if (cached_has_bits & 0x00000004u) {
+    ::google::protobuf::internal::WireFormatLite::WriteBool(4, this->is_valid(), output);
+  }
+
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 5;
   for (unsigned int i = 0,
       n = static_cast<unsigned int>(this->log_msg_size()); i < n; i++) {
     ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      3,
+      5,
       this->log_msg(static_cast<int>(i)),
       output);
   }
@@ -1259,22 +1312,32 @@ void LogSendRequest::SerializeWithCachedSizes(
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
-  // required uint64 trxID = 1;
-  if (cached_has_bits & 0x00000001u) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(1, this->trxid(), target);
-  }
-
-  // required bool is_valid = 2;
+  // required int32 trxID_part_id = 1;
   if (cached_has_bits & 0x00000002u) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(2, this->is_valid(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(1, this->trxid_part_id(), target);
   }
 
-  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  // required int64 trxID_s_id = 2;
+  if (cached_has_bits & 0x00000001u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt64ToArray(2, this->trxid_s_id(), target);
+  }
+
+  // required int64 trxID_m_id = 3;
+  if (cached_has_bits & 0x00000008u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt64ToArray(3, this->trxid_m_id(), target);
+  }
+
+  // required bool is_valid = 4;
+  if (cached_has_bits & 0x00000004u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(4, this->is_valid(), target);
+  }
+
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 5;
   for (unsigned int i = 0,
       n = static_cast<unsigned int>(this->log_msg_size()); i < n; i++) {
     target = ::google::protobuf::internal::WireFormatLite::
       InternalWriteMessageToArray(
-        3, this->log_msg(static_cast<int>(i)), deterministic, target);
+        5, this->log_msg(static_cast<int>(i)), deterministic, target);
   }
 
   if (_internal_metadata_.have_unknown_fields()) {
@@ -1289,16 +1352,30 @@ size_t LogSendRequest::RequiredFieldsByteSizeFallback() const {
 // @@protoc_insertion_point(required_fields_byte_size_fallback_start:MMLP_BRPC.LogSendRequest)
   size_t total_size = 0;
 
-  if (has_trxid()) {
-    // required uint64 trxID = 1;
+  if (has_trxid_s_id()) {
+    // required int64 trxID_s_id = 2;
     total_size += 1 +
-      ::google::protobuf::internal::WireFormatLite::UInt64Size(
-        this->trxid());
+      ::google::protobuf::internal::WireFormatLite::Int64Size(
+        this->trxid_s_id());
+  }
+
+  if (has_trxid_part_id()) {
+    // required int32 trxID_part_id = 1;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::Int32Size(
+        this->trxid_part_id());
   }
 
   if (has_is_valid()) {
-    // required bool is_valid = 2;
+    // required bool is_valid = 4;
     total_size += 1 + 1;
+  }
+
+  if (has_trxid_m_id()) {
+    // required int64 trxID_m_id = 3;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::Int64Size(
+        this->trxid_m_id());
   }
 
   return total_size;
@@ -1312,19 +1389,29 @@ size_t LogSendRequest::ByteSizeLong() const {
       ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
         _internal_metadata_.unknown_fields());
   }
-  if (((_has_bits_[0] & 0x00000003) ^ 0x00000003) == 0) {  // All required fields are present.
-    // required uint64 trxID = 1;
+  if (((_has_bits_[0] & 0x0000000f) ^ 0x0000000f) == 0) {  // All required fields are present.
+    // required int64 trxID_s_id = 2;
     total_size += 1 +
-      ::google::protobuf::internal::WireFormatLite::UInt64Size(
-        this->trxid());
+      ::google::protobuf::internal::WireFormatLite::Int64Size(
+        this->trxid_s_id());
 
-    // required bool is_valid = 2;
+    // required int32 trxID_part_id = 1;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::Int32Size(
+        this->trxid_part_id());
+
+    // required bool is_valid = 4;
     total_size += 1 + 1;
+
+    // required int64 trxID_m_id = 3;
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::Int64Size(
+        this->trxid_m_id());
 
   } else {
     total_size += RequiredFieldsByteSizeFallback();
   }
-  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 5;
   {
     unsigned int count = static_cast<unsigned int>(this->log_msg_size());
     total_size += 1UL * count;
@@ -1364,12 +1451,18 @@ void LogSendRequest::MergeFrom(const LogSendRequest& from) {
 
   log_msg_.MergeFrom(from.log_msg_);
   cached_has_bits = from._has_bits_[0];
-  if (cached_has_bits & 3u) {
+  if (cached_has_bits & 15u) {
     if (cached_has_bits & 0x00000001u) {
-      trxid_ = from.trxid_;
+      trxid_s_id_ = from.trxid_s_id_;
     }
     if (cached_has_bits & 0x00000002u) {
+      trxid_part_id_ = from.trxid_part_id_;
+    }
+    if (cached_has_bits & 0x00000004u) {
       is_valid_ = from.is_valid_;
+    }
+    if (cached_has_bits & 0x00000008u) {
+      trxid_m_id_ = from.trxid_m_id_;
     }
     _has_bits_[0] |= cached_has_bits;
   }
@@ -1390,7 +1483,7 @@ void LogSendRequest::CopyFrom(const LogSendRequest& from) {
 }
 
 bool LogSendRequest::IsInitialized() const {
-  if ((_has_bits_[0] & 0x00000003) != 0x00000003) return false;
+  if ((_has_bits_[0] & 0x0000000f) != 0x0000000f) return false;
   if (!::google::protobuf::internal::AllAreInitialized(this->log_msg())) return false;
   return true;
 }
@@ -1402,8 +1495,10 @@ void LogSendRequest::Swap(LogSendRequest* other) {
 void LogSendRequest::InternalSwap(LogSendRequest* other) {
   using std::swap;
   CastToBase(&log_msg_)->InternalSwap(CastToBase(&other->log_msg_));
-  swap(trxid_, other->trxid_);
+  swap(trxid_s_id_, other->trxid_s_id_);
+  swap(trxid_part_id_, other->trxid_part_id_);
   swap(is_valid_, other->is_valid_);
+  swap(trxid_m_id_, other->trxid_m_id_);
   swap(_has_bits_[0], other->_has_bits_[0]);
   _internal_metadata_.Swap(&other->_internal_metadata_);
 }
@@ -1647,7 +1742,8 @@ void LogSendResponse::InternalSwap(LogSendResponse* other) {
 void LogRequireRequest::InitAsDefaultInstance() {
 }
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
-const int LogRequireRequest::kTrxIDFieldNumber;
+const int LogRequireRequest::kTrxIDPartIdFieldNumber;
+const int LogRequireRequest::kTrxIDOwnIdFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
 LogRequireRequest::LogRequireRequest()
@@ -1662,12 +1758,16 @@ LogRequireRequest::LogRequireRequest(const LogRequireRequest& from)
       _internal_metadata_(NULL),
       _has_bits_(from._has_bits_) {
   _internal_metadata_.MergeFrom(from._internal_metadata_);
-  trxid_ = from.trxid_;
+  ::memcpy(&trxid_own_id_, &from.trxid_own_id_,
+    static_cast<size_t>(reinterpret_cast<char*>(&trxid_part_id_) -
+    reinterpret_cast<char*>(&trxid_own_id_)) + sizeof(trxid_part_id_));
   // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.LogRequireRequest)
 }
 
 void LogRequireRequest::SharedCtor() {
-  trxid_ = GOOGLE_ULONGLONG(0);
+  ::memset(&trxid_own_id_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&trxid_part_id_) -
+      reinterpret_cast<char*>(&trxid_own_id_)) + sizeof(trxid_part_id_));
 }
 
 LogRequireRequest::~LogRequireRequest() {
@@ -1698,7 +1798,12 @@ void LogRequireRequest::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  trxid_ = GOOGLE_ULONGLONG(0);
+  cached_has_bits = _has_bits_[0];
+  if (cached_has_bits & 3u) {
+    ::memset(&trxid_own_id_, 0, static_cast<size_t>(
+        reinterpret_cast<char*>(&trxid_part_id_) -
+        reinterpret_cast<char*>(&trxid_own_id_)) + sizeof(trxid_part_id_));
+  }
   _has_bits_.Clear();
   _internal_metadata_.Clear();
 }
@@ -1713,14 +1818,28 @@ bool LogRequireRequest::MergePartialFromCodedStream(
     tag = p.first;
     if (!p.second) goto handle_unusual;
     switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
-      // required uint64 trxID = 1;
+      // required int32 trxID_part_id = 1;
       case 1: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
             static_cast< ::google::protobuf::uint8>(8u /* 8 & 0xFF */)) {
-          set_has_trxid();
+          set_has_trxid_part_id();
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
-                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
-                 input, &trxid_)));
+                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
+                 input, &trxid_part_id_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      // optional int64 trxID_own_id = 2;
+      case 2: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(16u /* 16 & 0xFF */)) {
+          set_has_trxid_own_id();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int64, ::google::protobuf::internal::WireFormatLite::TYPE_INT64>(
+                 input, &trxid_own_id_)));
         } else {
           goto handle_unusual;
         }
@@ -1754,9 +1873,14 @@ void LogRequireRequest::SerializeWithCachedSizes(
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
-  // required uint64 trxID = 1;
+  // required int32 trxID_part_id = 1;
+  if (cached_has_bits & 0x00000002u) {
+    ::google::protobuf::internal::WireFormatLite::WriteInt32(1, this->trxid_part_id(), output);
+  }
+
+  // optional int64 trxID_own_id = 2;
   if (cached_has_bits & 0x00000001u) {
-    ::google::protobuf::internal::WireFormatLite::WriteUInt64(1, this->trxid(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteInt64(2, this->trxid_own_id(), output);
   }
 
   if (_internal_metadata_.have_unknown_fields()) {
@@ -1774,9 +1898,14 @@ void LogRequireRequest::SerializeWithCachedSizes(
   (void) cached_has_bits;
 
   cached_has_bits = _has_bits_[0];
-  // required uint64 trxID = 1;
+  // required int32 trxID_part_id = 1;
+  if (cached_has_bits & 0x00000002u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(1, this->trxid_part_id(), target);
+  }
+
+  // optional int64 trxID_own_id = 2;
   if (cached_has_bits & 0x00000001u) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(1, this->trxid(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt64ToArray(2, this->trxid_own_id(), target);
   }
 
   if (_internal_metadata_.have_unknown_fields()) {
@@ -1796,12 +1925,19 @@ size_t LogRequireRequest::ByteSizeLong() const {
       ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
         _internal_metadata_.unknown_fields());
   }
-  // required uint64 trxID = 1;
-  if (has_trxid()) {
+  // required int32 trxID_part_id = 1;
+  if (has_trxid_part_id()) {
     total_size += 1 +
-      ::google::protobuf::internal::WireFormatLite::UInt64Size(
-        this->trxid());
+      ::google::protobuf::internal::WireFormatLite::Int32Size(
+        this->trxid_part_id());
   }
+  // optional int64 trxID_own_id = 2;
+  if (has_trxid_own_id()) {
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::Int64Size(
+        this->trxid_own_id());
+  }
+
   int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
@@ -1829,8 +1965,15 @@ void LogRequireRequest::MergeFrom(const LogRequireRequest& from) {
   ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (from.has_trxid()) {
-    set_trxid(from.trxid());
+  cached_has_bits = from._has_bits_[0];
+  if (cached_has_bits & 3u) {
+    if (cached_has_bits & 0x00000001u) {
+      trxid_own_id_ = from.trxid_own_id_;
+    }
+    if (cached_has_bits & 0x00000002u) {
+      trxid_part_id_ = from.trxid_part_id_;
+    }
+    _has_bits_[0] |= cached_has_bits;
   }
 }
 
@@ -1849,7 +1992,7 @@ void LogRequireRequest::CopyFrom(const LogRequireRequest& from) {
 }
 
 bool LogRequireRequest::IsInitialized() const {
-  if ((_has_bits_[0] & 0x00000001) != 0x00000001) return false;
+  if ((_has_bits_[0] & 0x00000002) != 0x00000002) return false;
   return true;
 }
 
@@ -1859,7 +2002,8 @@ void LogRequireRequest::Swap(LogRequireRequest* other) {
 }
 void LogRequireRequest::InternalSwap(LogRequireRequest* other) {
   using std::swap;
-  swap(trxid_, other->trxid_);
+  swap(trxid_own_id_, other->trxid_own_id_);
+  swap(trxid_part_id_, other->trxid_part_id_);
   swap(_has_bits_[0], other->_has_bits_[0]);
   _internal_metadata_.Swap(&other->_internal_metadata_);
 }
@@ -1878,7 +2022,9 @@ void LogRequireResponse::InitAsDefaultInstance() {
 const int LogRequireResponse::kRequireReplyFieldNumber;
 const int LogRequireResponse::kIsValidFieldNumber;
 const int LogRequireResponse::kLogMsgFieldNumber;
-const int LogRequireResponse::kTrxIDFieldNumber;
+const int LogRequireResponse::kTrxIDPartIdFieldNumber;
+const int LogRequireResponse::kTrxIDSIdFieldNumber;
+const int LogRequireResponse::kTrxIDMIdFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
 LogRequireResponse::LogRequireResponse()
@@ -1895,15 +2041,15 @@ LogRequireResponse::LogRequireResponse(const LogRequireResponse& from)
       log_msg_(from.log_msg_) {
   _internal_metadata_.MergeFrom(from._internal_metadata_);
   ::memcpy(&require_reply_, &from.require_reply_,
-    static_cast<size_t>(reinterpret_cast<char*>(&trxid_) -
-    reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
+    static_cast<size_t>(reinterpret_cast<char*>(&trxid_part_id_) -
+    reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_part_id_));
   // @@protoc_insertion_point(copy_constructor:MMLP_BRPC.LogRequireResponse)
 }
 
 void LogRequireResponse::SharedCtor() {
   ::memset(&require_reply_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&trxid_) -
-      reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
+      reinterpret_cast<char*>(&trxid_part_id_) -
+      reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_part_id_));
 }
 
 LogRequireResponse::~LogRequireResponse() {
@@ -1936,10 +2082,10 @@ void LogRequireResponse::Clear() {
 
   log_msg_.Clear();
   cached_has_bits = _has_bits_[0];
-  if (cached_has_bits & 7u) {
+  if (cached_has_bits & 31u) {
     ::memset(&require_reply_, 0, static_cast<size_t>(
-        reinterpret_cast<char*>(&trxid_) -
-        reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_));
+        reinterpret_cast<char*>(&trxid_part_id_) -
+        reinterpret_cast<char*>(&require_reply_)) + sizeof(trxid_part_id_));
   }
   _has_bits_.Clear();
   _internal_metadata_.Clear();
@@ -1995,14 +2141,42 @@ bool LogRequireResponse::MergePartialFromCodedStream(
         break;
       }
 
-      // optional uint64 trxID = 4;
+      // optional int32 trxID_part_id = 4;
       case 4: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
             static_cast< ::google::protobuf::uint8>(32u /* 32 & 0xFF */)) {
-          set_has_trxid();
+          set_has_trxid_part_id();
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
-                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
-                 input, &trxid_)));
+                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
+                 input, &trxid_part_id_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      // optional int64 trxID_s_id = 5;
+      case 5: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(40u /* 40 & 0xFF */)) {
+          set_has_trxid_s_id();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int64, ::google::protobuf::internal::WireFormatLite::TYPE_INT64>(
+                 input, &trxid_s_id_)));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
+      // optional int64 trxID_m_id = 6;
+      case 6: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(48u /* 48 & 0xFF */)) {
+          set_has_trxid_m_id();
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int64, ::google::protobuf::internal::WireFormatLite::TYPE_INT64>(
+                 input, &trxid_m_id_)));
         } else {
           goto handle_unusual;
         }
@@ -2055,9 +2229,19 @@ void LogRequireResponse::SerializeWithCachedSizes(
       output);
   }
 
-  // optional uint64 trxID = 4;
+  // optional int32 trxID_part_id = 4;
+  if (cached_has_bits & 0x00000010u) {
+    ::google::protobuf::internal::WireFormatLite::WriteInt32(4, this->trxid_part_id(), output);
+  }
+
+  // optional int64 trxID_s_id = 5;
   if (cached_has_bits & 0x00000004u) {
-    ::google::protobuf::internal::WireFormatLite::WriteUInt64(4, this->trxid(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteInt64(5, this->trxid_s_id(), output);
+  }
+
+  // optional int64 trxID_m_id = 6;
+  if (cached_has_bits & 0x00000008u) {
+    ::google::protobuf::internal::WireFormatLite::WriteInt64(6, this->trxid_m_id(), output);
   }
 
   if (_internal_metadata_.have_unknown_fields()) {
@@ -2093,9 +2277,19 @@ void LogRequireResponse::SerializeWithCachedSizes(
         3, this->log_msg(static_cast<int>(i)), deterministic, target);
   }
 
-  // optional uint64 trxID = 4;
+  // optional int32 trxID_part_id = 4;
+  if (cached_has_bits & 0x00000010u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(4, this->trxid_part_id(), target);
+  }
+
+  // optional int64 trxID_s_id = 5;
   if (cached_has_bits & 0x00000004u) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(4, this->trxid(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt64ToArray(5, this->trxid_s_id(), target);
+  }
+
+  // optional int64 trxID_m_id = 6;
+  if (cached_has_bits & 0x00000008u) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt64ToArray(6, this->trxid_m_id(), target);
   }
 
   if (_internal_metadata_.have_unknown_fields()) {
@@ -2156,13 +2350,29 @@ size_t LogRequireResponse::ByteSizeLong() const {
     }
   }
 
-  // optional uint64 trxID = 4;
-  if (has_trxid()) {
-    total_size += 1 +
-      ::google::protobuf::internal::WireFormatLite::UInt64Size(
-        this->trxid());
-  }
+  if (_has_bits_[0 / 32] & 28u) {
+    // optional int64 trxID_s_id = 5;
+    if (has_trxid_s_id()) {
+      total_size += 1 +
+        ::google::protobuf::internal::WireFormatLite::Int64Size(
+          this->trxid_s_id());
+    }
 
+    // optional int64 trxID_m_id = 6;
+    if (has_trxid_m_id()) {
+      total_size += 1 +
+        ::google::protobuf::internal::WireFormatLite::Int64Size(
+          this->trxid_m_id());
+    }
+
+    // optional int32 trxID_part_id = 4;
+    if (has_trxid_part_id()) {
+      total_size += 1 +
+        ::google::protobuf::internal::WireFormatLite::Int32Size(
+          this->trxid_part_id());
+    }
+
+  }
   int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
@@ -2192,7 +2402,7 @@ void LogRequireResponse::MergeFrom(const LogRequireResponse& from) {
 
   log_msg_.MergeFrom(from.log_msg_);
   cached_has_bits = from._has_bits_[0];
-  if (cached_has_bits & 7u) {
+  if (cached_has_bits & 31u) {
     if (cached_has_bits & 0x00000001u) {
       require_reply_ = from.require_reply_;
     }
@@ -2200,7 +2410,13 @@ void LogRequireResponse::MergeFrom(const LogRequireResponse& from) {
       is_valid_ = from.is_valid_;
     }
     if (cached_has_bits & 0x00000004u) {
-      trxid_ = from.trxid_;
+      trxid_s_id_ = from.trxid_s_id_;
+    }
+    if (cached_has_bits & 0x00000008u) {
+      trxid_m_id_ = from.trxid_m_id_;
+    }
+    if (cached_has_bits & 0x00000010u) {
+      trxid_part_id_ = from.trxid_part_id_;
     }
     _has_bits_[0] |= cached_has_bits;
   }
@@ -2235,7 +2451,9 @@ void LogRequireResponse::InternalSwap(LogRequireResponse* other) {
   CastToBase(&log_msg_)->InternalSwap(CastToBase(&other->log_msg_));
   swap(require_reply_, other->require_reply_);
   swap(is_valid_, other->is_valid_);
-  swap(trxid_, other->trxid_);
+  swap(trxid_s_id_, other->trxid_s_id_);
+  swap(trxid_m_id_, other->trxid_m_id_);
+  swap(trxid_part_id_, other->trxid_part_id_);
   swap(_has_bits_[0], other->_has_bits_[0]);
   _internal_metadata_.Swap(&other->_internal_metadata_);
 }

@@ -118,5 +118,4 @@ class SliceTrxIdGen_SYNC : public GlobalTrxIdGen
     int handle_request(){return 1;};
     TrxID get_id();
 };
-
 #endif

@@ -1971,7 +1971,7 @@ written */
 
     if(mml_plugin_interface_active > 0)
     {
-      (*mml_plugin_wr_trx_commit_ptr)(trx->commit_lsn);
+      (*mml_plugin_wr_trx_commit_ptr)((TrxID){-1,(int64_t)trx->commit_lsn,-1});
     }
 
     /* Tell server some activity has happened, since the trx

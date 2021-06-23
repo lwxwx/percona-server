@@ -18,7 +18,7 @@ int ConflictHandle::arg_detect(TrxID id)
   bool page_is = false;
 	bool row_is = false;
 	int res = 0;
-	for(int i = 0; i < conflict_trx_length ; i++)
+/*	for(int i = 0; i < conflict_trx_length ; i++)
 	{
 		srand(conflict_trx_length * 7 - 1 + id);
 		
@@ -34,7 +34,7 @@ int ConflictHandle::arg_detect(TrxID id)
 			res = 2;
 			i = conflict_trx_length;
 		}
-	}
+	}*/
 	return res;
 }
 

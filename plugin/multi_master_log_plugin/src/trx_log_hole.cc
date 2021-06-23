@@ -12,9 +12,10 @@ TrxLogHoleSet::~TrxLogHoleSet()
 	{
 		delete *it;
 	}
-	for(auto map_it = end_id_waiter_map.begin();map_it != end_id_waiter_map.end(); map_it++)
+	for(auto part_it = end_id_waiter_map.begin();part_it != end_id_waiter_map.end(); part_it++)
 	{
-		delete map_it->second;
+		for(auto map_it = part_it->second.begin(); map_it != part_it->second.end(); map_it++)
+			delete map_it->second;
 	}
 }
 
@@ -37,22 +38,22 @@ void TrxLogHoleSet::restore_unused_waiter(HoleWaiter * target)
 	unused_waiter_list.push_back(target);
 }
 
-int TrxLogHoleSet::add_local_hole(TrxID trx_id) 
+int TrxLogHoleSet::add_local_hole(UnifID trx_id) 
 {
 //std::cout << "Local Hole ID " << trx_id << std::endl;
   std::unique_lock<std::mutex> hole_set_lock(hole_mutex);
-  local_hole_set.insert(trx_id);
-  hole_set.insert(trx_id);
+  local_hole_set[trx_id.p_id].insert(trx_id.own_id);
+  hole_set[trx_id.p_id].insert(trx_id.own_id);
   return 1;
 }
 
-int TrxLogHoleSet::find_hole(TrxID trx_id)
+int TrxLogHoleSet::find_hole(UnifID trx_id)
 {
 	std::unique_lock<std::mutex> hole_set_lock(hole_mutex);
-	if(hole_set.find(trx_id) == hole_set.end() && local_hole_set.find(trx_id) == local_hole_set.end())
+	if(hole_set[trx_id.p_id].find(trx_id.own_id) == hole_set[trx_id.p_id].end() && local_hole_set[trx_id.p_id].find(trx_id.own_id) == local_hole_set[trx_id.p_id].end())
 	{
 		//std::cout << "********************************Find no local id hole::" << trx_id <<std::endl;
-		hole_set.insert(trx_id);
+		hole_set[trx_id.p_id].insert(trx_id.own_id);
 		return 1;
 	}
 	else
@@ -61,58 +62,113 @@ int TrxLogHoleSet::find_hole(TrxID trx_id)
 	}
 }
 
-int TrxLogHoleSet::wait_hole(TrxID end_id)
+int TrxLogHoleSet::wait_hole(UnifID end_id)
 {
+	if(DEBUG_CODE != 0)
+	{
+		std::cout << "wait hhh " << end_id << std::endl;
+	}
 	std::unique_lock<std::mutex>  hole_set_unique_lock(hole_mutex);
 
-	if(end_id_waiter_map.find(end_id)==end_id_waiter_map.end())
+	if(end_id_waiter_map[end_id.p_id].find(end_id.own_id) == end_id_waiter_map[end_id.p_id].end())
 	{
-		end_id_waiter_map[end_id] = get_unused_waiter();
+		end_id_waiter_map[end_id.p_id][end_id.own_id] = get_unused_waiter();
 	}
 	// wait trx_id <= end_id
 	// end_id will wait itself
 	int wait_count = 0;
-	while(!hole_set.empty() &&  *hole_set.begin() <= end_id)
+	while(!hole_set[end_id.p_id].empty() &&  *hole_set[end_id.p_id].begin() <= end_id.own_id)
 	{
+		if(DEBUG_CODE != 0)
+		{
+			std::cout << "wait for [" << end_id.p_id << "-" << *hole_set[end_id.p_id].begin() <<"] hole_set part" << end_id.p_id  << " aready have hole : " ;
+			for(auto itt : hole_set[end_id.p_id])
+				std::cout << itt  <<" ";
+			std::cout << std::endl;
+		}
 		if(wait_count > 3)
 		{
 			std::cout  << " [@TrxLogHole Wait ERROR] : wait count > 3 , block on the hole of end_id:" << end_id  << std::endl;
 		//	return -1;
 		}
-		end_id_waiter_map[end_id]->cond.wait_for(hole_set_unique_lock,std::chrono::seconds(5));
+		end_id_waiter_map[end_id.p_id][end_id.own_id]->cond.wait_for(hole_set_unique_lock,std::chrono::seconds(5));
 		wait_count++;
 	}
 
 	return 1;
 }
 
-int TrxLogHoleSet::complement_hole(TrxID hole_id) 
+int TrxLogHoleSet::complement_hole(UnifID hole_id) 
 {
 // std::cout << "Complement Hole ID : " << hole_id << std::endl;
   std::unique_lock<std::mutex> hole_set_unique_lock(hole_mutex);
 
-  if (hole_set.find(hole_id) != hole_set.end())
+  if (hole_set[hole_id.p_id].find(hole_id.own_id) != hole_set[hole_id.p_id].end())
   {
-    hole_set.erase(hole_id);
+    hole_set[hole_id.p_id].erase(hole_id.own_id);
   }
   else
   {
 	  return 0;
   }
 
-  if(local_hole_set.find(hole_id) == local_hole_set.end())
+  if(local_hole_set[hole_id.p_id].find(hole_id.own_id) == local_hole_set[hole_id.p_id].end())
   {
-	  local_hole_set.erase(hole_id);
+	  local_hole_set[hole_id.p_id].erase(hole_id.own_id);
   }
 
-  auto it = end_id_waiter_map.begin();
-  while(it != end_id_waiter_map.end() && it->first < *hole_set.begin())
+  auto it = end_id_waiter_map[hole_id.p_id].begin();
+  if(DEBUG_CODE != 0)
   {
+	  std::cout << "when complete " <<hole_id << " , end_id_waiter_map " << hole_id.p_id << "have size = " << end_id_waiter_map[hole_id.p_id].size();
+	  for(auto &tmpit : end_id_waiter_map[hole_id.p_id])
+	  {
+		  std::cout << "," << tmpit.first;
+	  }
+	  std::cout << " and hole set : ";
+	  for(auto &tmpit : hole_set[hole_id.p_id])
+	  	std::cout  << "," << tmpit;
+	  std::cout << std::endl;
+  }
+  while(it != end_id_waiter_map[hole_id.p_id].end() && it->first < *hole_set[hole_id.p_id].begin())
+  {
+	  if(DEBUG_CODE != 0)
+	  {
+		  std::cout << "get hole [" << hole_id.p_id << "-" << it->first << "]" << std::endl;
+	  }
 	  it->second->cond.notify_all();
 	  restore_unused_waiter(it->second);
-	  end_id_waiter_map.erase(it);
+	  end_id_waiter_map[hole_id.p_id].erase(it);
 	  it++;
   }
 
   return 1;
+}
+
+int TrxLogHoleSet::notify_hole_get(UnifID tmp_id)
+{
+	end_id_waiter_map_lock_list[tmp_id.p_id].lock();
+	end_id_waiter_map[tmp_id.p_id][tmp_id.own_id]->cond.notify_all();
+	restore_unused_waiter(end_id_waiter_map[tmp_id.p_id][tmp_id.own_id]);
+	end_id_waiter_map[tmp_id.p_id].erase(tmp_id.own_id);
+	end_id_waiter_map_lock_list[tmp_id.p_id].unlock();
+}
+int TrxLogHoleSet::erase_hole(UnifID hole_id)
+{
+	try{
+	std::unique_lock<std::mutex> hole_set_unique_lock(hole_mutex);
+
+	if (hole_set[hole_id.p_id].find(hole_id.own_id) != hole_set[hole_id.p_id].end())
+	{
+		hole_set[hole_id.p_id].erase(hole_id.own_id);
+	}
+	else
+	{
+	  return 0;
+	}
+	}
+	catch(std::exception & e)
+	{
+		std::cout << "notify error " << e.what() << std::endl;
+	}
 }

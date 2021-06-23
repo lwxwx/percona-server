@@ -21,6 +21,7 @@
 #include "mmlp_type.h"
 #include <string>
 #include <memory>
+#include <exception>
 /**
  * class GlobalTrxIDFactory
  * **/
@@ -38,29 +39,34 @@ ID_FACTORY_TYPE GlobalTrxIDFactory::getFactoryType()
 int GlobalTrxIDFactory::init(ID_FACTORY_TYPE type)
 {
     setFactoryType(type);
-
     //request_count = 0;
+    //@liu-erase
+    
     global_id_gen = NULL;
     if(factory_type == ID_FACTORY_TYPE::SLICE_ID_GEN_SYNC)
     {
         global_id_gen = new SliceTrxIdGen_SYNC;
     }
 #if PHXPAXOS_ID_COMPLIE
-    if(factory_type == ID_FACTORY_TYPE::PHXPAXOS_PROPOSE_SYNC)
-    {
-        global_id_gen = new PhxPaxosTrxIdGen_SYNC;
-    }
+    // if(factory_type == ID_FACTORY_TYPE::PHXPAXOS_PROPOSE_SYNC)
+    // {
+    //     global_id_gen = new PhxPaxosTrxIdGen_SYNC;
+    // }
 #endif
+
 	if(factory_type == ID_FACTORY_TYPE::FROM_REMOTE_NODE_ASYNC)
 	{
 		global_id_gen = new RemoteNodeTrxIdGen;
 	}
 
     if(global_id_gen != NULL)
+    {       
         global_id_gen->init();
+    }   
     else
+    {
         return -1;
-
+    }
     return 1;
 }
 
@@ -80,20 +86,29 @@ TrxID GlobalTrxIDFactory::getGlobalTrxID()
  * **/
 int RemoteNodeTrxIdGen::init()
 {
+    // try{
+    //感觉是这里的问题
 	if(remote_id_server_addr != nullptr)
 		server_addr = remote_id_server_addr;
 	brpc::ChannelOptions options; 
 	options.protocol = brpc::PROTOCOL_BAIDU_STD;
     options.connection_type = brpc::CONNECTION_TYPE_SINGLE;
-	//options.max_retry = 5;
+	// options.max_retry = 5;
     if (channel.Init(server_addr.c_str(), &options) != 0) {
-		std::cout << REMOTE_NODE_GEN_ERROR << "Fail to initialize channel"<< std::endl;;
+		std::cout << REMOTE_NODE_GEN_ERROR << "Fail to initialize channel"<< std::endl;
         return -1;
     }
+    // }
+    // catch(std::exception & e)
+    // {
+    //     std::cout << "error in handle" << e.what()<< std::endl;
+    // }
 }
 
 int RemoteNodeTrxIdGen::handle_request()
 {
+    if(DEBUG_CODE != 0)
+        std::cout << "have a handel" <<std::endl;
 	uint64_t before_handle_request;
     if(DEBUG_REMOTE_ID_TIME != 0)
     {
@@ -106,11 +121,11 @@ int RemoteNodeTrxIdGen::handle_request()
 	brpc::Controller * cntrl = new brpc::Controller;
 	IDIncrement::IDResponse * response_ptr = new IDIncrement::IDResponse;
 
-	request.set_message("request id");
+	request.set_page_table_no("request id");
 
 	google::protobuf::Closure* done = brpc::NewCallback(&idIncrementResponseHanle,cntrl,response_ptr,this);
 	stub_ptr->IDInc(cntrl, &request, response_ptr, done);
-
+    std::cout << "send ok "<< std::endl;
     if(DEBUG_REMOTE_ID_TIME != 0)
     {
         remote_id_handle_count++;
@@ -124,14 +139,29 @@ void idIncrementResponseHanle(brpc::Controller * cntrl,IDIncrement::IDResponse *
 	std::unique_ptr<brpc::Controller> cntl_guard(cntrl);
 	std::unique_ptr<IDIncrement::IDResponse> response_guard(response_ptr);
    
+   if(DEBUG_CODE != 0)
+   {
+       std::cout << "asyn get id\n";
+   }
     if (cntrl->Failed()) {
-		id_gen->handle_request();
 		std::cout << REMOTE_NODE_GEN_ERROR  <<"Fail to send IDIncrementRequest, " << cntrl->ErrorText()<<std::endl;
+		id_gen->handle_request();
         return;
     }
-//   std::cout << REMOTE_NODE_GEN_DEBUG <<"Received id : "<<response_ptr->message()<<std::endl;
+    std::cout << "Received id : ["<<response_ptr->part_id()<< "," <<response_ptr->s_id()<<","<<response_ptr->m_id()<<"]"<<std::endl;
+
     // brpc::AskToQuit();
-	id_gen->cacheIncrementID((TrxID)std::stoull(response_ptr->message()));
+    
+    //@liu-erase 因为id是提前拿的，所以先缓存起来
+	//id_gen->cacheIncrementID((TrxID)std::stoull(response_ptr->message()));
+    //@liu-try
+    id_gen->cacheIncrementID((TrxID){response_ptr->part_id(), response_ptr->s_id(), response_ptr->m_id()});
+    // std::cout << server_part_id;
+    // if(server_part_id == 0)
+    // {
+    //     std::unique_lock<std::mutex> tsnmap_lock(tsn_map_lock);
+    //     each_part_laster_tsn[server_part_id] = (TrxID){response_ptr->part_id(), response_ptr->s_id(), response_ptr->m_id()};
+    // }
 }
 
 int RemoteNodeTrxIdGen::cacheIncrementID(TrxID id)
@@ -144,7 +174,7 @@ int RemoteNodeTrxIdGen::cacheIncrementID(TrxID id)
 
 TrxID RemoteNodeTrxIdGen::get_id()
 {
-
+    std::cout <<" here00" << std::endl;
 	uint64_t before_get_id;
     if(DEBUG_REMOTE_ID_TIME != 0)
     {
@@ -154,6 +184,7 @@ TrxID RemoteNodeTrxIdGen::get_id()
 	std::unique_lock<std::mutex> cache_lock(cache_queue_mutex);
 	if(cache_queue.empty())
 	{
+        std::cout <<" here11" << std::endl;
 //		handle_request();
 		while(cache_queue.empty())
 		{
@@ -172,7 +203,6 @@ TrxID RemoteNodeTrxIdGen::get_id()
 		//	wait_count++;
 		}
 	}
-	
 	TrxID id = *cache_queue.begin();
 //	std::cout << "Get Remote ID of "  << id << std::endl;
 	cache_queue.erase(cache_queue.begin());
@@ -181,6 +211,7 @@ TrxID RemoteNodeTrxIdGen::get_id()
 		remote_id_get_count++;
         remote_id_get_time += (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count()- before_get_id;
 	}
+    // std::cout << " get id " << id << std::endl;
 	return id;
 }
 
@@ -189,7 +220,12 @@ TrxID RemoteNodeTrxIdGen::get_id()
  * class SliceTrxIdGen_SYNC
  * **/
 int SliceTrxIdGen_SYNC::init()
-{ slice_len = 0; std::string peers_str = std::string(brpc_peer_nodes_ptr); std::stringstream peers_ss(peers_str); std::string tmp; //std::cout <<"Peer Nodes : " << peers_str << std::endl; while(!peers_ss.eof())
+{ 
+    slice_len = 0; 
+    std::string peers_str = std::string(brpc_peer_nodes_ptr); 
+    std::stringstream peers_ss(peers_str); 
+    std::string tmp; //std::cout <<"Peer Nodes : " << peers_str << std::endl;  
+    while(!peers_ss.eof())
     {
         getline(peers_ss,tmp,',');
      //   std::cout << "Line Node : " << tmp << std::endl;
@@ -211,21 +247,27 @@ TrxID SliceTrxIdGen_SYNC::get_id()
     }
 	
     slice_count++;
-    TrxID id = node_no + slice_count * slice_len;
+    // if(DEBUG_CODE != 0)
+    // {
+    //     std::cout << "slice length = " << slice_len << ", slice count = " << slice_count << std::endl;
+    // }
+    // TrxID id = node_no + slice_count * slice_len;
+    int64_t id = node_no + slice_count * slice_len;
 
     if(DEBUG_SLICE_TIME != 0)
     {
         slice_gen_count++;
         slice_gen_time += (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())).count()- before_slice_cal;
     }
-
-    return id;
+    if(DEBUG_CODE != 0)
+        std::cout << "slice get id = [" <<server_part_id << "-" << id << "-0]" << std::endl;
+    return (TrxID){server_part_id,id,0};
 }
 
 #if PHXPAXOS_ID_COMPLIE
 /**
  * class PhxPaxosTrxIdGen_SYNC
- * **/
+ * **
 int PhxPaxosTrxIdGen_SYNC::init()
 {
     std::string local_str = std::string(phxpaxos_local_node_ptr);
@@ -285,5 +327,5 @@ TrxID PhxPaxosTrxIdGen_SYNC::get_id()
     }
 
     return id;
-}
+}*/
 #endif

@@ -38,6 +38,7 @@ int DEBUG_LOG_SEND_TIME = 0;
 int DEBUG_TRX_TIME = 0;
 int DEBUG_LOG_REQUIRE_TIME = 0;
 int DEBUG_CONFLICT_TIME = 0;
+int DEBUG_CODE = 0;
 
 //select flag
 int SELECT_LOG_ASYNC_TYPE = 0;
@@ -103,6 +104,12 @@ unsigned long long conflict_detect_level = 0;
 //trx time
 unsigned long long trx_count = 0;
 unsigned long long trx_sum_time = 0;
+
+int server_part_id = 0;
+// //@liu-try test
+std::map<TrxID,std::set<TrxID>> each_part_laster_tsn;
+std::mutex tsn_map_lock;
+// //liu-try-end
 
 /* node sysvar */
 MYSQL_SYSVAR_STR(phxpaxos_local_node,
@@ -252,6 +259,18 @@ MYSQL_SYSVAR_INT(debug_conflict_time,
     DEBUG_CONFLICT_TIME,
     PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
     "conflict time debug",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
+MYSQL_SYSVAR_INT(debug_code,
+    DEBUG_CODE,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "code debug",
     NULL,
     NULL,
     0,
@@ -786,6 +805,18 @@ MYSQL_SYSVAR_ULONGLONG(trx_sum_time,
     0
 );
 
+MYSQL_SYSVAR_INT(server_part_id,
+    server_part_id,
+    PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_PERSIST_AS_READ_ONLY,
+    "server_part_id",
+    NULL,
+    NULL,
+    0,
+    0,
+    INT_MAX,
+    0
+);
+
 /*plugin global var*/
 static SYS_VAR * multi_master_system_vars[] = {
     MYSQL_SYSVAR(group_name),
@@ -804,6 +835,7 @@ static SYS_VAR * multi_master_system_vars[] = {
 	MYSQL_SYSVAR(debug_log_require_time),
 	MYSQL_SYSVAR(debug_conflict_time),
 	MYSQL_SYSVAR(debug_remote_id_time),
+    MYSQL_SYSVAR(debug_code),
 
     MYSQL_SYSVAR(select_log_async_type),
     MYSQL_SYSVAR(select_trx_id_allocate_type),
@@ -850,23 +882,23 @@ static SYS_VAR * multi_master_system_vars[] = {
 	MYSQL_SYSVAR(conflict_failed_time),
 	MYSQL_SYSVAR(conflict_failed_count),
 
-MYSQL_SYSVAR(conflict_succeed_time) ,
-MYSQL_SYSVAR(conflict_succeed_count),
-MYSQL_SYSVAR(conflict_failed_count),
-MYSQL_SYSVAR(conflict_failed_time),
+    MYSQL_SYSVAR(conflict_succeed_time) ,
+    MYSQL_SYSVAR(conflict_succeed_count),
+    MYSQL_SYSVAR(conflict_failed_count),
+    MYSQL_SYSVAR(conflict_failed_time),
 
-MYSQL_SYSVAR(conflict_page_failed),
-MYSQL_SYSVAR(conflict_row_failed),
+    MYSQL_SYSVAR(conflict_page_failed),
+    MYSQL_SYSVAR(conflict_row_failed),
 
-MYSQL_SYSVAR(conflict_page_percent),
-MYSQL_SYSVAR(conflict_row_percent),
-MYSQL_SYSVAR(conflict_trx_length),
-MYSQL_SYSVAR(conflict_detect_method),
-MYSQL_SYSVAR(conflict_detect_level),
+    MYSQL_SYSVAR(conflict_page_percent),
+    MYSQL_SYSVAR(conflict_row_percent),
+    MYSQL_SYSVAR(conflict_trx_length),
+    MYSQL_SYSVAR(conflict_detect_method),
+    MYSQL_SYSVAR(conflict_detect_level),
     MYSQL_SYSVAR(trx_count),
     MYSQL_SYSVAR(trx_sum_time),
-
-    NULL
+    MYSQL_SYSVAR(server_part_id),
+NULL
 };
 
 static SHOW_VAR multi_master_status_vars[] = {

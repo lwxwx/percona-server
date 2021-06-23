@@ -80,7 +80,7 @@ int TrxLog::log_clear() {
   trx_is_started = false;
   trx_is_commited = false;
   trx_is_rollback = false;
-  trx_no = 0;
+  trx_no = (TrxID){0,0,0};
   if (now_rec != NULL) {
     destory_redolog_record(now_rec);
     now_rec = NULL;
@@ -156,7 +156,10 @@ int TrxLog::trx_log_encode_into_msg(MMLP_BRPC::LogSendRequest & res)
     return -1;
   }
 
-  res.set_trxid(trx_no);
+  // res.set_trxid(trx_no);
+  res.set_trxid_part_id(trx_no.p_id);
+  res.set_trxid_s_id(trx_no.s_id);
+  res.set_trxid_m_id(trx_no.m_id);
 
   if(trx_is_rollback)
   {
@@ -183,7 +186,10 @@ int TrxLog::trx_log_encode_into_msg(MMLP_BRPC::LogRequireResponse & res)
 		return -1;
 	}
 
-	res.set_trxid(trx_no);
+	// res.set_trxid(trx_no);  
+    res.set_trxid_part_id(trx_no.p_id);
+    res.set_trxid_s_id(trx_no.s_id);
+    res.set_trxid_m_id(trx_no.m_id);
 
 	if(trx_is_rollback)
 	{
@@ -216,11 +222,13 @@ int TrxLog::trx_log_decode_from_msg(MMLP_BRPC::LogSendRequest & res)
 
   if(!res.is_valid())
   {
-    rollback_trx_log(res.trxid());
+    // rollback_trx_log(res.trxid());
+     rollback_trx_log((TrxID){res.trxid_part_id(), res.trxid_s_id(), res.trxid_m_id()});
     return 0;
   }
 
-  wr_trx_commiting(res.trxid());
+  // wr_trx_commiting(res.trxid());
+  wr_trx_commiting((TrxID){res.trxid_part_id(), res.trxid_s_id(), res.trxid_m_id()});
   us_latency = 0;
   RedoLogRec * tmp_rec;
   for(int i = 0; i < res.log_msg_size();i++)
@@ -249,11 +257,13 @@ int TrxLog::trx_log_decode_from_msg(MMLP_BRPC::LogRequireResponse & res)
 
 	if(!res.is_valid())
 	{
-		rollback_trx_log(res.trxid());
+		// rollback_trx_log(res.trxid());
+    rollback_trx_log((TrxID){res.trxid_part_id(), res.trxid_s_id(), res.trxid_m_id()});
 		return 0;
 	}
 
-	wr_trx_commiting(res.trxid());
+	// wr_trx_commiting(res.trxid());
+  wr_trx_commiting((TrxID){res.trxid_part_id(), res.trxid_s_id(), res.trxid_m_id()});
 	RedoLogRec * tmp_rec;
 	us_latency = 0;
 	for(int i = 0; i < res.log_msg_size(); i++)

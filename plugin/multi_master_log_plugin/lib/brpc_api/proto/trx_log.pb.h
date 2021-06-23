@@ -479,10 +479,10 @@ class LogSendRequest : public ::google::protobuf::Message /* @@protoc_insertion_
 
   // accessors -------------------------------------------------------
 
-  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+  // repeated .MMLP_BRPC.TrxLogMsg log_msg = 5;
   int log_msg_size() const;
   void clear_log_msg();
-  static const int kLogMsgFieldNumber = 3;
+  static const int kLogMsgFieldNumber = 5;
   ::MMLP_BRPC::TrxLogMsg* mutable_log_msg(int index);
   ::google::protobuf::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >*
       mutable_log_msg();
@@ -491,24 +491,42 @@ class LogSendRequest : public ::google::protobuf::Message /* @@protoc_insertion_
   const ::google::protobuf::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg >&
       log_msg() const;
 
-  // required uint64 trxID = 1;
-  bool has_trxid() const;
-  void clear_trxid();
-  static const int kTrxIDFieldNumber = 1;
-  ::google::protobuf::uint64 trxid() const;
-  void set_trxid(::google::protobuf::uint64 value);
+  // required int64 trxID_s_id = 2;
+  bool has_trxid_s_id() const;
+  void clear_trxid_s_id();
+  static const int kTrxIDSIdFieldNumber = 2;
+  ::google::protobuf::int64 trxid_s_id() const;
+  void set_trxid_s_id(::google::protobuf::int64 value);
 
-  // required bool is_valid = 2;
+  // required int32 trxID_part_id = 1;
+  bool has_trxid_part_id() const;
+  void clear_trxid_part_id();
+  static const int kTrxIDPartIdFieldNumber = 1;
+  ::google::protobuf::int32 trxid_part_id() const;
+  void set_trxid_part_id(::google::protobuf::int32 value);
+
+  // required bool is_valid = 4;
   bool has_is_valid() const;
   void clear_is_valid();
-  static const int kIsValidFieldNumber = 2;
+  static const int kIsValidFieldNumber = 4;
   bool is_valid() const;
   void set_is_valid(bool value);
 
+  // required int64 trxID_m_id = 3;
+  bool has_trxid_m_id() const;
+  void clear_trxid_m_id();
+  static const int kTrxIDMIdFieldNumber = 3;
+  ::google::protobuf::int64 trxid_m_id() const;
+  void set_trxid_m_id(::google::protobuf::int64 value);
+
   // @@protoc_insertion_point(class_scope:MMLP_BRPC.LogSendRequest)
  private:
-  void set_has_trxid();
-  void clear_has_trxid();
+  void set_has_trxid_part_id();
+  void clear_has_trxid_part_id();
+  void set_has_trxid_s_id();
+  void clear_has_trxid_s_id();
+  void set_has_trxid_m_id();
+  void clear_has_trxid_m_id();
   void set_has_is_valid();
   void clear_has_is_valid();
 
@@ -519,8 +537,10 @@ class LogSendRequest : public ::google::protobuf::Message /* @@protoc_insertion_
   ::google::protobuf::internal::HasBits<1> _has_bits_;
   mutable ::google::protobuf::internal::CachedSize _cached_size_;
   ::google::protobuf::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg > log_msg_;
-  ::google::protobuf::uint64 trxid_;
+  ::google::protobuf::int64 trxid_s_id_;
+  ::google::protobuf::int32 trxid_part_id_;
   bool is_valid_;
+  ::google::protobuf::int64 trxid_m_id_;
   friend struct ::protobuf_trx_5flog_2eproto::TableStruct;
 };
 // -------------------------------------------------------------------
@@ -733,22 +753,32 @@ class LogRequireRequest : public ::google::protobuf::Message /* @@protoc_inserti
 
   // accessors -------------------------------------------------------
 
-  // required uint64 trxID = 1;
-  bool has_trxid() const;
-  void clear_trxid();
-  static const int kTrxIDFieldNumber = 1;
-  ::google::protobuf::uint64 trxid() const;
-  void set_trxid(::google::protobuf::uint64 value);
+  // optional int64 trxID_own_id = 2;
+  bool has_trxid_own_id() const;
+  void clear_trxid_own_id();
+  static const int kTrxIDOwnIdFieldNumber = 2;
+  ::google::protobuf::int64 trxid_own_id() const;
+  void set_trxid_own_id(::google::protobuf::int64 value);
+
+  // required int32 trxID_part_id = 1;
+  bool has_trxid_part_id() const;
+  void clear_trxid_part_id();
+  static const int kTrxIDPartIdFieldNumber = 1;
+  ::google::protobuf::int32 trxid_part_id() const;
+  void set_trxid_part_id(::google::protobuf::int32 value);
 
   // @@protoc_insertion_point(class_scope:MMLP_BRPC.LogRequireRequest)
  private:
-  void set_has_trxid();
-  void clear_has_trxid();
+  void set_has_trxid_part_id();
+  void clear_has_trxid_part_id();
+  void set_has_trxid_own_id();
+  void clear_has_trxid_own_id();
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   ::google::protobuf::internal::HasBits<1> _has_bits_;
   mutable ::google::protobuf::internal::CachedSize _cached_size_;
-  ::google::protobuf::uint64 trxid_;
+  ::google::protobuf::int64 trxid_own_id_;
+  ::google::protobuf::int32 trxid_part_id_;
   friend struct ::protobuf_trx_5flog_2eproto::TableStruct;
 };
 // -------------------------------------------------------------------
@@ -873,12 +903,26 @@ class LogRequireResponse : public ::google::protobuf::Message /* @@protoc_insert
   bool is_valid() const;
   void set_is_valid(bool value);
 
-  // optional uint64 trxID = 4;
-  bool has_trxid() const;
-  void clear_trxid();
-  static const int kTrxIDFieldNumber = 4;
-  ::google::protobuf::uint64 trxid() const;
-  void set_trxid(::google::protobuf::uint64 value);
+  // optional int64 trxID_s_id = 5;
+  bool has_trxid_s_id() const;
+  void clear_trxid_s_id();
+  static const int kTrxIDSIdFieldNumber = 5;
+  ::google::protobuf::int64 trxid_s_id() const;
+  void set_trxid_s_id(::google::protobuf::int64 value);
+
+  // optional int64 trxID_m_id = 6;
+  bool has_trxid_m_id() const;
+  void clear_trxid_m_id();
+  static const int kTrxIDMIdFieldNumber = 6;
+  ::google::protobuf::int64 trxid_m_id() const;
+  void set_trxid_m_id(::google::protobuf::int64 value);
+
+  // optional int32 trxID_part_id = 4;
+  bool has_trxid_part_id() const;
+  void clear_trxid_part_id();
+  static const int kTrxIDPartIdFieldNumber = 4;
+  ::google::protobuf::int32 trxid_part_id() const;
+  void set_trxid_part_id(::google::protobuf::int32 value);
 
   // @@protoc_insertion_point(class_scope:MMLP_BRPC.LogRequireResponse)
  private:
@@ -886,8 +930,12 @@ class LogRequireResponse : public ::google::protobuf::Message /* @@protoc_insert
   void clear_has_require_reply();
   void set_has_is_valid();
   void clear_has_is_valid();
-  void set_has_trxid();
-  void clear_has_trxid();
+  void set_has_trxid_part_id();
+  void clear_has_trxid_part_id();
+  void set_has_trxid_s_id();
+  void clear_has_trxid_s_id();
+  void set_has_trxid_m_id();
+  void clear_has_trxid_m_id();
 
   // helper for ByteSizeLong()
   size_t RequiredFieldsByteSizeFallback() const;
@@ -898,7 +946,9 @@ class LogRequireResponse : public ::google::protobuf::Message /* @@protoc_insert
   ::google::protobuf::RepeatedPtrField< ::MMLP_BRPC::TrxLogMsg > log_msg_;
   ::google::protobuf::int32 require_reply_;
   bool is_valid_;
-  ::google::protobuf::uint64 trxid_;
+  ::google::protobuf::int64 trxid_s_id_;
+  ::google::protobuf::int64 trxid_m_id_;
+  ::google::protobuf::int32 trxid_part_id_;
   friend struct ::protobuf_trx_5flog_2eproto::TableStruct;
 };
 // ===================================================================
@@ -1227,39 +1277,87 @@ TrxLogMsg::benchmsg() const {
 
 // LogSendRequest
 
-// required uint64 trxID = 1;
-inline bool LogSendRequest::has_trxid() const {
-  return (_has_bits_[0] & 0x00000001u) != 0;
-}
-inline void LogSendRequest::set_has_trxid() {
-  _has_bits_[0] |= 0x00000001u;
-}
-inline void LogSendRequest::clear_has_trxid() {
-  _has_bits_[0] &= ~0x00000001u;
-}
-inline void LogSendRequest::clear_trxid() {
-  trxid_ = GOOGLE_ULONGLONG(0);
-  clear_has_trxid();
-}
-inline ::google::protobuf::uint64 LogSendRequest::trxid() const {
-  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogSendRequest.trxID)
-  return trxid_;
-}
-inline void LogSendRequest::set_trxid(::google::protobuf::uint64 value) {
-  set_has_trxid();
-  trxid_ = value;
-  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogSendRequest.trxID)
-}
-
-// required bool is_valid = 2;
-inline bool LogSendRequest::has_is_valid() const {
+// required int32 trxID_part_id = 1;
+inline bool LogSendRequest::has_trxid_part_id() const {
   return (_has_bits_[0] & 0x00000002u) != 0;
 }
-inline void LogSendRequest::set_has_is_valid() {
+inline void LogSendRequest::set_has_trxid_part_id() {
   _has_bits_[0] |= 0x00000002u;
 }
-inline void LogSendRequest::clear_has_is_valid() {
+inline void LogSendRequest::clear_has_trxid_part_id() {
   _has_bits_[0] &= ~0x00000002u;
+}
+inline void LogSendRequest::clear_trxid_part_id() {
+  trxid_part_id_ = 0;
+  clear_has_trxid_part_id();
+}
+inline ::google::protobuf::int32 LogSendRequest::trxid_part_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogSendRequest.trxID_part_id)
+  return trxid_part_id_;
+}
+inline void LogSendRequest::set_trxid_part_id(::google::protobuf::int32 value) {
+  set_has_trxid_part_id();
+  trxid_part_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogSendRequest.trxID_part_id)
+}
+
+// required int64 trxID_s_id = 2;
+inline bool LogSendRequest::has_trxid_s_id() const {
+  return (_has_bits_[0] & 0x00000001u) != 0;
+}
+inline void LogSendRequest::set_has_trxid_s_id() {
+  _has_bits_[0] |= 0x00000001u;
+}
+inline void LogSendRequest::clear_has_trxid_s_id() {
+  _has_bits_[0] &= ~0x00000001u;
+}
+inline void LogSendRequest::clear_trxid_s_id() {
+  trxid_s_id_ = GOOGLE_LONGLONG(0);
+  clear_has_trxid_s_id();
+}
+inline ::google::protobuf::int64 LogSendRequest::trxid_s_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogSendRequest.trxID_s_id)
+  return trxid_s_id_;
+}
+inline void LogSendRequest::set_trxid_s_id(::google::protobuf::int64 value) {
+  set_has_trxid_s_id();
+  trxid_s_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogSendRequest.trxID_s_id)
+}
+
+// required int64 trxID_m_id = 3;
+inline bool LogSendRequest::has_trxid_m_id() const {
+  return (_has_bits_[0] & 0x00000008u) != 0;
+}
+inline void LogSendRequest::set_has_trxid_m_id() {
+  _has_bits_[0] |= 0x00000008u;
+}
+inline void LogSendRequest::clear_has_trxid_m_id() {
+  _has_bits_[0] &= ~0x00000008u;
+}
+inline void LogSendRequest::clear_trxid_m_id() {
+  trxid_m_id_ = GOOGLE_LONGLONG(0);
+  clear_has_trxid_m_id();
+}
+inline ::google::protobuf::int64 LogSendRequest::trxid_m_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogSendRequest.trxID_m_id)
+  return trxid_m_id_;
+}
+inline void LogSendRequest::set_trxid_m_id(::google::protobuf::int64 value) {
+  set_has_trxid_m_id();
+  trxid_m_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogSendRequest.trxID_m_id)
+}
+
+// required bool is_valid = 4;
+inline bool LogSendRequest::has_is_valid() const {
+  return (_has_bits_[0] & 0x00000004u) != 0;
+}
+inline void LogSendRequest::set_has_is_valid() {
+  _has_bits_[0] |= 0x00000004u;
+}
+inline void LogSendRequest::clear_has_is_valid() {
+  _has_bits_[0] &= ~0x00000004u;
 }
 inline void LogSendRequest::clear_is_valid() {
   is_valid_ = false;
@@ -1275,7 +1373,7 @@ inline void LogSendRequest::set_is_valid(bool value) {
   // @@protoc_insertion_point(field_set:MMLP_BRPC.LogSendRequest.is_valid)
 }
 
-// repeated .MMLP_BRPC.TrxLogMsg log_msg = 3;
+// repeated .MMLP_BRPC.TrxLogMsg log_msg = 5;
 inline int LogSendRequest::log_msg_size() const {
   return log_msg_.size();
 }
@@ -1337,28 +1435,52 @@ inline void LogSendResponse::set_send_reply(::google::protobuf::int32 value) {
 
 // LogRequireRequest
 
-// required uint64 trxID = 1;
-inline bool LogRequireRequest::has_trxid() const {
+// required int32 trxID_part_id = 1;
+inline bool LogRequireRequest::has_trxid_part_id() const {
+  return (_has_bits_[0] & 0x00000002u) != 0;
+}
+inline void LogRequireRequest::set_has_trxid_part_id() {
+  _has_bits_[0] |= 0x00000002u;
+}
+inline void LogRequireRequest::clear_has_trxid_part_id() {
+  _has_bits_[0] &= ~0x00000002u;
+}
+inline void LogRequireRequest::clear_trxid_part_id() {
+  trxid_part_id_ = 0;
+  clear_has_trxid_part_id();
+}
+inline ::google::protobuf::int32 LogRequireRequest::trxid_part_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireRequest.trxID_part_id)
+  return trxid_part_id_;
+}
+inline void LogRequireRequest::set_trxid_part_id(::google::protobuf::int32 value) {
+  set_has_trxid_part_id();
+  trxid_part_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireRequest.trxID_part_id)
+}
+
+// optional int64 trxID_own_id = 2;
+inline bool LogRequireRequest::has_trxid_own_id() const {
   return (_has_bits_[0] & 0x00000001u) != 0;
 }
-inline void LogRequireRequest::set_has_trxid() {
+inline void LogRequireRequest::set_has_trxid_own_id() {
   _has_bits_[0] |= 0x00000001u;
 }
-inline void LogRequireRequest::clear_has_trxid() {
+inline void LogRequireRequest::clear_has_trxid_own_id() {
   _has_bits_[0] &= ~0x00000001u;
 }
-inline void LogRequireRequest::clear_trxid() {
-  trxid_ = GOOGLE_ULONGLONG(0);
-  clear_has_trxid();
+inline void LogRequireRequest::clear_trxid_own_id() {
+  trxid_own_id_ = GOOGLE_LONGLONG(0);
+  clear_has_trxid_own_id();
 }
-inline ::google::protobuf::uint64 LogRequireRequest::trxid() const {
-  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireRequest.trxID)
-  return trxid_;
+inline ::google::protobuf::int64 LogRequireRequest::trxid_own_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireRequest.trxID_own_id)
+  return trxid_own_id_;
 }
-inline void LogRequireRequest::set_trxid(::google::protobuf::uint64 value) {
-  set_has_trxid();
-  trxid_ = value;
-  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireRequest.trxID)
+inline void LogRequireRequest::set_trxid_own_id(::google::protobuf::int64 value) {
+  set_has_trxid_own_id();
+  trxid_own_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireRequest.trxID_own_id)
 }
 
 // -------------------------------------------------------------------
@@ -1443,28 +1565,76 @@ LogRequireResponse::log_msg() const {
   return log_msg_;
 }
 
-// optional uint64 trxID = 4;
-inline bool LogRequireResponse::has_trxid() const {
+// optional int32 trxID_part_id = 4;
+inline bool LogRequireResponse::has_trxid_part_id() const {
+  return (_has_bits_[0] & 0x00000010u) != 0;
+}
+inline void LogRequireResponse::set_has_trxid_part_id() {
+  _has_bits_[0] |= 0x00000010u;
+}
+inline void LogRequireResponse::clear_has_trxid_part_id() {
+  _has_bits_[0] &= ~0x00000010u;
+}
+inline void LogRequireResponse::clear_trxid_part_id() {
+  trxid_part_id_ = 0;
+  clear_has_trxid_part_id();
+}
+inline ::google::protobuf::int32 LogRequireResponse::trxid_part_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireResponse.trxID_part_id)
+  return trxid_part_id_;
+}
+inline void LogRequireResponse::set_trxid_part_id(::google::protobuf::int32 value) {
+  set_has_trxid_part_id();
+  trxid_part_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireResponse.trxID_part_id)
+}
+
+// optional int64 trxID_s_id = 5;
+inline bool LogRequireResponse::has_trxid_s_id() const {
   return (_has_bits_[0] & 0x00000004u) != 0;
 }
-inline void LogRequireResponse::set_has_trxid() {
+inline void LogRequireResponse::set_has_trxid_s_id() {
   _has_bits_[0] |= 0x00000004u;
 }
-inline void LogRequireResponse::clear_has_trxid() {
+inline void LogRequireResponse::clear_has_trxid_s_id() {
   _has_bits_[0] &= ~0x00000004u;
 }
-inline void LogRequireResponse::clear_trxid() {
-  trxid_ = GOOGLE_ULONGLONG(0);
-  clear_has_trxid();
+inline void LogRequireResponse::clear_trxid_s_id() {
+  trxid_s_id_ = GOOGLE_LONGLONG(0);
+  clear_has_trxid_s_id();
 }
-inline ::google::protobuf::uint64 LogRequireResponse::trxid() const {
-  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireResponse.trxID)
-  return trxid_;
+inline ::google::protobuf::int64 LogRequireResponse::trxid_s_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireResponse.trxID_s_id)
+  return trxid_s_id_;
 }
-inline void LogRequireResponse::set_trxid(::google::protobuf::uint64 value) {
-  set_has_trxid();
-  trxid_ = value;
-  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireResponse.trxID)
+inline void LogRequireResponse::set_trxid_s_id(::google::protobuf::int64 value) {
+  set_has_trxid_s_id();
+  trxid_s_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireResponse.trxID_s_id)
+}
+
+// optional int64 trxID_m_id = 6;
+inline bool LogRequireResponse::has_trxid_m_id() const {
+  return (_has_bits_[0] & 0x00000008u) != 0;
+}
+inline void LogRequireResponse::set_has_trxid_m_id() {
+  _has_bits_[0] |= 0x00000008u;
+}
+inline void LogRequireResponse::clear_has_trxid_m_id() {
+  _has_bits_[0] &= ~0x00000008u;
+}
+inline void LogRequireResponse::clear_trxid_m_id() {
+  trxid_m_id_ = GOOGLE_LONGLONG(0);
+  clear_has_trxid_m_id();
+}
+inline ::google::protobuf::int64 LogRequireResponse::trxid_m_id() const {
+  // @@protoc_insertion_point(field_get:MMLP_BRPC.LogRequireResponse.trxID_m_id)
+  return trxid_m_id_;
+}
+inline void LogRequireResponse::set_trxid_m_id(::google::protobuf::int64 value) {
+  set_has_trxid_m_id();
+  trxid_m_id_ = value;
+  // @@protoc_insertion_point(field_set:MMLP_BRPC.LogRequireResponse.trxID_m_id)
 }
 
 #ifdef __GNUC__

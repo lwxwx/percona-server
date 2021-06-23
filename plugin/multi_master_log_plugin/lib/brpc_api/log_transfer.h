@@ -22,7 +22,7 @@
 #include <queue>
 #include <mutex>
 
-#define BRPC_HANDLE_DEBUG 0
+#define BRPC_HANDLE_DEBUG 1
 
 // #define DEFAULT_ARG_POOL_SIZE 50;
 
@@ -112,7 +112,8 @@ class LogTransfer
     int sync_send_log(TrxLog & log,uint64_t * latency_ptr);
 
 	//log require function
-    int async_require_log(TrxID trx_id, uint64_t * latency_ptr,MessageHandle * handle_prt);
+    // int async_require_log(TrxID trx_id, uint64_t * latency_ptr,MessageHandle * handle_prt);
+    int async_require_log(UnifID trx_id, uint64_t * latency_ptr,MessageHandle * handle_prt);
 	
 	//send or require arg pool
     int get_send_async_arg(MMLP_BRPC::LogSendResponse * & res,brpc::Controller * & cntrl);
@@ -130,4 +131,3 @@ void OnLogRequireRPCDone(MMLP_BRPC::LogRequireResponse * response, brpc::Control
 void debug_print_SendRequest(const MMLP_BRPC::LogSendRequest & res);
 
 #endif
-

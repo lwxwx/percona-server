@@ -20,9 +20,12 @@ message TrxLogMsg
 
 message LogSendRequest
 {
-    required uint64 trxID = 1;
-    required bool is_valid = 2;
-    repeated TrxLogMsg log_msg = 3;
+    // required uint64 trxID = 1;
+    required int32 trxID_part_id = 1;
+    required int64 trxID_s_id = 2;
+    required int64 trxID_m_id = 3;
+    required bool is_valid = 4;
+    repeated TrxLogMsg log_msg = 5;
 };
 
 message LogSendResponse
@@ -32,7 +35,12 @@ message LogSendResponse
 
 message LogRequireRequest
 {
-    required uint64 trxID = 1;
+    // required uint64 trxID = 1;
+    
+    required int32 trxID_part_id = 1;
+    optional int64 trxID_own_id = 2;
+    // optional int64 trxID_s_id = 2;
+    // optional int64 trxID_m_id = 3;
 };
 
 message LogRequireResponse
@@ -40,7 +48,11 @@ message LogRequireResponse
     required sint32 require_reply = 1;
     required bool is_valid = 2;
     repeated TrxLogMsg log_msg = 3;
-	optional uint64 trxID = 4;
+	// optional uint64 trxID = 4;
+    
+    optional int32 trxID_part_id = 4;
+    optional int64 trxID_s_id = 5;
+    optional int64 trxID_m_id = 6;
 };
 
 service TrxLogService {

@@ -1,16 +1,35 @@
-syntax="proto2";
-package IDIncrement;
-
-option cc_generic_services = true;
-
-message IDRequest {
-      required string message = 1;
-};
-
-message IDResponse {
-      required string message = 1;
-};
-
-service IDService {
-      rpc IDInc(IDRequest) returns (IDResponse);
-};
+/*
+ * @Author: liu
+ * @Date: 2021-04-08
+ * @LastEditors: Do not edit
+ * @LastEditTime: 2021-05-27
+ * @Description: file content
+ * @FilePath: /Percona-tool/id-increment/part-coordinator/id.proto
+ */
+ 
+ syntax="proto2";
+ package IDIncrement;
+ 
+ option cc_generic_services = true;
+ 
+ message IDRequest {
+       required string page_table_no = 1;
+       // repeated int32 part_id = 2;
+ };
+ 
+ // message PartMessage {
+ //       required int64 s_id = 1;//单分区id
+ //       required int64 m_id = 2;//跨分区id 
+ // };
+ 
+ message IDResponse {
+       required int32 part_id = 1;//分区序号
+       required int64 s_id = 2;//单分区id
+       required int64 m_id = 3;//跨分区id   
+       // map<int32,PartMessage> either_part_tsn = 4;//只有p0需要   
+ };
+ 
+ service IDService {
+       rpc IDInc(IDRequest) returns (IDResponse);
+ };
+ 

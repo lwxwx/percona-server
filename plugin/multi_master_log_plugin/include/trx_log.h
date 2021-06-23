@@ -57,8 +57,8 @@ class TrxLog
 
 		TrxLog()
 		{
-			trx_no = 0;
-			snapshot_state = 0;
+			trx_no = {0,0,0};
+			snapshot_state = {0,0,0};
 			trx_is_started = false;
 			trx_is_commited = false;
 			trx_is_rollback = false;

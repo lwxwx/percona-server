@@ -10,6 +10,10 @@
 #include "mml_plugin_functions.h"
 
 int mml_plugin_interface_active = -1;
+// //@liu-try test
+// std::map<int,TrxID> each_part_laster_tsn;
+// std::mutex tsn_map_lock;
+// //liu-try-end
 
 int (*mml_plugin_trx_start_ptr)() = NULL;
 int (*mml_plugin_mtr_redo_record_add_ptr)(plugin_mlog_id_t type,plugin_space_id_t space_id,plugin_page_no_t page_no,plugin_page_offset_t offset) = NULL;

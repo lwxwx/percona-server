@@ -65,6 +65,10 @@ void OnLogRequireRPCDone(MMLP_BRPC::LogRequireResponse * response, brpc::Control
 	}
 	else
 	{
+        // if(DEBUG_CODE != 0)
+        // {
+        //     std::cout << "success get log [" << response->trxid_part_id() << "-" << response->trxid_s_id() << "-" << response->trxid_m_id() << "]\n";
+        // }
 		require_response_handle->handle(NULL , response);
 		// SUCCESS COUNT AND TIME
 		if(DEBUG_LOG_REQUIRE_TIME != 0)
@@ -73,7 +77,7 @@ void OnLogRequireRPCDone(MMLP_BRPC::LogRequireResponse * response, brpc::Control
 			log_require_async_rpc_time += cntl->latency_us();
 		}
 #if BRPC_HANDLE_DEBUG
-		std::cout << TRANSFER_DEBUG_HEADER << "Success to send Log Require Request :" << cntl->latency_us() << std::endl;
+		std::cout << TRANSFER_DEBUG_HEADER << "Success to send Log Require Request :" << cntl->latency_us() << "get log [" <<response->trxid_part_id() << "-" << response->trxid_s_id() << "-" << response->trxid_m_id() << "]" << std::endl;
 #endif
 	}
 	transfer->return_to_require_pool(cntl, response);
@@ -98,7 +102,7 @@ void TrxLogService_impl::sendLog(::google::protobuf::RpcController* controller,
     int result = send_service_message_handle_ptr->handle((void*)request,(void*)response);
 
 #if BRPC_HANDLE_DEBUG
-    std::cout << TRANSFER_DEBUG_HEADER <<"Send Request Handle Result: " << result <<std::endl;
+    std::cout << TRANSFER_DEBUG_HEADER <<"Send Request Handle Result: " << result << "success get log [" << request->trxid_part_id() << "-" << request->trxid_s_id() << "-" << request->trxid_m_id() <<"]" <<std::endl;
 #endif
 
     response->set_send_reply(result); // recive success
@@ -114,10 +118,17 @@ void TrxLogService_impl::requireLog(::google::protobuf::RpcController* controlle
 	int result = require_service_message_handle_ptr->handle((void*)request,(void*)response);
 
 #if BRPC_HANDLE_DEBUG
-	std::cout << TRANSFER_DEBUG_HEADER << "Require Request Handle Result: " << result << std::endl;	
+	std::cout << TRANSFER_DEBUG_HEADER << "Require Request Handle Result: " << result << "require log[" << request->trxid_part_id() <<"-" << request->trxid_own_id() <<"]" <<std::endl;
 #endif
-	response->set_trxid(request->trxid());
+	// response->set_trxid(request->trxid());
+    response->set_trxid_part_id(request->trxid_part_id());
+    response->set_trxid_s_id(request->trxid_own_id());
+    response->set_trxid_m_id(request->trxid_own_id());
 	response->set_require_reply(result);
+    // if(DEBUG_CODE != 0)
+    // {
+    //     std::cout << "success send log required [" <<request->trxid_part_id()<< "-" << request->trxid_s_id() << "-" << request->trxid_m_id() << "] result = "<<result << std::endl;
+    // }
 }
 
 /**
@@ -300,7 +311,10 @@ int LogTransfer::sync_send_log(TrxLog & trxlog,uint64_t * latency_ptr)
     ::MMLP_BRPC::LogSendRequest request;
     ::MMLP_BRPC::LogSendResponse response;
 
-    request.set_trxid(trxlog.get_trxID());
+    // request.set_trxid(trxlog.get_trxID());    
+    request.set_trxid_part_id(trxlog.get_trxID().p_id);
+    request.set_trxid_s_id(trxlog.get_trxID().s_id);
+    request.set_trxid_m_id(trxlog.get_trxID().m_id);
     //request.set_trxlogmsg(msg);
     request.set_is_valid(!trxlog.get_rollback_status());
     trxlog.trx_log_encode_into_msg(request);
@@ -340,7 +354,10 @@ int LogTransfer::async_send_log(TrxLog & trxlog,uint64_t * latency_ptr)
     }
 
     ::MMLP_BRPC::LogSendRequest request;
-    request.set_trxid(trxlog.get_trxID());
+    // request.set_trxid(trxlog.get_trxID());
+    request.set_trxid_part_id(trxlog.get_trxID().p_id);
+    request.set_trxid_s_id(trxlog.get_trxID().s_id);
+    request.set_trxid_m_id(trxlog.get_trxID().m_id);
    // request.set_trxlogmsg(msg);
     request.set_is_valid(!trxlog.get_rollback_status());
     trxlog.trx_log_encode_into_msg(request);
@@ -359,7 +376,7 @@ int LogTransfer::async_send_log(TrxLog & trxlog,uint64_t * latency_ptr)
             *latency_ptr = cntrl_ptr->latency_us();
         }
 #if BRPC_HANDLE_DEBUG
-        std::cout << TRANSFER_DEBUG_HEADER << "ASYNC(not done) SYNC SEND LOG SUCCESS " << std::endl;
+        std::cout << TRANSFER_DEBUG_HEADER << "ASYNC(not done) SYNC SEND LOG SUCCESS " << trxlog.get_trxID() << std::endl;
 #endif
         return 1;
     }
@@ -408,7 +425,7 @@ int LogTransfer::return_to_require_pool(brpc::Controller *cntrl, MMLP_BRPC::LogR
 	return 1;
 }
 
-int LogTransfer::async_require_log(TrxID trx_id, uint64_t *latency_ptr,MessageHandle * require_response_handle)
+int LogTransfer::async_require_log(UnifID trx_id, uint64_t *latency_ptr,MessageHandle * require_response_handle)
 {
     if(check_failed_connections_and_retry() < 0)
     {
@@ -417,8 +434,16 @@ int LogTransfer::async_require_log(TrxID trx_id, uint64_t *latency_ptr,MessageHa
     }
 
 	::MMLP_BRPC::LogRequireRequest request;
-	request.set_trxid(trx_id);
+	// request.set_trxid(trx_id);
+    request.set_trxid_part_id(trx_id.p_id);
+    request.set_trxid_own_id(trx_id.own_id);
+    // request.set_trxid_s_id(trx_id.s_id);
+    // request.set_trxid_m_id(trx_id.m_id);
 	
+    // if(DEBUG_CODE != 0)
+    // {
+    //     std::cout << "async_require_log" <<std::endl;
+    // }
 	brpc::Controller * cntrl_ptr = NULL;
 	::MMLP_BRPC::LogRequireResponse * response_ptr = NULL;
 	get_require_async_arg(response_ptr, cntrl_ptr);
@@ -433,7 +458,7 @@ int LogTransfer::async_require_log(TrxID trx_id, uint64_t *latency_ptr,MessageHa
 			*latency_ptr =  cntrl_ptr->latency_us();
 		}
 #if BRPC_HANDLE_DEBUG
-	std::cout << TRANSFER_DEBUG_HEADER << "ASYNC(not done) REQUIRE LOG SUCCESS " << std::endl;
+	std::cout << TRANSFER_DEBUG_HEADER << "ASYNC(not done) REQUIRE LOG SUCCESS " << trx_id << std::endl;
 #endif
 	}
 	else
@@ -454,7 +479,8 @@ int LogTransfer::async_require_log(TrxID trx_id, uint64_t *latency_ptr,MessageHa
 void debug_print_SendRequest(const MMLP_BRPC::LogSendRequest & res)
 {
     std::cout << "MMLP_BPRC::LogSendRequest "<< std::endl << "{" << std::endl;
-    std::cout << "  TrxID : " << res.trxid() << std::endl;
+    // std::cout << "  Trxid : " << res.trxid() << std::endl;
+    std::cout << "  Trxid : " << res.trxid_part_id() << " " << res.trxid_s_id() << " " << res.trxid_m_id() << std::endl;
     std::cout << "  is_valid : " << res.is_valid() << std::endl;
     std::cout << "  TrxLogMsg : " << std::endl <<"      [ " << std::endl;
     for(int i = 0 ; i < res.log_msg_size() ; i++)
